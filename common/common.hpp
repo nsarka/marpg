@@ -1,7 +1,12 @@
 #pragma once
 
+#include <tmxlite/Map.hpp>
+#include <tmxlite/TileLayer.hpp>
+#include <tmxlite/detail/Log.hpp>
+
 #include <SFML/Graphics.hpp>
 #include <SFML/Network.hpp>
+
 #include <string>
 #include <vector>
 
