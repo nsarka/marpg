@@ -1,4 +1,5 @@
 #include "common/common.hpp"
+#include "common/map_layer.hpp"
 
 #include <SFML/Graphics.hpp>
 #include <SFML/Network.hpp>
@@ -240,6 +241,13 @@ int main(int argc, char** argv) {
     int connectedCount = 1;
     bool haveReceivedFirstWorld = false;
 
+    tmx::Map map;
+    map.load("assets/tiled/Sample.tmx");
+
+    MapLayer layerZero(map, 0);
+    MapLayer layerOne(map, 1);
+    MapLayer layerTwo(map, 2);
+
     while (window.isOpen()) {
         const float dt = clock.restart().asSeconds();
 
@@ -343,6 +351,10 @@ int main(int argc, char** argv) {
         }
 
         window.clear(sf::Color(30, 30, 30));
+
+        window.draw(layerZero);
+        window.draw(layerOne);
+        window.draw(layerTwo);
 
         for (const auto& collectible : collectibles) {
             if (!collectible.active) {
