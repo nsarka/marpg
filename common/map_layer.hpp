@@ -14,7 +14,6 @@
 
 #include <tmxlite/Map.hpp>
 #include <tmxlite/TileLayer.hpp>
-#include <tmxlite/detail/Log.hpp>
 
 #include <array>
 #include <cmath>
@@ -33,35 +32,6 @@ public:
     MapLayer(const tmx::Map& map, std::size_t idx)
     {
         const auto& layers = map.getLayers();
-
-        std::cout << "Map has " << layers.size() << " layers\n";
-        for (std::size_t i = 0; i < layers.size(); ++i)
-        {
-            std::cout << "Layer " << i
-                    << " name=\"" << layers[i]->getName() << "\""
-                    << " type=";
-
-            switch (layers[i]->getType())
-            {
-            case tmx::Layer::Type::Tile:
-                std::cout << "Tile";
-                break;
-            case tmx::Layer::Type::Object:
-                std::cout << "Object";
-                break;
-            case tmx::Layer::Type::Image:
-                std::cout << "Image";
-                break;
-            case tmx::Layer::Type::Group:
-                std::cout << "Group";
-                break;
-            default:
-                std::cout << "Other";
-                break;
-            }
-
-            std::cout << '\n';
-        }
 
         if (map.getOrientation() != tmx::Orientation::Isometric)
         {
@@ -82,19 +52,30 @@ public:
         }
 
         const auto tileSize = map.getTileSize();
-        m_chunkSize.x = std::floor(m_chunkSize.x / tileSize.x) * tileSize.x;
-        m_chunkSize.y = std::floor(m_chunkSize.y / tileSize.y) * tileSize.y;
+        m_mapTileSize = {tileSize.x, tileSize.y};
+        m_mapTileCount = {map.getTileCount().x, map.getTileCount().y};
 
-        m_mapTileSize.x = tileSize.x;
-        m_mapTileSize.y = tileSize.y;
+        // Keep chunk size aligned to whole tiles
+        m_chunkSize.x = std::floor(m_chunkSize.x / static_cast<float>(tileSize.x)) * static_cast<float>(tileSize.x);
+        m_chunkSize.y = std::floor(m_chunkSize.y / static_cast<float>(tileSize.y)) * static_cast<float>(tileSize.y);
 
         const auto& layer = layers[idx]->getLayerAs<tmx::TileLayer>();
         createChunks(map, layer);
 
-        std::cout << "Registered tile visuals: " << m_tileVisuals.size() << "\n";
+        // Approximate screen-space bounds for an isometric diamond map.
+        const float halfW = static_cast<float>(m_mapTileSize.x) * 0.5f;
+        const float halfH = static_cast<float>(m_mapTileSize.y) * 0.5f;
+        const float mapPixelWidth = static_cast<float>(m_mapTileCount.x + m_mapTileCount.y) * halfW;
+        const float mapPixelHeight = static_cast<float>(m_mapTileCount.x + m_mapTileCount.y) * halfH;
 
-        const auto mapSize = map.getBounds();
-        m_globalBounds.size = {mapSize.width, mapSize.height};
+        m_globalBounds.position = {
+            -static_cast<float>(m_mapTileCount.y) * halfW,
+            0.f
+        };
+        m_globalBounds.size = {
+            mapPixelWidth,
+            mapPixelHeight
+        };
     }
 
     ~MapLayer() = default;
@@ -146,9 +127,9 @@ public:
 
     void update(sf::Time elapsed)
     {
-        for (auto* chunk : m_visibleChunks)
+        for (auto& chunkPtr : m_chunks)
         {
-            for (AnimationState& as : chunk->getActiveAnimations())
+            for (AnimationState& as : chunkPtr->getActiveAnimations())
             {
                 as.currentTime += elapsed;
 
@@ -199,7 +180,7 @@ private:
         sf::Vector2f drawSize{0.f, 0.f};
     };
 
-    class Chunk final : public sf::Transformable, public sf::Drawable
+    class Chunk final : public sf::Drawable
     {
     public:
         using Ptr = std::unique_ptr<Chunk>;
@@ -207,40 +188,40 @@ private:
 
         Chunk(const tmx::TileLayer& layer,
               const std::map<std::uint32_t, TileVisual>& tileVisuals,
-              const sf::Vector2f& position,
-              const sf::Vector2f& tileCount,
+              const sf::Vector2u& startTile,
+              const sf::Vector2u& tileCount,
               const sf::Vector2u& tileSize,
               std::size_t rowSize,
               const std::map<std::uint32_t, tmx::Tileset::Tile>& animTiles)
             : m_tileVisuals(tileVisuals)
             , m_animTiles(animTiles)
+            , m_startTile(startTile)
+            , m_chunkTileCount(tileCount)
+            , m_mapTileSize(tileSize)
+            , m_chunkScreenOrigin(tileToScreen(startTile.x, startTile.y, tileSize))
         {
-            setPosition(position);
-
             m_layerOpacity = static_cast<std::uint8_t>(layer.getOpacity() * 255.f);
 
             const auto offset = layer.getOffset();
             m_layerOffset = {static_cast<float>(offset.x), static_cast<float>(offset.y)};
-            m_chunkTileCount = {tileCount.x, tileCount.y};
-            m_mapTileSize = tileSize;
 
             const sf::Color vertColour{200, 200, 200, m_layerOpacity};
             const auto& tileIDs = layer.getTiles();
 
-            const std::size_t xPos = static_cast<std::size_t>(position.x / tileSize.x);
-            const std::size_t yPos = static_cast<std::size_t>(position.y / tileSize.y);
-
-            for (std::size_t y = yPos; y < yPos + static_cast<std::size_t>(tileCount.y); ++y)
+            for (std::uint32_t localY = 0; localY < tileCount.y; ++localY)
             {
-                for (std::size_t x = xPos; x < xPos + static_cast<std::size_t>(tileCount.x); ++x)
+                for (std::uint32_t localX = 0; localX < tileCount.x; ++localX)
                 {
-                    const auto idx = (y * rowSize + x);
+                    const std::size_t mapX = static_cast<std::size_t>(startTile.x + localX);
+                    const std::size_t mapY = static_cast<std::size_t>(startTile.y + localY);
+                    const std::size_t idx = mapY * rowSize + mapX;
+
                     m_chunkTileIDs.push_back(tileIDs[idx]);
                     m_chunkColors.push_back(vertColour);
                 }
             }
 
-            generateTiles(false);
+            generateTiles(true);
         }
 
         ~Chunk() = default;
@@ -331,51 +312,15 @@ private:
             }
         };
 
-        std::uint8_t m_layerOpacity = 255;
-        sf::Vector2f m_layerOffset{0.f, 0.f};
-        sf::Vector2u m_mapTileSize{0u, 0u};
-        sf::Vector2f m_chunkTileCount{0.f, 0.f};
-
-        std::vector<tmx::TileLayer::Tile> m_chunkTileIDs;
-        std::vector<sf::Color> m_chunkColors;
-
-        const std::map<std::uint32_t, TileVisual>& m_tileVisuals;
-        std::map<std::uint32_t, tmx::Tileset::Tile> m_animTiles;
-        std::vector<AnimationState> m_activeAnimations;
-        std::map<std::string, ChunkArray::Ptr> m_chunkArrays;
-
-        ChunkArray& getOrCreateChunkArray(const TileVisual& visual)
+        static sf::Vector2f tileToScreen(std::uint32_t tileX, std::uint32_t tileY, const sf::Vector2u& tileSize)
         {
-            auto found = m_chunkArrays.find(visual.textureKey);
-            if (found != m_chunkArrays.end())
-            {
-                return *found->second;
-            }
+            const float halfW = static_cast<float>(tileSize.x) * 0.5f;
+            const float halfH = static_cast<float>(tileSize.y) * 0.5f;
 
-            auto array = std::make_unique<ChunkArray>(*visual.texture);
-            auto* raw = array.get();
-            m_chunkArrays.emplace(visual.textureKey, std::move(array));
-            return *raw;
-        }
-
-        void maybeRegenerate(bool refresh)
-        {
-            if (!refresh)
-            {
-                return;
-            }
-
-            for (auto& [_, array] : m_chunkArrays)
-            {
-                array->reset();
-            }
-
-            generateTiles();
-        }
-
-        std::int32_t calcIndexFrom(std::int32_t x, std::int32_t y) const
-        {
-            return x + y * static_cast<std::int32_t>(m_chunkTileCount.x);
+            return {
+                (static_cast<float>(tileX) - static_cast<float>(tileY)) * halfW,
+                (static_cast<float>(tileX) + static_cast<float>(tileY)) * halfH
+            };
         }
 
         static void flipY(sf::Vector2f* v0, sf::Vector2f* v1, sf::Vector2f* v2, sf::Vector2f* v3, sf::Vector2f* v4, sf::Vector2f* v5)
@@ -478,6 +423,40 @@ private:
             }
         }
 
+        ChunkArray& getOrCreateChunkArray(const TileVisual& visual)
+        {
+            auto found = m_chunkArrays.find(visual.textureKey);
+            if (found != m_chunkArrays.end())
+            {
+                return *found->second;
+            }
+
+            auto array = std::make_unique<ChunkArray>(*visual.texture);
+            auto* raw = array.get();
+            m_chunkArrays.emplace(visual.textureKey, std::move(array));
+            return *raw;
+        }
+
+        void maybeRegenerate(bool refresh)
+        {
+            if (!refresh)
+            {
+                return;
+            }
+
+            for (auto& [_, array] : m_chunkArrays)
+            {
+                array->reset();
+            }
+
+            generateTiles();
+        }
+
+        std::int32_t calcIndexFrom(std::int32_t x, std::int32_t y) const
+        {
+            return x + y * static_cast<std::int32_t>(m_chunkTileCount.x);
+        }
+
         void generateTiles(bool registerAnimation = false)
         {
             if (registerAnimation)
@@ -486,17 +465,17 @@ private:
             }
 
             std::uint32_t idx = 0;
-            const std::uint32_t xPos = static_cast<std::uint32_t>(getPosition().x / m_mapTileSize.x);
-            const std::uint32_t yPos = static_cast<std::uint32_t>(getPosition().y / m_mapTileSize.y);
-
-            for (std::uint32_t y = yPos; y < yPos + static_cast<std::uint32_t>(m_chunkTileCount.y); ++y)
+            for (std::uint32_t localY = 0; localY < m_chunkTileCount.y; ++localY)
             {
-                for (std::uint32_t x = xPos; x < xPos + static_cast<std::uint32_t>(m_chunkTileCount.x); ++x)
+                for (std::uint32_t localX = 0; localX < m_chunkTileCount.x; ++localX)
                 {
                     if (idx >= m_chunkTileIDs.size())
                     {
                         return;
                     }
+
+                    const std::uint32_t mapX = m_startTile.x + localX;
+                    const std::uint32_t mapY = m_startTile.y + localY;
 
                     const auto tile = m_chunkTileIDs[idx];
                     if (tile.ID == 0)
@@ -523,43 +502,44 @@ private:
                             as.animTile = animIt->second;
                             as.startTime = sf::milliseconds(0);
                             as.currentTime = sf::milliseconds(0);
-                            as.tileCoords = {x, y};
+                            as.tileCoords = {mapX, mapY};
                             as.flipFlags = tile.flipFlags;
                             m_activeAnimations.push_back(as);
                         }
                     }
 
-                    const sf::Vector2f worldTileOffset{
-                        static_cast<float>(x) * static_cast<float>(m_mapTileSize.x),
-                        static_cast<float>(y) * static_cast<float>(m_mapTileSize.y)
-                            + static_cast<float>(m_mapTileSize.y)
-                            - visual.drawSize.y
+                    const sf::Vector2f isoBase = tileToScreen(mapX, mapY, m_mapTileSize);
+
+                    // Anchor tiles by bottom-center onto the isometric tile base.
+                    const sf::Vector2f worldTopLeft{
+                        isoBase.x + (static_cast<float>(m_mapTileSize.x) - visual.drawSize.x) * 0.5f,
+                        isoBase.y + static_cast<float>(m_mapTileSize.y) - visual.drawSize.y
                     };
 
-                    const sf::Vector2f localOffset = worldTileOffset - getPosition();
+                    const sf::Vector2f localTopLeft = worldTopLeft - m_chunkScreenOrigin;
 
                     Tile quad =
                     {
-                        sf::Vertex{localOffset, m_chunkColors[idx], visual.texTopLeft},
+                        sf::Vertex{localTopLeft, m_chunkColors[idx], visual.texTopLeft},
                         sf::Vertex{
-                            localOffset + sf::Vector2f{visual.drawSize.x, 0.f},
+                            localTopLeft + sf::Vector2f{visual.drawSize.x, 0.f},
                             m_chunkColors[idx],
                             visual.texTopLeft + sf::Vector2f{visual.texSize.x, 0.f}
                         },
                         sf::Vertex{
-                            localOffset + visual.drawSize,
+                            localTopLeft + visual.drawSize,
                             m_chunkColors[idx],
                             visual.texTopLeft + visual.texSize
                         },
 
-                        sf::Vertex{localOffset, m_chunkColors[idx], visual.texTopLeft},
+                        sf::Vertex{localTopLeft, m_chunkColors[idx], visual.texTopLeft},
                         sf::Vertex{
-                            localOffset + visual.drawSize,
+                            localTopLeft + visual.drawSize,
                             m_chunkColors[idx],
                             visual.texTopLeft + visual.texSize
                         },
                         sf::Vertex{
-                            localOffset + sf::Vector2f{0.f, visual.drawSize.y},
+                            localTopLeft + sf::Vector2f{0.f, visual.drawSize.y},
                             m_chunkColors[idx],
                             visual.texTopLeft + sf::Vector2f{0.f, visual.texSize.y}
                         }
@@ -577,19 +557,36 @@ private:
 
         void draw(sf::RenderTarget& rt, sf::RenderStates states) const override
         {
-            states.transform *= getTransform();
-            states.transform.translate(m_layerOffset);
+            states.transform.translate(m_chunkScreenOrigin + m_layerOffset);
 
             for (const auto& [_, array] : m_chunkArrays)
             {
                 rt.draw(*array, states);
             }
         }
+
+        std::uint8_t m_layerOpacity = 255;
+        sf::Vector2f m_layerOffset{0.f, 0.f};
+
+        std::map<std::string, ChunkArray::Ptr> m_chunkArrays;
+        const std::map<std::uint32_t, TileVisual>& m_tileVisuals;
+
+        std::vector<tmx::TileLayer::Tile> m_chunkTileIDs;
+        std::vector<sf::Color> m_chunkColors;
+
+        std::map<std::uint32_t, tmx::Tileset::Tile> m_animTiles;
+        std::vector<AnimationState> m_activeAnimations;
+
+        sf::Vector2u m_startTile{0u, 0u};
+        sf::Vector2u m_chunkTileCount{0u, 0u};
+        sf::Vector2u m_mapTileSize{0u, 0u};
+        sf::Vector2f m_chunkScreenOrigin{0.f, 0.f};
     };
 
-    sf::Vector2f m_chunkSize{512.f, 512.f};
+    sf::Vector2f m_chunkSize{512.f, 512.f}; // measured in map tile pixels for chunk partitioning
     sf::Vector2u m_chunkCount{0u, 0u};
     sf::Vector2u m_mapTileSize{0u, 0u};
+    sf::Vector2u m_mapTileCount{0u, 0u};
     sf::FloatRect m_globalBounds;
     sf::Vector2f m_offset{0.f, 0.f};
 
@@ -746,13 +743,14 @@ private:
 
     Chunk::Ptr& getChunkAndTransform(std::int32_t x, std::int32_t y, sf::Vector2u& chunkRelative)
     {
-        const std::uint32_t chunkX = (x * m_mapTileSize.x) / static_cast<std::uint32_t>(m_chunkSize.x);
-        const std::uint32_t chunkY = (y * m_mapTileSize.y) / static_cast<std::uint32_t>(m_chunkSize.y);
+        const std::uint32_t tilesPerChunkX = static_cast<std::uint32_t>(m_chunkSize.x) / m_mapTileSize.x;
+        const std::uint32_t tilesPerChunkY = static_cast<std::uint32_t>(m_chunkSize.y) / m_mapTileSize.y;
 
-        chunkRelative.x =
-            ((x * m_mapTileSize.x) - chunkX * static_cast<std::uint32_t>(m_chunkSize.x)) / m_mapTileSize.x;
-        chunkRelative.y =
-            ((y * m_mapTileSize.y) - chunkY * static_cast<std::uint32_t>(m_chunkSize.y)) / m_mapTileSize.y;
+        const std::uint32_t chunkX = static_cast<std::uint32_t>(x) / tilesPerChunkX;
+        const std::uint32_t chunkY = static_cast<std::uint32_t>(y) / tilesPerChunkY;
+
+        chunkRelative.x = static_cast<std::uint32_t>(x) - chunkX * tilesPerChunkX;
+        chunkRelative.y = static_cast<std::uint32_t>(y) - chunkY * tilesPerChunkY;
 
         return m_chunks[chunkX + chunkY * m_chunkCount.x];
     }
@@ -793,67 +791,61 @@ private:
         }
 
         const auto bounds = map.getBounds();
+
         m_chunkCount.x = static_cast<std::uint32_t>(std::ceil(bounds.width / m_chunkSize.x));
         m_chunkCount.y = static_cast<std::uint32_t>(std::ceil(bounds.height / m_chunkSize.y));
 
-        const sf::Vector2u tileSize{map.getTileSize().x, map.getTileSize().y};
+        const std::uint32_t tilesPerChunkX = static_cast<std::uint32_t>(m_chunkSize.x) / m_mapTileSize.x;
+        const std::uint32_t tilesPerChunkY = static_cast<std::uint32_t>(m_chunkSize.y) / m_mapTileSize.y;
 
-        for (std::uint32_t y = 0; y < m_chunkCount.y; ++y)
+        for (std::uint32_t chunkY = 0; chunkY < m_chunkCount.y; ++chunkY)
         {
-            sf::Vector2f tileCount{
-                m_chunkSize.x / static_cast<float>(tileSize.x),
-                m_chunkSize.y / static_cast<float>(tileSize.y)
-            };
-
-            for (std::uint32_t x = 0; x < m_chunkCount.x; ++x)
+            for (std::uint32_t chunkX = 0; chunkX < m_chunkCount.x; ++chunkX)
             {
-                if ((x + 1u) * m_chunkSize.x > bounds.width)
+                const sf::Vector2u startTile{
+                    chunkX * tilesPerChunkX,
+                    chunkY * tilesPerChunkY
+                };
+
+                sf::Vector2u tileCount{
+                    tilesPerChunkX,
+                    tilesPerChunkY
+                };
+
+                if (startTile.x + tileCount.x > m_mapTileCount.x)
                 {
-                    tileCount.x = (bounds.width - x * m_chunkSize.x) / static_cast<float>(map.getTileSize().x);
+                    tileCount.x = m_mapTileCount.x - startTile.x;
                 }
 
-                if ((y + 1u) * m_chunkSize.y > bounds.height)
+                if (startTile.y + tileCount.y > m_mapTileCount.y)
                 {
-                    tileCount.y = (bounds.height - y * m_chunkSize.y) / static_cast<float>(map.getTileSize().y);
+                    tileCount.y = m_mapTileCount.y - startTile.y;
                 }
 
                 m_chunks.emplace_back(std::make_unique<Chunk>(
                     layer,
                     m_tileVisuals,
-                    sf::Vector2f{x * m_chunkSize.x, y * m_chunkSize.y},
+                    startTile,
                     tileCount,
-                    tileSize,
+                    m_mapTileSize,
                     map.getTileCount().x,
                     map.getAnimatedTiles()));
             }
         }
     }
 
-    void updateVisibility(const sf::View& view) const
+    void updateVisibility() const
     {
-        sf::Vector2f viewCorner = view.getCenter();
-        viewCorner -= view.getSize() / 2.f;
-
-        const std::int32_t posX = static_cast<std::int32_t>(std::floor(viewCorner.x / m_chunkSize.x));
-        const std::int32_t posY = static_cast<std::int32_t>(std::floor(viewCorner.y / m_chunkSize.y));
-        const std::int32_t posX2 = static_cast<std::int32_t>(std::ceil((viewCorner.x + view.getSize().x) / m_chunkSize.x));
-        const std::int32_t posY2 = static_cast<std::int32_t>(std::ceil((viewCorner.y + view.getSize().y) / m_chunkSize.y));
-
+        // Iso chunk culling is trickier than orth culling, and the old orth logic
+        // rejects visible chunks incorrectly. For correctness, draw all non-empty chunks.
         std::vector<Chunk*> visible;
-        for (std::int32_t y = posY; y < posY2; ++y)
-        {
-            for (std::int32_t x = posX; x < posX2; ++x)
-            {
-                if (x < 0 || y < 0)
-                {
-                    continue;
-                }
+        visible.reserve(m_chunks.size());
 
-                const std::size_t idx = static_cast<std::size_t>(x + y * static_cast<std::int32_t>(m_chunkCount.x));
-                if (idx < m_chunks.size() && !m_chunks[idx]->empty())
-                {
-                    visible.push_back(m_chunks[idx].get());
-                }
+        for (const auto& chunk : m_chunks)
+        {
+            if (!chunk->empty())
+            {
+                visible.push_back(chunk.get());
             }
         }
 
@@ -864,7 +856,7 @@ private:
     {
         states.transform.translate(m_offset);
 
-        updateVisibility(rt.getView());
+        updateVisibility();
         for (const auto* chunk : m_visibleChunks)
         {
             rt.draw(*chunk, states);
