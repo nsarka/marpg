@@ -241,12 +241,24 @@ int main(int argc, char** argv) {
     int connectedCount = 1;
     bool haveReceivedFirstWorld = false;
 
-    tmx::Map map;
-    map.load("assets/tiled/Sample.tmx");
+    //common::parseTest("../assets/tiled/Sample.tmx");
 
-    MapLayer layerZero(map, 0);
-    MapLayer layerOne(map, 1);
-    MapLayer layerTwo(map, 2);
+    tmx::Map map;
+    map.load("../assets/tiled/Sample.tmx");
+
+    MapLayer layerFloor(map, 1);
+    MapLayer layerWalls(map, 2);
+    //MapLayer layerTriggers(map, 9);
+
+    sf::Clock globalClock;
+    sf::Time duration = globalClock.restart();
+    layerWalls.update(duration);
+    layerFloor.update(duration);
+    sf::Vector2f newOffset = sf::Vector2f(-32 * 256, -16 * 512);
+    layerWalls.setOffset(newOffset);
+    layerFloor.setOffset(newOffset);
+    
+    std::cout << "global bounds=" << layerFloor.getGlobalBounds().position.x << ", " << layerFloor.getGlobalBounds().position.y << ", " << layerFloor.getGlobalBounds().size.x << ", " << layerFloor.getGlobalBounds().size.y << ", " << std::endl;
 
     while (window.isOpen()) {
         const float dt = clock.restart().asSeconds();
@@ -352,9 +364,9 @@ int main(int argc, char** argv) {
 
         window.clear(sf::Color(30, 30, 30));
 
-        window.draw(layerZero);
-        window.draw(layerOne);
-        window.draw(layerTwo);
+        window.draw(layerFloor);
+        window.draw(layerWalls);
+        //window.draw(layerTrigger);
 
         for (const auto& collectible : collectibles) {
             if (!collectible.active) {

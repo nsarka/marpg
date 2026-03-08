@@ -1,6 +1,8 @@
 #pragma once
 
 #include <tmxlite/Map.hpp>
+#include <tmxlite/ObjectGroup.hpp>
+#include <tmxlite/LayerGroup.hpp>
 #include <tmxlite/TileLayer.hpp>
 #include <tmxlite/detail/Log.hpp>
 
@@ -60,5 +62,7 @@ bool readWorldPacket(sf::Packet& packet,
                      int& connectedCount,
                      std::vector<PlayerState>& players,
                      std::vector<CollectibleState>& collectibles);
+
+void parseTest(const char *map_path);
 
 } // namespace common
