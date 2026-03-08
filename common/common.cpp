@@ -1,4 +1,4 @@
-#include "common.hpp"
+#include "common/common.hpp"
 
 #include <algorithm>
 
@@ -30,7 +30,6 @@ void writePlayerState(sf::Packet& packet, const PlayerState& player) {
 bool readPlayerState(sf::Packet& packet, PlayerState& player) {
     float x = 0.f;
     float y = 0.f;
-
     if (!(packet >> player.connected >> x >> y >> player.name >> player.score)) {
         return false;
     }
@@ -48,7 +47,6 @@ void writeCollectibleState(sf::Packet& packet, const CollectibleState& collectib
 bool readCollectibleState(sf::Packet& packet, CollectibleState& collectible) {
     float x = 0.f;
     float y = 0.f;
-
     if (!(packet >> collectible.active >> x >> y)) {
         return false;
     }
@@ -85,7 +83,6 @@ bool readWorldPacket(sf::Packet& packet,
     if (!(packet >> connectedCount >> playerCount)) {
         return false;
     }
-
     if (playerCount < 0) {
         return false;
     }
@@ -100,7 +97,6 @@ bool readWorldPacket(sf::Packet& packet,
     if (!(packet >> collectibleCount)) {
         return false;
     }
-
     if (collectibleCount < 0) {
         return false;
     }

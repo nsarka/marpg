@@ -48,3 +48,4 @@ Makefile
 cmake_install.cmake
 _deps/
 build/
+.DS_Store
