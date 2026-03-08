@@ -46,3 +46,5 @@ CMakeCache.txt
 CMakeFiles/
 Makefile
 cmake_install.cmake
+_deps/
+build/
