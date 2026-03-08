@@ -192,7 +192,7 @@ int main(int argc, char** argv) {
     sf::RenderWindow window(
         sf::VideoMode({static_cast<unsigned>(common::WINDOW_WIDTH),
                        static_cast<unsigned>(common::WINDOW_HEIGHT)}),
-        "Tiny SFML Multiplayer",
+        "MARPG: Multiplayer Action RPG",
         sf::State::Windowed
     );
     window.setFramerateLimit(60);
