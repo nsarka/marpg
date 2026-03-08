@@ -67,7 +67,7 @@ static sf::Texture makeCollectibleTexture() {
 int main(int argc, char** argv) {
     const sf::IpAddress serverIp = (argc >= 2) ? sf::IpAddress(argv[1]) : sf::IpAddress("127.0.0.1");
     const std::string myName = (argc >= 3) ? argv[2] : "Player";
-    const std::string fontPath = (argc >= 4) ? argv[3] : "arial.ttf";
+    const std::string fontPath = (argc >= 4) ? argv[3] : "assets/fonts/arial.ttf";
 
     sf::UdpSocket socket;
     if (socket.bind(sf::Socket::AnyPort) != sf::Socket::Done) {
