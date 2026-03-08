@@ -13,6 +13,7 @@
 struct ClientPlayer {
     common::PlayerState state;
     sf::Vector2f renderPos{0.f, 0.f};
+    bool renderPosInitialized = false;
 };
 
 class InputManager {
@@ -192,7 +193,7 @@ int main(int argc, char** argv) {
     sf::RenderWindow window(
         sf::VideoMode({static_cast<unsigned>(common::WINDOW_WIDTH),
                        static_cast<unsigned>(common::WINDOW_HEIGHT)}),
-        "MARPG: Multiplayer Action RPG",
+        "Tiny SFML Multiplayer",
         sf::State::Windowed
     );
     window.setFramerateLimit(60);
@@ -237,6 +238,7 @@ int main(int argc, char** argv) {
 
     sf::Clock clock;
     int connectedCount = 1;
+    bool haveReceivedFirstWorld = false;
 
     while (window.isOpen()) {
         const float dt = clock.restart().asSeconds();
@@ -251,11 +253,13 @@ int main(int argc, char** argv) {
 
         const sf::Vector2f dir = input.movement();
 
-        players[myId].state.pos += dir * common::PLAYER_SPEED * dt;
-        common::clampToPlayfield(players[myId].state.pos);
-        players[myId].renderPos = players[myId].state.pos;
+        // Only simulate locally after we have the first authoritative world snapshot.
+        if (haveReceivedFirstWorld) {
+            players[myId].state.pos += dir * common::PLAYER_SPEED * dt;
+            common::clampToPlayfield(players[myId].state.pos);
+            players[myId].renderPos = players[myId].state.pos;
+            players[myId].renderPosInitialized = true;
 
-        {
             sf::Packet statePacket;
             statePacket << std::string(common::MSG_STATE)
                         << myId
@@ -286,18 +290,52 @@ int main(int argc, char** argv) {
                     continue;
                 }
 
+                haveReceivedFirstWorld = true;
+
                 for (int i = 0; i < common::MAX_PLAYERS; ++i) {
-                    players[i].state = newStates[static_cast<std::size_t>(i)];
-                    if (i == myId && players[i].renderPos == sf::Vector2f{0.f, 0.f}) {
-                        players[i].renderPos = players[i].state.pos;
+                    const bool wasConnected = players[i].state.connected;
+                    const bool isLocal = (i == myId);
+
+                    if (isLocal) {
+                        // Keep local position/render position locally controlled.
+                        // Only accept metadata from the server.
+                        players[i].state.connected = newStates[i].connected;
+                        players[i].state.name = newStates[i].name;
+                        players[i].state.score = newStates[i].score;
+
+                        // On the first world packet, initialize the local position once.
+                        if (!players[i].renderPosInitialized) {
+                            players[i].state.pos = newStates[i].pos;
+                            players[i].renderPos = newStates[i].pos;
+                            players[i].renderPosInitialized = true;
+                        }
+                    } else {
+                        players[i].state = newStates[i];
+
+                        if (!wasConnected && players[i].state.connected) {
+                            players[i].renderPos = players[i].state.pos;
+                            players[i].renderPosInitialized = true;
+                        } else if (!players[i].renderPosInitialized) {
+                            players[i].renderPos = players[i].state.pos;
+                            players[i].renderPosInitialized = true;
+                        } else if (!players[i].state.connected) {
+                            players[i].renderPosInitialized = false;
+                        }
                     }
                 }
             }
         }
 
         for (int i = 0; i < common::MAX_PLAYERS; ++i) {
-            if (!players[i].state.connected || i == myId) {
+            if (i == myId) {
                 continue;
+            }
+            if (!players[i].state.connected) {
+                continue;
+            }
+            if (!players[i].renderPosInitialized) {
+                players[i].renderPos = players[i].state.pos;
+                players[i].renderPosInitialized = true;
             }
 
             const float t = std::clamp(common::INTERP_SPEED * dt, 0.f, 1.f);
@@ -316,6 +354,9 @@ int main(int argc, char** argv) {
 
         for (int i = 0; i < common::MAX_PLAYERS; ++i) {
             if (!players[i].state.connected) {
+                continue;
+            }
+            if (!players[i].renderPosInitialized) {
                 continue;
             }
 
