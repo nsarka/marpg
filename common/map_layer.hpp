@@ -240,7 +240,7 @@ private:
                 }
             }
 
-            generateTiles(true);
+            generateTiles(false);
         }
 
         ~Chunk() = default;
@@ -864,7 +864,7 @@ private:
     {
         states.transform.translate(m_offset);
 
-        //updateVisibility(rt.getView());
+        updateVisibility(rt.getView());
         for (const auto* chunk : m_visibleChunks)
         {
             rt.draw(*chunk, states);

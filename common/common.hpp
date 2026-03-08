@@ -18,8 +18,8 @@ inline constexpr unsigned short SERVER_PORT = 54000;
 inline constexpr int MAX_PLAYERS = 2;
 inline constexpr int NUM_COLLECTIBLES = 8;
 
-inline constexpr float WINDOW_WIDTH = 800.f;
-inline constexpr float WINDOW_HEIGHT = 600.f;
+inline constexpr float WINDOW_WIDTH = 1024.f;
+inline constexpr float WINDOW_HEIGHT = 768.f;
 
 inline constexpr float PLAYER_RADIUS = 20.f;
 inline constexpr float PICKUP_RADIUS = 14.f;

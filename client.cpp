@@ -254,7 +254,7 @@ int main(int argc, char** argv) {
     sf::Time duration = globalClock.restart();
     layerWalls.update(duration);
     layerFloor.update(duration);
-    sf::Vector2f newOffset = sf::Vector2f(-32 * 256, -16 * 512);
+    sf::Vector2f newOffset = sf::Vector2f(0, 0);
     layerWalls.setOffset(newOffset);
     layerFloor.setOffset(newOffset);
     
