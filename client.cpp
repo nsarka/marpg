@@ -254,11 +254,8 @@ int main(int argc, char** argv) {
     sf::Time duration = globalClock.restart();
     layerWalls.update(duration);
     layerFloor.update(duration);
-    sf::Vector2f newOffset = sf::Vector2f(0, 0);
-    layerWalls.setOffset(newOffset);
-    layerFloor.setOffset(newOffset);
     
-    std::cout << "global bounds=" << layerFloor.getGlobalBounds().position.x << ", " << layerFloor.getGlobalBounds().position.y << ", " << layerFloor.getGlobalBounds().size.x << ", " << layerFloor.getGlobalBounds().size.y << ", " << std::endl;
+    players[myId].renderPos = {common::WINDOW_WIDTH / 2.f, common::WINDOW_HEIGHT / 2.f};
 
     while (window.isOpen()) {
         const float dt = clock.restart().asSeconds();
@@ -276,8 +273,8 @@ int main(int argc, char** argv) {
         // Only simulate locally after we have the first authoritative world snapshot.
         if (haveReceivedFirstWorld) {
             players[myId].state.pos += dir * common::PLAYER_SPEED * dt;
-            common::clampToPlayfield(players[myId].state.pos);
-            players[myId].renderPos = players[myId].state.pos;
+            //common::clampToPlayfield(players[myId].state.pos);
+            //players[myId].renderPos = players[myId].state.pos;
             players[myId].renderPosInitialized = true;
 
             sf::Packet statePacket;
@@ -326,7 +323,7 @@ int main(int argc, char** argv) {
                         // On the first world packet, initialize the local position once.
                         if (!players[i].renderPosInitialized) {
                             players[i].state.pos = newStates[i].pos;
-                            players[i].renderPos = newStates[i].pos;
+                            //players[i].renderPos = newStates[i].pos;
                             players[i].renderPosInitialized = true;
                         }
                     } else {
@@ -364,6 +361,9 @@ int main(int argc, char** argv) {
 
         window.clear(sf::Color(30, 30, 30));
 
+        sf::Vector2f newOffset = sf::Vector2f(-players[myId].state.pos.x, -players[myId].state.pos.y);
+        layerWalls.setOffset(newOffset);
+        layerFloor.setOffset(newOffset);
         window.draw(layerFloor);
         window.draw(layerWalls);
         //window.draw(layerTrigger);

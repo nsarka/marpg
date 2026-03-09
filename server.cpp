@@ -110,7 +110,7 @@ int main() {
                     players[id].ip = *senderIp;
                     players[id].port = senderPort;
                     players[id].state.pos = {x, y};
-                    common::clampToPlayfield(players[id].state.pos);
+                    //common::clampToPlayfield(players[id].state.pos);
                 }
             }
 
