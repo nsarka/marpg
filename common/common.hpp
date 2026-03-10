@@ -15,11 +15,13 @@
 namespace common {
 
 inline constexpr unsigned short SERVER_PORT = 54000;
-inline constexpr int MAX_PLAYERS = 2;
+inline constexpr int MAX_PLAYERS = 32;
 inline constexpr int NUM_COLLECTIBLES = 8;
+inline constexpr int TICK_RATE = 64;
+inline constexpr float TICK_DT = 1.f / (float)TICK_RATE;
 
-inline constexpr float WINDOW_WIDTH = 1024.f;
-inline constexpr float WINDOW_HEIGHT = 768.f;
+inline constexpr float WINDOW_WIDTH = 1920.f;
+inline constexpr float WINDOW_HEIGHT = 1080.f;
 
 inline constexpr float PLAYER_RADIUS = 20.f;
 inline constexpr float PICKUP_RADIUS = 14.f;

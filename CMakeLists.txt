@@ -43,14 +43,14 @@ target_link_libraries(common PUBLIC
     tmxlite
 )
 
-add_executable(server server.cpp)
+add_executable(server server/server.cpp)
 target_link_libraries(server PRIVATE
     common
     SFML::System
     SFML::Network
 )
 
-add_executable(client client.cpp)
+add_executable(client client/client.cpp client/input_manager.cpp)
 target_link_libraries(client PRIVATE
     common
     SFML::System
