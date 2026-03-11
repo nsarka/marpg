@@ -35,7 +35,9 @@ inline constexpr const char* MSG_WORLD = "world";
 
 struct PlayerState {
     bool connected = false;
-    sf::Vector2f pos{0.f, 0.f};
+    bool alive = true;
+    sf::Vector2f pos{300.f, 300.f};
+    sf::Vector2f vel{0.f, 0.f};
     std::string name = "Player";
     int score = 0;
 };

@@ -1,6 +1,384 @@
 #include "common/common.hpp"
+#include "camera.hpp"
+#include "player.hpp"
+
+#include <SFML/Graphics.hpp>
+
+#include <cmath>
+#include <cstdint>
+#include <filesystem>
+#include <iostream>
+#include <optional>
+#include <vector>
+
+namespace {
+constexpr float kSimDt = 1.f / 60.f;
+constexpr float kRemoteSnapshotInterval = 0.10f; // 10 Hz fake network updates
+
+sf::Vector2f normalizeOrZero(sf::Vector2f v) {
+    const float len2 = v.x * v.x + v.y * v.y;
+    if (len2 <= 0.000001f) {
+        return {0.f, 0.f};
+    }
+
+    const float len = std::sqrt(len2);
+    return {v.x / len, v.y / len};
+}
+
+Player* chooseCameraTarget(std::vector<Player>& players, std::size_t localIndex) {
+    if (localIndex < players.size()) {
+        Player& local = players[localIndex];
+        if (local.isConnected() && local.isAlive()) {
+            return &local;
+        }
+    }
+
+    for (Player& p : players) {
+        if (p.isConnected() && p.isAlive()) {
+            return &p;
+        }
+    }
+
+    for (Player& p : players) {
+        if (p.isConnected()) {
+            return &p;
+        }
+    }
+
+    return nullptr;
+}
+} // namespace
+
+int main() {
+    sf::RenderWindow window(sf::VideoMode({1280, 720}), "Networked Player + Camera");
+    window.setFramerateLimit(144);
+
+    const std::filesystem::path assetRoot = "../assets/characters/businessman";
+    const std::filesystem::path fontPath = "../assets/fonts/arial.ttf";
+
+    sf::Font font;
+    if (!font.openFromFile(fontPath)) {
+        std::cerr << "Failed to load font: " << fontPath << '\n';
+        return 1;
+    }
+
+    sf::Shader outlineShader;
+    if (!outlineShader.loadFromFile("../shaders/sprite_outline.frag", sf::Shader::Type::Fragment)) {
+        std::cerr << "Failed to load outline shader\n";
+        return 1;
+    }
+
+    // -------------------------------------------------------------------------
+    // Camera setup
+    // -------------------------------------------------------------------------
+    Camera camera({1280.f, 720.f});
+    camera.setFollowSharpness(8.f);
+    camera.setDeadZone({60.f, 40.f});
+    camera.setWorldBounds(sf::FloatRect({-2000.f, -2000.f}, {4000.f, 4000.f}));
+
+    // -------------------------------------------------------------------------
+    // Players
+    // -------------------------------------------------------------------------
+    std::vector<Player> players;
+    players.reserve(3);
+
+    {
+        common::PlayerState s;
+        s.connected = true;
+        s.alive = true;
+        s.pos = {0.f, 0.f};
+        s.vel = {0.f, 0.f};
+        s.name = "Local";
+        s.score = 0;
+        players.emplace_back(s);
+    }
+
+    {
+        common::PlayerState s;
+        s.connected = true;
+        s.alive = true;
+        s.pos = {300.f, 150.f};
+        s.vel = {0.f, 0.f};
+        s.name = "RemoteA";
+        s.score = 0;
+        players.emplace_back(s);
+    }
+
+    {
+        common::PlayerState s;
+        s.connected = true;
+        s.alive = true;
+        s.pos = {-250.f, 220.f};
+        s.vel = {0.f, 0.f};
+        s.name = "RemoteB";
+        s.score = 0;
+        players.emplace_back(s);
+    }
+
+    const std::size_t localPlayerIndex = 0;
+
+    for (int i = 0; i < 3; i++) {
+        Player& p = players[i];
+
+        try {
+            p.loadFromAssetRoot(assetRoot);
+        } catch (const std::exception& e) {
+            std::cerr << "Failed to load player assets: " << e.what() << '\n';
+            return 1;
+        }
+
+        p.setFont(font, 18);
+        p.setSpriteScale({1.10f, 1.10f});
+        p.setOriginToFeet();
+        p.setInterpolationSharpness(14.f);
+        p.setWalkSpeed(80.f);
+        p.setRunSpeed(180.f);
+        p.teleportTo(p.state().pos);
+
+/*
+        if (i == localPlayerIndex)
+        {
+            players[i].setTint(sf::Color::White); // local player normal
+        }
+        else
+        {
+            players[i].setTint(sf::Color(255,150,150)); // remote players reddish
+        }
+*/
+        if (i == localPlayerIndex) {
+            players[i].setOutlineEnabled(false);
+            players[i].setOutlineShader(nullptr);
+        } else {
+            players[i].setOutlineEnabled(true);
+            players[i].setOutlineShader(&outlineShader);
+            players[i].setOutlineColor(sf::Color(255, 70, 70, 220));
+            players[i].setOutlineThickness(1.f);
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Timing
+    // -------------------------------------------------------------------------
+    sf::Clock frameClock;
+    float simAccumulator = 0.f;
+    float remoteSnapshotAccumulator = 0.f;
+    float elapsedTime = 0.f;
+
+    // -------------------------------------------------------------------------
+    // Main loop
+    // -------------------------------------------------------------------------
+    while (window.isOpen()) {
+        // ---------------------------------------------------------------------
+        // Render clock: real time between rendered frames
+        // ---------------------------------------------------------------------
+        const float renderDt = frameClock.restart().asSeconds();
+        simAccumulator += renderDt;
+        remoteSnapshotAccumulator += renderDt;
+        elapsedTime += renderDt;
+
+        // ---------------------------------------------------------------------
+        // Events
+        // ---------------------------------------------------------------------
+        while (const std::optional event = window.pollEvent()) {
+            if (event->is<sf::Event::Closed>()) {
+                window.close();
+            } else if (const auto* keyPressed = event->getIf<sf::Event::KeyPressed>()) {
+                switch (keyPressed->code) {
+                    case sf::Keyboard::Key::J:
+                        players[localPlayerIndex].playOneShot(Player::Anim::LeftJab);
+                        break;
+                    case sf::Keyboard::Key::K:
+                        players[localPlayerIndex].playOneShot(Player::Anim::RightHook);
+                        break;
+                    case sf::Keyboard::Key::U:
+                        players[localPlayerIndex].playOneShot(Player::Anim::Uppercut);
+                        break;
+                    case sf::Keyboard::Key::H:
+                        players[localPlayerIndex].playOneShot(Player::Anim::Damaged);
+                        break;
+                    case sf::Keyboard::Key::X: {
+                        common::PlayerState s = players[localPlayerIndex].state();
+                        s.alive = false;
+                        s.vel = {0.f, 0.f};
+                        players[localPlayerIndex].applySnapshot(s);
+                        break;
+                    }
+                    case sf::Keyboard::Key::R: {
+                        common::PlayerState s = players[localPlayerIndex].state();
+                        s.alive = true;
+                        s.pos = {0.f, 0.f};
+                        s.vel = {0.f, 0.f};
+                        players[localPlayerIndex].teleportTo(s.pos);
+                        players[localPlayerIndex].applySnapshot(s);
+                        break;
+                    }
+                    default:
+                        break;
+                }
+            }
+        }
+
+        // ---------------------------------------------------------------------
+        // Fixed simulation clock
+        // ---------------------------------------------------------------------
+        while (simAccumulator >= kSimDt) {
+            simAccumulator -= kSimDt;
+
+            // -----------------------------------------------------------------
+            // Local player simulation
+            //
+            // This is gameplay-side movement using a FIXED timestep.
+            // In a real game, this would be input -> movement -> collision ->
+            // prediction -> send input command to server.
+            // -----------------------------------------------------------------
+            Player& localPlayer = players[localPlayerIndex];
+            common::PlayerState localState = localPlayer.state();
+
+            if (localState.connected && localState.alive) {
+                sf::Vector2f moveInput{0.f, 0.f};
+
+                if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::W)) moveInput.y -= 1.f;
+                if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::S)) moveInput.y += 1.f;
+                if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::A)) moveInput.x -= 1.f;
+                if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::D)) moveInput.x += 1.f;
+
+                moveInput = normalizeOrZero(moveInput);
+
+                const bool running =
+                    sf::Keyboard::isKeyPressed(sf::Keyboard::Key::LShift) ||
+                    sf::Keyboard::isKeyPressed(sf::Keyboard::Key::RShift);
+
+                const float speed = running ? 180.f : 80.f;
+
+                localState.vel = moveInput * speed;
+                localState.pos += localState.vel * kSimDt;
+
+                // In a real client:
+                // - for the local player you might directly use prediction
+                // - for remote players you would never simulate movement from input
+                //   like this; you would wait for server snapshots
+                localPlayer.applySnapshot(localState);
+
+                if (localState.vel.x != 0.f || localState.vel.y != 0.f) {
+                    localPlayer.setFacingFromVector(localState.vel);
+                }
+            }
+
+            // -----------------------------------------------------------------
+            // Fake remote snapshots arriving over the network
+            //
+            // In a real game, these come from the server asynchronously.
+            // Here we just generate them periodically.
+            // -----------------------------------------------------------------
+            if (remoteSnapshotAccumulator >= kRemoteSnapshotInterval) {
+                remoteSnapshotAccumulator = 0.f;
+
+                // RemoteA circles
+                {
+                    common::PlayerState s = players[1].state();
+                    s.connected = true;
+                    s.alive = true;
+
+                    const float radius = 260.f;
+                    const float omega = 0.8f;
+                    const float t = elapsedTime;
+
+                    const sf::Vector2f newPos{
+                        std::cos(t * omega) * radius + 200.f,
+                        std::sin(t * omega) * radius + 100.f
+                    };
+
+                    s.vel = (newPos - s.pos) / kRemoteSnapshotInterval;
+                    s.pos = newPos;
+
+                    players[1].applySnapshot(s);
+                    if (s.vel.x != 0.f || s.vel.y != 0.f) {
+                        players[1].setFacingFromVector(s.vel);
+                    }
+                }
+
+                // RemoteB moves in a lissajous-like path
+                {
+                    common::PlayerState s = players[2].state();
+                    s.connected = true;
+                    s.alive = true;
+
+                    const float t = elapsedTime;
+                    const sf::Vector2f newPos{
+                        std::sin(t * 1.2f) * 350.f - 250.f,
+                        std::cos(t * 0.7f) * 180.f + 200.f
+                    };
+
+                    s.vel = (newPos - s.pos) / kRemoteSnapshotInterval;
+                    s.pos = newPos;
+
+                    players[2].applySnapshot(s);
+                    if (s.vel.x != 0.f || s.vel.y != 0.f) {
+                        players[2].setFacingFromVector(s.vel);
+                    }
+                }
+            }
+        }
+
+        // ---------------------------------------------------------------------
+        // Render/update phase
+        //
+        // This uses RENDER DT, not fixed simulation dt.
+        // It is for:
+        // - visual smoothing/interpolation
+        // - animation
+        // - camera smoothing
+        // ---------------------------------------------------------------------
+        for (Player& p : players) {
+            p.update(renderDt);
+        }
+
+        if (Player* target = chooseCameraTarget(players, localPlayerIndex)) {
+            camera.follow(target->renderPosition());
+        } else {
+            camera.clearFollowTarget();
+        }
+
+        camera.update(renderDt);
+        window.setView(camera.view());
+
+        // ---------------------------------------------------------------------
+        // Draw
+        // ---------------------------------------------------------------------
+        window.clear(sf::Color(30, 34, 42));
+
+        // Simple world markers/grid-ish diamonds to suggest isometric space
+        // These are in the same world/view space as the players.
+        {
+            for (int x = -1000; x <= 1000; x += 200) {
+                for (int y = -1000; y <= 1000; y += 200) {
+                    sf::CircleShape marker(3.f);
+                    marker.setOrigin({3.f, 3.f});
+                    marker.setPosition({static_cast<float>(x), static_cast<float>(y)});
+                    marker.setFillColor(sf::Color(90, 90, 110));
+                    window.draw(marker);
+                }
+            }
+        }
+
+        for (const Player& p : players) {
+            window.draw(p);
+        }
+
+        window.display();
+    }
+
+    return 0;
+}
+
+
+/*
+
+#include "common/common.hpp"
 #include "common/map_layer.hpp"
 #include "input_manager.hpp"
+#include "player.hpp"
+#include "camera.hpp"
 
 #include <SFML/Graphics.hpp>
 #include <SFML/Network.hpp>
@@ -11,11 +389,6 @@
 #include <string>
 #include <vector>
 
-struct ClientPlayer {
-    common::PlayerState state;
-    sf::Vector2f renderPos{0.f, 0.f};
-    bool renderPosInitialized = false;
-};
 
 static sf::Texture makePlayerTexture(const sf::Color& bodyColor) {
     sf::Image img({40, 40}, sf::Color::Transparent);
@@ -78,8 +451,9 @@ static bool sendPacket(sf::UdpSocket& socket,
 
 int main(int argc, char** argv) {
     const std::string serverText = (argc >= 2) ? argv[1] : "127.0.0.1";
-    const std::string myName = (argc >= 3) ? argv[2] : "Player";
-    const std::string fontPath = (argc >= 4) ? argv[3] : "../assets/fonts/arial.ttf";
+    const std::string myName = (argc >= 3) ? argv[2] : "Rick";
+
+    const std::string fontPath = "../assets/fonts/arial.ttf";
 
     const std::optional<sf::IpAddress> maybeIp = sf::IpAddress::resolve(serverText);
     if (!maybeIp) {
@@ -127,15 +501,13 @@ int main(int argc, char** argv) {
         return 0;
     }
 
-    std::cout << "Assigned player ID: " << myId << "\n";
-
     sf::RenderWindow window(
         sf::VideoMode({static_cast<unsigned>(common::WINDOW_WIDTH),
                        static_cast<unsigned>(common::WINDOW_HEIGHT)}),
         "MARPG: Multiplayer Action RPG",
         sf::State::Windowed
     );
-    window.setFramerateLimit(60);
+    window.setFramerateLimit(128);
 
     sf::Font font;
     if (!font.openFromFile(fontPath)) {
@@ -145,22 +517,13 @@ int main(int argc, char** argv) {
 
     InputManager input{window};
 
-    std::vector<ClientPlayer> players(common::MAX_PLAYERS);
+    std::vector<Player> players(common::MAX_PLAYERS);
     std::vector<common::CollectibleState> collectibles;
 
-    players[myId].state.connected = true;
-    players[myId].state.name = myName;
+    players[myId].state().connected = true;
+    players[myId].state().name = myName;
 
-    auto tex0 = makePlayerTexture(sf::Color(80, 220, 120));
-    auto tex1 = makePlayerTexture(sf::Color(80, 180, 255));
     auto collectibleTex = makeCollectibleTexture();
-
-    sf::Sprite playerSprites[] = {
-        sf::Sprite(tex0),
-        sf::Sprite(tex1)
-    };
-    playerSprites[0].setOrigin({common::PLAYER_RADIUS, common::PLAYER_RADIUS});
-    playerSprites[1].setOrigin({common::PLAYER_RADIUS, common::PLAYER_RADIUS});
 
     sf::Sprite collectibleSprite(collectibleTex);
     collectibleSprite.setOrigin({10.f, 10.f});
@@ -175,11 +538,11 @@ int main(int argc, char** argv) {
     sf::Text centerText(font, "", 28);
     centerText.setFillColor(sf::Color::White);
 
-    sf::Clock clock;
+    sf::Clock frameClock;
+    float accumulator = 0.f;
+
     int connectedCount = 1;
     bool haveReceivedFirstWorld = false;
-
-    //common::parseTest("../assets/tiled/Sample.tmx");
 
     tmx::Map map;
     map.load("../assets/tiled/Sample.tmx");
@@ -188,33 +551,30 @@ int main(int argc, char** argv) {
     MapLayer layerWalls(map, 2);
     //MapLayer layerTriggers(map, 9);
 
-    sf::Clock globalClock;
-    sf::Time duration = globalClock.restart();
-    layerWalls.update(duration);
-    layerFloor.update(duration);
-    
-    players[myId].renderPos = {common::WINDOW_WIDTH / 2.f, common::WINDOW_HEIGHT / 2.f};
+    layerWalls.update(sf::Time::Zero);
+    layerFloor.update(sf::Time::Zero);
 
-    sf::Vector2f center_window{common::WINDOW_WIDTH / 2.f, common::WINDOW_HEIGHT / 2.f};
+    Camera camera({common::WINDOW_WIDTH, common::WINDOW_HEIGHT});
+    camera.setFollowSharpness(8.f);
+    camera.setDeadZone({80.f, 50.f});
+    camera.setWorldBounds(layerFloor.getGlobalBounds());
 
     while (window.isOpen()) {
-        const float dt = clock.restart().asSeconds();
+        float frame_dt = frameClock.restart().asSeconds();
+        accumulator += frame_dt;
 
         input.handleEvents();
         const sf::Vector2f dir = input.movement();
 
         // Only simulate locally after we have the first authoritative world snapshot.
         if (haveReceivedFirstWorld) {
-            players[myId].state.pos += dir * common::PLAYER_SPEED * dt;
-            //common::clampToPlayfield(players[myId].state.pos);
-            //players[myId].renderPos = players[myId].state.pos;
-            players[myId].renderPosInitialized = true;
+            players[myId].state().pos += dir * common::PLAYER_SPEED * dt;
 
             sf::Packet statePacket;
             statePacket << std::string(common::MSG_STATE)
                         << myId
-                        << players[myId].state.pos.x
-                        << players[myId].state.pos.y;
+                        << players[myId].state().pos.x
+                        << players[myId].state().pos.y;
             sendPacket(socket, statePacket, serverIp, common::SERVER_PORT, "state send");
         }
 
@@ -243,32 +603,32 @@ int main(int argc, char** argv) {
                 haveReceivedFirstWorld = true;
 
                 for (int i = 0; i < common::MAX_PLAYERS; ++i) {
-                    const bool wasConnected = players[i].state.connected;
+                    const bool wasConnected = players[i].state().connected;
                     const bool isLocal = (i == myId);
 
                     if (isLocal) {
                         // Keep local position/render position locally controlled.
                         // Only accept metadata from the server.
-                        players[i].state.connected = newStates[i].connected;
-                        players[i].state.name = newStates[i].name;
-                        players[i].state.score = newStates[i].score;
+                        players[i].state().connected = newStates[i].connected;
+                        players[i].state().name = newStates[i].name;
+                        players[i].state().score = newStates[i].score;
 
                         // On the first world packet, initialize the local position once.
                         if (!players[i].renderPosInitialized) {
-                            players[i].state.pos = newStates[i].pos;
+                            players[i].state().pos = newStates[i].pos;
                             //players[i].renderPos = newStates[i].pos;
                             players[i].renderPosInitialized = true;
                         }
                     } else {
                         players[i].state = newStates[i];
 
-                        if (!wasConnected && players[i].state.connected) {
-                            players[i].renderPos = players[i].state.pos;
+                        if (!wasConnected && players[i].state().connected) {
+                            players[i].renderPos = players[i].state().pos;
                             players[i].renderPosInitialized = true;
                         } else if (!players[i].renderPosInitialized) {
-                            players[i].renderPos = players[i].state.pos;
+                            players[i].renderPos = players[i].state().pos;
                             players[i].renderPosInitialized = true;
-                        } else if (!players[i].state.connected) {
+                        } else if (!players[i].state().connected) {
                             players[i].renderPosInitialized = false;
                         }
                     }
@@ -276,26 +636,16 @@ int main(int argc, char** argv) {
             }
         }
 
-        for (int i = 0; i < common::MAX_PLAYERS; ++i) {
-            if (i == myId) {
-                continue;
-            }
-            if (!players[i].state.connected) {
-                continue;
-            }
-            if (!players[i].renderPosInitialized) {
-                players[i].renderPos = players[i].state.pos;
-                players[i].renderPosInitialized = true;
-            }
-
-            //const float t = std::clamp(common::INTERP_SPEED * dt, 0.f, 1.f);
-            //players[i].renderPos = common::lerp(players[i].renderPos, players[i].state.pos, t);
-            players[i].renderPos = players[i].state.pos - players[myId].state.pos + center_window;
+        // simulation step(s)
+        while (accumulator >= sim_dt) {
+            //simulate(sim_dt);
+            accumulator -= sim_dt;
         }
 
         window.clear(sf::Color(30, 30, 30));
+        window.setView(camera.view());
 
-        sf::Vector2f newOffset = sf::Vector2f(-players[myId].state.pos.x, -players[myId].state.pos.y);
+        sf::Vector2f newOffset = sf::Vector2f(-players[myId].state().pos.x, -players[myId].state().pos.y);
         layerWalls.setOffset(newOffset);
         layerFloor.setOffset(newOffset);
         window.draw(layerFloor);
@@ -306,28 +656,24 @@ int main(int argc, char** argv) {
             if (!collectible.active) {
                 continue;
             }
-            collectibleSprite.setPosition(collectible.pos - players[myId].state.pos + center_window);
+            collectibleSprite.setPosition(collectible.pos - players[myId].state().pos + center_window);
             window.draw(collectibleSprite);
         }
 
         for (int i = 0; i < common::MAX_PLAYERS; ++i) {
-            if (!players[i].state.connected) {
+            players[i].update(frame_dt);
+            if (!players[i].state().connected) {
                 continue;
             }
             if (!players[i].renderPosInitialized) {
                 continue;
             }
 
-            playerSprites[i].setPosition(players[i].renderPos);
-            window.draw(playerSprites[i]);
-
-            nameText.setString(players[i].state.name + " (" + std::to_string(players[i].state.score) + ")");
-            nameText.setPosition(players[i].renderPos + sf::Vector2f{-28.f, -42.f});
-            window.draw(nameText);
+            window.draw(player);
         }
 
         hudText.setString(
-            "You are: " + players[myId].state.name + "\n" +
+            "You are: " + players[myId].state().name + "\n" +
             "Players connected: " + std::to_string(connectedCount) + "/2\n" +
             "Move: WASD"
         );
@@ -348,3 +694,4 @@ int main(int argc, char** argv) {
 
     return 0;
 }
+*/

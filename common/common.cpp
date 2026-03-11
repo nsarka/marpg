@@ -111,6 +111,7 @@ bool readWorldPacket(sf::Packet& packet,
     return true;
 }
 
+//common::parseTest("../assets/tiled/Sample.tmx");
 void parseTest(const char *map_path)
 {
     const std::array<std::string, 4u> LayerStrings =
