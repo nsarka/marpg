@@ -4,6 +4,24 @@
 #include <SFML/System/Vector2.hpp>
 #include <optional>
 
+/*
+    Camera camera({1280.f, 720.f});
+    camera.setFollowSharpness(8.f);
+    camera.setDeadZone({60.f, 40.f});
+    camera.setWorldBounds(sf::FloatRect({-2000.f, -2000.f}, {4000.f, 4000.f}));
+
+    while (window.isOpen()) {
+        if (Player* target = chooseCameraTarget(players, localPlayerIndex)) {
+            camera.follow(target->renderPosition());
+        } else {
+            camera.clearFollowTarget();
+        }
+
+        camera.update(renderDt);
+        window.setView(camera.view());
+    }
+*/
+
 class Camera {
 public:
     Camera() = default;

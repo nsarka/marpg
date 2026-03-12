@@ -15,12 +15,6 @@ struct ServerPlayer {
     unsigned short port = 0;
 };
 
-static sf::Vector2f randomCollectiblePos() {
-    const float x = 40.f + static_cast<float>(std::rand() % 720);
-    const float y = 40.f + static_cast<float>(std::rand() % 520);
-    return {x, y};
-}
-
 static bool sendPacket(sf::UdpSocket& socket,
                        sf::Packet& packet,
                        const sf::IpAddress& ip,
@@ -46,12 +40,6 @@ int main() {
     socket.setBlocking(false);
 
     std::vector<ServerPlayer> players(common::MAX_PLAYERS);
-    std::vector<common::CollectibleState> collectibles(common::NUM_COLLECTIBLES);
-
-    for (auto& c : collectibles) {
-        c.active = true;
-        c.pos = randomCollectiblePos();
-    }
 
     std::cout << "Server listening on port " << common::SERVER_PORT << "\n";
 
@@ -123,19 +111,6 @@ int main() {
             if (!player.state.connected) {
                 continue;
             }
-
-            for (auto& collectible : collectibles) {
-                if (!collectible.active) {
-                    continue;
-                }
-
-                const float pickupDist = common::PLAYER_RADIUS + common::PICKUP_RADIUS;
-                if (common::distanceSq(player.state.pos, collectible.pos) <= pickupDist * pickupDist) {
-                    ++player.state.score;
-                    collectible.pos = randomCollectiblePos();
-                    collectible.active = true;
-                }
-            }
         }
 
         int connectedCount = 0;
@@ -157,7 +132,7 @@ int main() {
             }
 
             sf::Packet worldPacket;
-            common::writeWorldPacket(worldPacket, connectedCount, publicStates, collectibles);
+            common::writeWorldPacket(worldPacket, connectedCount, publicStates);
             sendPacket(socket, worldPacket, *player.ip, player.port, "world send");
         }
 

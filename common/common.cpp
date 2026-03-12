@@ -4,6 +4,30 @@
 
 namespace common {
 
+static const std::unordered_map<AttackKind, AttackDesc> kAttackTable{
+    {AttackKind::Jab, {
+        .startupTicks = 3,
+        .activeTicks = 2,
+        .recoveryTicks = 8,
+        .range = 70.f,
+        .damage = 10
+    }},
+    {AttackKind::Hook, {
+        .startupTicks = 5,
+        .activeTicks = 2,
+        .recoveryTicks = 10,
+        .range = 80.f,
+        .damage = 15
+    }},
+    {AttackKind::Uppercut, {
+        .startupTicks = 6,
+        .activeTicks = 3,
+        .recoveryTicks = 14,
+        .range = 75.f,
+        .damage = 20
+    }}
+};
+
 float distanceSq(const sf::Vector2f& a, const sf::Vector2f& b) {
     const float dx = a.x - b.x;
     const float dy = a.y - b.y;
@@ -12,11 +36,6 @@ float distanceSq(const sf::Vector2f& a, const sf::Vector2f& b) {
 
 sf::Vector2f lerp(const sf::Vector2f& a, const sf::Vector2f& b, float t) {
     return a + (b - a) * t;
-}
-
-void clampToPlayfield(sf::Vector2f& pos, float radius) {
-    pos.x = std::clamp(pos.x, radius, WINDOW_WIDTH - radius);
-    pos.y = std::clamp(pos.y, radius, WINDOW_HEIGHT - radius);
 }
 
 void writePlayerState(sf::Packet& packet, const PlayerState& player) {
@@ -38,27 +57,9 @@ bool readPlayerState(sf::Packet& packet, PlayerState& player) {
     return true;
 }
 
-void writeCollectibleState(sf::Packet& packet, const CollectibleState& collectible) {
-    packet << collectible.active
-           << collectible.pos.x
-           << collectible.pos.y;
-}
-
-bool readCollectibleState(sf::Packet& packet, CollectibleState& collectible) {
-    float x = 0.f;
-    float y = 0.f;
-    if (!(packet >> collectible.active >> x >> y)) {
-        return false;
-    }
-
-    collectible.pos = {x, y};
-    return true;
-}
-
 void writeWorldPacket(sf::Packet& packet,
                       int connectedCount,
-                      const std::vector<PlayerState>& players,
-                      const std::vector<CollectibleState>& collectibles) {
+                      const std::vector<PlayerState>& players) {
     packet << std::string(MSG_WORLD);
     packet << connectedCount;
 
@@ -66,19 +67,12 @@ void writeWorldPacket(sf::Packet& packet,
     for (const auto& player : players) {
         writePlayerState(packet, player);
     }
-
-    packet << static_cast<int>(collectibles.size());
-    for (const auto& collectible : collectibles) {
-        writeCollectibleState(packet, collectible);
-    }
 }
 
 bool readWorldPacket(sf::Packet& packet,
                      int& connectedCount,
-                     std::vector<PlayerState>& players,
-                     std::vector<CollectibleState>& collectibles) {
+                     std::vector<PlayerState>& players) {
     int playerCount = 0;
-    int collectibleCount = 0;
 
     if (!(packet >> connectedCount >> playerCount)) {
         return false;
@@ -90,20 +84,6 @@ bool readWorldPacket(sf::Packet& packet,
     players.resize(static_cast<std::size_t>(playerCount));
     for (int i = 0; i < playerCount; ++i) {
         if (!readPlayerState(packet, players[static_cast<std::size_t>(i)])) {
-            return false;
-        }
-    }
-
-    if (!(packet >> collectibleCount)) {
-        return false;
-    }
-    if (collectibleCount < 0) {
-        return false;
-    }
-
-    collectibles.resize(static_cast<std::size_t>(collectibleCount));
-    for (int i = 0; i < collectibleCount; ++i) {
-        if (!readCollectibleState(packet, collectibles[static_cast<std::size_t>(i)])) {
             return false;
         }
     }
