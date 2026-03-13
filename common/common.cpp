@@ -28,32 +28,31 @@ static const std::unordered_map<AttackKind, AttackDesc> kAttackTable{
     }}
 };
 
-float distanceSq(const sf::Vector2f& a, const sf::Vector2f& b) {
-    const float dx = a.x - b.x;
-    const float dy = a.y - b.y;
-    return dx * dx + dy * dy;
-}
-
-sf::Vector2f lerp(const sf::Vector2f& a, const sf::Vector2f& b, float t) {
-    return a + (b - a) * t;
-}
-
 void writePlayerState(sf::Packet& packet, const PlayerState& player) {
     packet << player.connected
+           << player.alive
            << player.pos.x
            << player.pos.y
+           << player.vel.x
+           << player.vel.y
            << player.name
+           << player.health
            << player.score;
 }
 
 bool readPlayerState(sf::Packet& packet, PlayerState& player) {
     float x = 0.f;
     float y = 0.f;
-    if (!(packet >> player.connected >> x >> y >> player.name >> player.score)) {
+    float dx = 0.f;
+    float dy = 0.f;
+
+    if (!(packet >> player.connected >> x >> y >> dx >> dy >> player.name >> player.health >> player.score)) {
         return false;
     }
 
     player.pos = {x, y};
+    player.vel = {dx, dy};
+
     return true;
 }
 

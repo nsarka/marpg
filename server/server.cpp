@@ -1,4 +1,5 @@
 #include "common/common.hpp"
+#include "common/logger.hpp"
 
 #include <SFML/Network.hpp>
 
@@ -30,6 +31,10 @@ static bool sendPacket(sf::UdpSocket& socket,
 }
 
 int main() {
+    common::Logger logger;
+
+    logger.info() << "Server started";
+
     std::srand(static_cast<unsigned>(std::time(nullptr)));
 
     sf::UdpSocket socket;
@@ -98,7 +103,6 @@ int main() {
                     players[id].ip = *senderIp;
                     players[id].port = senderPort;
                     players[id].state.pos = {x, y};
-                    //common::clampToPlayfield(players[id].state.pos);
                 }
             }
 

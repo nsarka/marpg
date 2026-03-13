@@ -22,15 +22,12 @@ inline constexpr float TICK_DT = 1.f / (float)TICK_RATE;
 inline constexpr float WINDOW_WIDTH = 1024.f;
 inline constexpr float WINDOW_HEIGHT = 768.f;
 
-inline constexpr float PLAYER_RADIUS = 20.f;
-inline constexpr float PICKUP_RADIUS = 14.f;
-inline constexpr float PLAYER_SPEED = 220.f;
-inline constexpr float INTERP_SPEED = 10.f;
-
 inline constexpr const char* MSG_JOIN = "join";
 inline constexpr const char* MSG_JOIN_ACK = "join_ack";
 inline constexpr const char* MSG_STATE = "state";
 inline constexpr const char* MSG_WORLD = "world";
+
+using PlayerId = std::uint32_t;
 
 enum class AttackKind : std::uint8_t {
     None = 0,
@@ -61,7 +58,7 @@ struct AttackState {
     bool hasHitThisSwing = false;
 };
 
-struct PlayerState {
+typedef struct PlayerState {
     bool connected = false;
     bool alive = true;
     sf::Vector2f pos{300.f, 300.f};
@@ -69,18 +66,11 @@ struct PlayerState {
     std::string name = "Player";
     int health = 100;
     int score = 0;
-    struct AttackState attack_state{};
-};
-
-float distanceSq(const sf::Vector2f& a, const sf::Vector2f& b);
-sf::Vector2f lerp(const sf::Vector2f& a, const sf::Vector2f& b, float t);
-void clampToPlayfield(sf::Vector2f& pos, float radius = PLAYER_RADIUS);
+    //struct AttackState attack{};
+} PlayerState;
 
 void writePlayerState(sf::Packet& packet, const PlayerState& player);
 bool readPlayerState(sf::Packet& packet, PlayerState& player);
-
-void writeCollectibleState(sf::Packet& packet);
-bool readCollectibleState(sf::Packet& packet);
 
 void writeWorldPacket(sf::Packet& packet,
                       int connectedCount,

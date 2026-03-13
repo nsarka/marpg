@@ -1,27 +1,23 @@
 #pragma once
 
 #include "common/common.hpp"
+#include "resource_manager.hpp"
 
 #include <SFML/Graphics/Color.hpp>
 #include <SFML/Graphics/Drawable.hpp>
 #include <SFML/Graphics/Font.hpp>
+#include <SFML/Graphics/Rect.hpp>
 #include <SFML/Graphics/RenderStates.hpp>
 #include <SFML/Graphics/RenderTarget.hpp>
+#include <SFML/Graphics/Shader.hpp>
 #include <SFML/Graphics/Sprite.hpp>
 #include <SFML/Graphics/Text.hpp>
-#include <SFML/Graphics/Texture.hpp>
-#include <SFML/Graphics/Rect.hpp>
 #include <SFML/System/Vector2.hpp>
-#include <SFML/Graphics/Shader.hpp>
 
-#include <array>
 #include <cstddef>
 #include <cstdint>
-#include <filesystem>
 #include <optional>
 #include <string>
-#include <vector>
-
 
 class Player : public sf::Drawable {
 public:
@@ -60,14 +56,9 @@ public:
         Count
     };
 
-    struct Frame {
-        sf::IntRect rect{};
-        float durationSeconds = 0.1f;
-    };
-
     explicit Player(common::PlayerState initialState = {});
 
-    void loadFromAssetRoot(const std::filesystem::path& root);
+    void setCharacterAnimations(const ResourceManager::CharacterAnimations& animations);
 
     void setFont(const sf::Font& font, unsigned int characterSize = 16);
     void setNameColor(sf::Color color);
@@ -105,17 +96,6 @@ public:
     bool isConnected() const;
 
 private:
-    struct Clip {
-        sf::Texture texture;
-        std::vector<Frame> frames;
-        bool looping = true;
-    };
-
-    struct AnimSet {
-        std::array<Clip, 8> byFacing{};
-        bool loaded = false;
-    };
-
     static constexpr std::size_t kAnimCount =
         static_cast<std::size_t>(Anim::Count);
 
@@ -130,16 +110,8 @@ private:
     static float lengthSquared(sf::Vector2f v);
     static Facing8 vectorToFacing8(sf::Vector2f dir);
 
-    static void parseFramesFromJson(const std::filesystem::path& jsonPath,
-                                    std::vector<Frame>& outFrames);
-
-    void loadAnimationSet(const std::filesystem::path& root,
-                          Anim anim,
-                          const std::string& baseName,
-                          bool looping);
-
-    Clip& currentClip();
-    const Clip& currentClip() const;
+    const ResourceManager::Clip& currentClip() const;
+    const ResourceManager::Clip& currentClip();
 
     void setAnimation(Anim anim, bool restart);
     void refreshCurrentFrame();
@@ -154,7 +126,7 @@ private:
 private:
     common::PlayerState m_state{};
 
-    std::array<AnimSet, kAnimCount> m_anims{};
+    const ResourceManager::CharacterAnimations* m_anims = nullptr;
 
     std::optional<sf::Sprite> m_sprite;
     std::optional<sf::Text> m_nameText;

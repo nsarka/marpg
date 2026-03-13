@@ -1,6 +1,9 @@
 #include "common/common.hpp"
 #include "camera.hpp"
 #include "player.hpp"
+#include "client_connection.hpp"
+#include "common/logger.hpp"
+#include "common/map_layer.hpp"
 
 #include <SFML/Graphics.hpp>
 
@@ -50,21 +53,28 @@ Player* chooseCameraTarget(std::vector<Player>& players, std::size_t localIndex)
 } // namespace
 
 int main() {
+    common::Logger logger;
+
+    logger.info() << "Client started";
+
     sf::RenderWindow window(sf::VideoMode({1280, 720}), "Networked Player + Camera");
     window.setFramerateLimit(144);
 
     const std::filesystem::path assetRoot = "../assets/characters/businessman";
-    const std::filesystem::path fontPath = "../assets/fonts/arial.ttf";
+    const std::filesystem::path fontPath  = "../assets/fonts/arial.ttf";
+    const std::filesystem::path fragPath  = "../shaders/sprite_outline.frag";
 
-    sf::Font font;
-    if (!font.openFromFile(fontPath)) {
-        std::cerr << "Failed to load font: " << fontPath << '\n';
+    ResourceManager resources(logger);
+
+    if (!resources.loadFont("ui", fontPath)) {
         return 1;
     }
 
-    sf::Shader outlineShader;
-    if (!outlineShader.loadFromFile("../shaders/sprite_outline.frag", sf::Shader::Type::Fragment)) {
-        std::cerr << "Failed to load outline shader\n";
+    if (!resources.loadFragmentShader("sprite_outline", fragPath)) {
+        return 1;
+    }
+
+    if (!resources.loadBusinessmanCharacter("businessman", assetRoot)) {
         return 1;
     }
 
@@ -75,6 +85,28 @@ int main() {
     camera.setFollowSharpness(8.f);
     camera.setDeadZone({60.f, 40.f});
     camera.setWorldBounds(sf::FloatRect({-2000.f, -2000.f}, {4000.f, 4000.f}));
+
+    // -------------------------------------------------------------------------
+    // Client connection
+    // -------------------------------------------------------------------------
+    // ClientConnection conn{logger};
+    common::PlayerId myId = 0;
+    // if(myId = conn.connectToServer() == -1) {
+    //     return 1;
+    // }
+
+    // -------------------------------------------------------------------------
+    // Level setup
+    // -------------------------------------------------------------------------
+    tmx::Map map;
+    map.load("../assets/tiled/Sample.tmx");
+
+    MapLayer layerFloor(map, 1);
+    MapLayer layerWalls(map, 2);
+    //MapLayer layerTriggers(map, 9);
+
+    layerWalls.update(sf::Time::Zero);
+    layerFloor.update(sf::Time::Zero);
 
     // -------------------------------------------------------------------------
     // Players
@@ -120,14 +152,8 @@ int main() {
     for (int i = 0; i < 3; i++) {
         Player& p = players[i];
 
-        try {
-            p.loadFromAssetRoot(assetRoot);
-        } catch (const std::exception& e) {
-            std::cerr << "Failed to load player assets: " << e.what() << '\n';
-            return 1;
-        }
-
-        p.setFont(font, 18);
+        p.setCharacterAnimations(resources.getCharacterAnimations("businessman"));
+        p.setFont(resources.getFont("ui"));
         p.setSpriteScale({1.10f, 1.10f});
         p.setOriginToFeet();
         p.setInterpolationSharpness(14.f);
@@ -135,24 +161,14 @@ int main() {
         p.setRunSpeed(180.f);
         p.teleportTo(p.state().pos);
 
-/*
-        if (i == localPlayerIndex)
-        {
-            players[i].setTint(sf::Color::White); // local player normal
-        }
-        else
-        {
-            players[i].setTint(sf::Color(255,150,150)); // remote players reddish
-        }
-*/
         if (i == localPlayerIndex) {
-            players[i].setOutlineEnabled(false);
-            players[i].setOutlineShader(nullptr);
+            p.setOutlineEnabled(false);
+            p.setOutlineShader(nullptr);
         } else {
-            players[i].setOutlineEnabled(true);
-            players[i].setOutlineShader(&outlineShader);
-            players[i].setOutlineColor(sf::Color(255, 70, 70, 220));
-            players[i].setOutlineThickness(1.f);
+            p.setOutlineEnabled(true);
+            p.setOutlineShader(&resources.getShader("sprite_outline"));
+            p.setOutlineColor(sf::Color(255, 70, 70, 220));
+            p.setOutlineThickness(1.f);
         }
     }
 
@@ -329,6 +345,10 @@ int main() {
         // - animation
         // - camera smoothing
         // ---------------------------------------------------------------------
+        sf::Vector2f newOffset = sf::Vector2f(-players[myId].state().pos.x, -players[myId].state().pos.y);
+        layerWalls.setOffset(newOffset);
+        layerFloor.setOffset(newOffset);
+
         for (Player& p : players) {
             p.update(renderDt);
         }
@@ -347,19 +367,9 @@ int main() {
         // ---------------------------------------------------------------------
         window.clear(sf::Color(30, 34, 42));
 
-        // Simple world markers/grid-ish diamonds to suggest isometric space
-        // These are in the same world/view space as the players.
-        {
-            for (int x = -1000; x <= 1000; x += 200) {
-                for (int y = -1000; y <= 1000; y += 200) {
-                    sf::CircleShape marker(3.f);
-                    marker.setOrigin({3.f, 3.f});
-                    marker.setPosition({static_cast<float>(x), static_cast<float>(y)});
-                    marker.setFillColor(sf::Color(90, 90, 110));
-                    window.draw(marker);
-                }
-            }
-        }
+        window.draw(layerFloor);
+        window.draw(layerWalls);
+        //window.draw(layerTrigger);
 
         for (const Player& p : players) {
             window.draw(p);
@@ -389,65 +399,6 @@ int main() {
 #include <string>
 #include <vector>
 
-
-static sf::Texture makePlayerTexture(const sf::Color& bodyColor) {
-    sf::Image img({40, 40}, sf::Color::Transparent);
-
-    const sf::Vector2f center{20.f, 20.f};
-    const float radius = 18.f;
-
-    for (unsigned y = 0; y < 40; ++y) {
-        for (unsigned x = 0; x < 40; ++x) {
-            const float dx = static_cast<float>(x) - center.x;
-            const float dy = static_cast<float>(y) - center.y;
-            const float d2 = dx * dx + dy * dy;
-
-            if (d2 <= radius * radius) {
-                img.setPixel({x, y}, bodyColor);
-            }
-        }
-    }
-
-    img.setPixel({14, 15}, sf::Color::Black);
-    img.setPixel({26, 15}, sf::Color::Black);
-
-    return sf::Texture(img);
-}
-
-static sf::Texture makeCollectibleTexture() {
-    sf::Image img({20, 20}, sf::Color::Transparent);
-
-    const sf::Vector2f center{10.f, 10.f};
-    const float radius = 8.f;
-
-    for (unsigned y = 0; y < 20; ++y) {
-        for (unsigned x = 0; x < 20; ++x) {
-            const float dx = static_cast<float>(x) - center.x;
-            const float dy = static_cast<float>(y) - center.y;
-            const float d2 = dx * dx + dy * dy;
-
-            if (d2 <= radius * radius) {
-                img.setPixel({x, y}, sf::Color::Yellow);
-            }
-        }
-    }
-
-    return sf::Texture(img);
-}
-
-static bool sendPacket(sf::UdpSocket& socket,
-                       sf::Packet& packet,
-                       const sf::IpAddress& ip,
-                       unsigned short port,
-                       const char* context) {
-    const sf::Socket::Status status = socket.send(packet, ip, port);
-    if (status != sf::Socket::Status::Done) {
-        std::cerr << context << " failed with socket status "
-                  << static_cast<int>(status) << '\n';
-        return false;
-    }
-    return true;
-}
 
 int main(int argc, char** argv) {
     const std::string serverText = (argc >= 2) ? argv[1] : "127.0.0.1";
