@@ -285,14 +285,14 @@ void Player::setFacingFromVector(sf::Vector2f dir)
     refreshCurrentFrame();
 }
 
-void Player::update(float dtSeconds, sf::Vector2f& offset)
+void Player::update(float dtSeconds)
 {
     if (!m_anims) {
         return;
     }
 
     const float alpha = 1.f - std::exp(-m_interpSharpness * dtSeconds);
-    m_renderPos += (m_targetPos - m_renderPos + offset) * alpha;
+    m_renderPos += (m_targetPos - m_renderPos) * alpha;
 
     if (m_sprite) {
         m_sprite->setPosition(m_renderPos);

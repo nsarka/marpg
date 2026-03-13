@@ -83,7 +83,7 @@ public:
     void applySnapshot(const common::PlayerState& snapshot);
     void teleportTo(sf::Vector2f position);
 
-    void update(float dtSeconds, sf::Vector2f& offset);
+    void update(float dtSeconds);
 
     void playOneShot(Anim anim);
     void setFacingFromVector(sf::Vector2f dir);

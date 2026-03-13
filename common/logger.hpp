@@ -13,6 +13,14 @@
 // ============================================================
 
 std::ostream& operator<<(std::ostream& os, const sf::Vector2f& v);
+
+template <typename T>
+std::ostream& operator<<(std::ostream& os, const sf::Rect<T>& rect)
+{
+    os << "(x=" << rect.position.x << ", y=" << rect.position.y << ", w= " << rect.size.x << ", h=" << rect.size.y << ")";
+    return os;
+}
+
 std::ostream& operator<<(std::ostream& os, const common::PlayerState& p);
 
 namespace common {

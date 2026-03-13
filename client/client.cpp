@@ -15,7 +15,6 @@
 #include <vector>
 
 namespace {
-constexpr float kSimDt = 1.f / 60.f;
 constexpr float kRemoteSnapshotInterval = 0.10f; // 10 Hz fake network updates
 
 sf::Vector2f normalizeOrZero(sf::Vector2f v) {
@@ -50,6 +49,19 @@ Player* chooseCameraTarget(std::vector<Player>& players, std::size_t localIndex)
 
     return nullptr;
 }
+
+sf::RectangleShape makeOutlinedRect(const sf::FloatRect& rect,
+                                    float thickness = 2.f,
+                                    sf::Color color = sf::Color::Red)
+{
+    sf::RectangleShape shape(rect.size);
+    shape.setPosition(rect.position);
+    shape.setFillColor(sf::Color::Transparent);
+    shape.setOutlineThickness(thickness);
+    shape.setOutlineColor(color);
+    return shape;
+}
+
 } // namespace
 
 int main() {
@@ -57,7 +69,7 @@ int main() {
 
     logger.info() << "Client started";
 
-    sf::RenderWindow window(sf::VideoMode({1280, 720}), "Networked Player + Camera");
+    sf::RenderWindow window(sf::VideoMode({(int)common::WINDOW_WIDTH, (int)common::WINDOW_HEIGHT}), "Networked Player + Camera");
     window.setFramerateLimit(144);
 
     const std::filesystem::path assetRoot = "../assets/characters/businessman";
@@ -79,14 +91,6 @@ int main() {
     }
 
     // -------------------------------------------------------------------------
-    // Camera setup
-    // -------------------------------------------------------------------------
-    Camera camera({1280.f, 720.f});
-    camera.setFollowSharpness(8.f);
-    camera.setDeadZone({60.f, 40.f});
-    camera.setWorldBounds(sf::FloatRect({-2000.f, -2000.f}, {4000.f, 4000.f}));
-
-    // -------------------------------------------------------------------------
     // Client connection
     // -------------------------------------------------------------------------
     // ClientConnection conn{logger};
@@ -100,13 +104,22 @@ int main() {
     // -------------------------------------------------------------------------
     tmx::Map map;
     map.load("../assets/tiled/Sample.tmx");
-
     MapLayer layerFloor(map, 1);
     MapLayer layerWalls(map, 2);
     //MapLayer layerTriggers(map, 9);
-
     layerWalls.update(sf::Time::Zero);
     layerFloor.update(sf::Time::Zero);
+    logger.log_info("World bounds: ", layerFloor.getGlobalBounds());
+
+    // -------------------------------------------------------------------------
+    // Camera setup
+    // -------------------------------------------------------------------------
+    sf::FloatRect layerBounds = layerFloor.getGlobalBounds();
+    sf::FloatRect oldBounds = sf::FloatRect({-2000.f, -2000.f}, {4000.f, 4000.f});
+    Camera camera({common::WINDOW_WIDTH, common::WINDOW_HEIGHT});
+    camera.setFollowSharpness(8.f);
+    camera.setDeadZone({60.f, 40.f});
+    camera.setWorldBounds(oldBounds);
 
     // -------------------------------------------------------------------------
     // Players
@@ -118,7 +131,7 @@ int main() {
         common::PlayerState s;
         s.connected = true;
         s.alive = true;
-        s.pos = {0.f, 0.f};
+        s.pos = {100.f, 100.f};
         s.vel = {0.f, 0.f};
         s.name = "Local";
         s.score = 0;
@@ -237,8 +250,8 @@ int main() {
         // ---------------------------------------------------------------------
         // Fixed simulation clock
         // ---------------------------------------------------------------------
-        while (simAccumulator >= kSimDt) {
-            simAccumulator -= kSimDt;
+        while (simAccumulator >= common::TICK_DT) {
+            simAccumulator -= common::TICK_DT;
 
             // -----------------------------------------------------------------
             // Local player simulation
@@ -267,7 +280,7 @@ int main() {
                 const float speed = running ? 180.f : 80.f;
 
                 localState.vel = moveInput * speed;
-                localState.pos += localState.vel * kSimDt;
+                localState.pos += localState.vel * common::TICK_DT;
 
                 // In a real client:
                 // - for the local player you might directly use prediction
@@ -278,6 +291,8 @@ int main() {
                 if (localState.vel.x != 0.f || localState.vel.y != 0.f) {
                     localPlayer.setFacingFromVector(localState.vel);
                 }
+
+                logger.log_info("Player pos: ", localState.pos);
             }
 
             // -----------------------------------------------------------------
@@ -345,12 +360,8 @@ int main() {
         // - animation
         // - camera smoothing
         // ---------------------------------------------------------------------
-        sf::Vector2f newOffset = sf::Vector2f(-players[myId].state().pos.x, -players[myId].state().pos.y);
-        layerWalls.setOffset(newOffset);
-        layerFloor.setOffset(newOffset);
-
         for (Player& p : players) {
-            p.update(renderDt, newOffset);
+            p.update(renderDt);
         }
 
         if (Player* target = chooseCameraTarget(players, localPlayerIndex)) {
@@ -374,6 +385,15 @@ int main() {
         for (const Player& p : players) {
             window.draw(p);
         }
+
+        // Draw debug rectangles in world space
+        window.draw(makeOutlinedRect(layerBounds, 2.f, sf::Color::Green));
+        window.draw(makeOutlinedRect(oldBounds, 2.f, sf::Color::Red));
+        window.draw(makeOutlinedRect(sf::FloatRect({0.f, 0.f}, {100.f, 100.f}), 2.f, sf::Color::Blue));
+
+        // Draw debug rectangles in screen space
+        window.setView(window.getDefaultView()); // back to screen-space
+        window.draw(makeOutlinedRect(sf::FloatRect({common::WINDOW_WIDTH / 2, common::WINDOW_HEIGHT / 2}, {120.f, 80.f}), 2.f, sf::Color::Black));
 
         window.display();
     }

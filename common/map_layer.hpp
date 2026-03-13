@@ -115,16 +115,6 @@ public:
         return selectedChunk->getColor(chunkLocale.x, chunkLocale.y);
     }
 
-    void setOffset(sf::Vector2f offset)
-    {
-        m_offset = offset;
-    }
-
-    sf::Vector2f getOffset() const
-    {
-        return m_offset;
-    }
-
     void update(sf::Time elapsed)
     {
         for (auto& chunkPtr : m_chunks)
@@ -854,8 +844,6 @@ private:
 
     void draw(sf::RenderTarget& rt, sf::RenderStates states) const override
     {
-        states.transform.translate(m_offset);
-
         updateVisibility();
         for (const auto* chunk : m_visibleChunks)
         {

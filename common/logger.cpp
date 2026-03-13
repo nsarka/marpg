@@ -6,7 +6,7 @@
 #include <iostream>
 
 // ============================================================
-// Struct stream operators
+// Struct stream operators (templated operators are defined in the header, not just declared)
 // ============================================================
 
 std::ostream& operator<<(std::ostream& os, const sf::Vector2f& v)
