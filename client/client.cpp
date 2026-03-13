@@ -350,7 +350,7 @@ int main() {
         layerFloor.setOffset(newOffset);
 
         for (Player& p : players) {
-            p.update(renderDt);
+            p.update(renderDt, newOffset);
         }
 
         if (Player* target = chooseCameraTarget(players, localPlayerIndex)) {
