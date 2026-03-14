@@ -76,12 +76,11 @@ common::PlayerId ClientConnection::connectToServer(const std::string serverText,
     return myId_;
 }
 
-void ClientConnection::pumpNetwork(std::vector<Player>& players) {
+void ClientConnection::pumpNetwork(std::vector<common::PlayerState>& newStates) {
     while (true) {
         sf::Packet packet;
         std::optional<sf::IpAddress> senderIp;
         unsigned short senderPort = 0;
-        int connectedCount = 0; // nick: not really using this. it was used for the size of the players vector, but im just setting the size to MAX_PLAYERS now
 
         if (udp_socket_.receive(packet, senderIp, senderPort) != sf::Socket::Status::Done) {
             break;
@@ -91,28 +90,9 @@ void ClientConnection::pumpNetwork(std::vector<Player>& players) {
         packet >> type;
 
         if (type == common::MSG_WORLD) {
-            std::vector<common::PlayerState> newStates;
-            if (!common::readWorldPacket(packet, connectedCount, newStates)) {
+            if (!common::readWorldPacket(packet, newStates)) {
+                logger.log_error("Error reading new world states");
                 continue;
-            }
-
-            if (static_cast<int>(newStates.size()) != common::MAX_PLAYERS) {
-                continue;
-            }
-
-            for (int i = 0; i < common::MAX_PLAYERS; ++i) {
-                //const bool wasConnected = players[i].state().connected;
-                const bool isLocal = (i == myId_);
-
-                if (isLocal) {
-                    // Keep local position/render position locally controlled.
-                    // Only accept metadata from the server.
-                    players[i].state().connected = newStates[i].connected;
-                    players[i].state().name = newStates[i].name;
-                    players[i].state().score = newStates[i].score;
-                } else {
-                    players[i].state() = newStates[i];
-                }
             }
         }
     }

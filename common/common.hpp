@@ -78,7 +78,7 @@ struct InputCommand {
 struct PlayerState {
     bool connected = false;
     bool alive = true;
-    sf::Vector2f pos{300.f, -300.f};
+    sf::Vector2f pos{300.f, 300.f};
     sf::Vector2f vel{0.f, 0.f};
     std::string name = "Player";
     int health = 100;
@@ -93,11 +93,9 @@ void writePlayerState(sf::Packet& packet, const PlayerState& player);
 bool readPlayerState(sf::Packet& packet, PlayerState& player);
 
 void writeWorldPacket(sf::Packet& packet,
-                      int connectedCount,
                       const std::vector<PlayerState>& players);
 
 bool readWorldPacket(sf::Packet& packet,
-                     int& connectedCount,
                      std::vector<PlayerState>& players);
 
 void parseTest(const char *map_path);

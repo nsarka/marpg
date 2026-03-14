@@ -96,10 +96,11 @@ int main() {
     // Client connection
     // -------------------------------------------------------------------------
     ClientConnection client_conn{logger};
-    common::PlayerId myId = 0;
-    if(myId = client_conn.connectToServer() == -1) {
+    common::PlayerId myId = client_conn.connectToServer();
+    if(myId == -1) {
         return 1;
     }
+    logger.log_info("Assigned player id ", myId);
 
     // -------------------------------------------------------------------------
     // Level setup
@@ -142,7 +143,7 @@ int main() {
     // the local simulation for the client
     // -------------------------------------------------------------------------
     std::vector<Player> players{common::MAX_PLAYERS};
-    common::PlayerState simulatedLocalPlayer{.connected = true, .alive = true};
+    //common::PlayerState simulatedLocalPlayer{.connected = true, .alive = true};
 
     for (int i = 0; i < players.size(); i++) {
         Player& p = players[i];
@@ -195,8 +196,9 @@ int main() {
         // ---------------------------------------------------------------------
         // Network
         // ---------------------------------------------------------------------
-        client_conn.pumpNetwork(players);
-        simulatedLocalPlayer = players[myId].state(); // Set the sim state to the authoratative state
+        std::vector<common::PlayerState> newStates(common::MAX_PLAYERS);
+        client_conn.pumpNetwork(newStates);
+        //simulatedLocalPlayer = players[myId].state(); // Set the sim state to the authoratative state
 
         // ---------------------------------------------------------------------
         // Fixed simulation clock
@@ -215,15 +217,25 @@ int main() {
             // In a real game, this would be input -> movement -> collision ->
             // prediction -> send input command to server.
             // -----------------------------------------------------------------
-            Player& localPlayer = players[myId];
+            // Player& localPlayer = players[myId];
 
-            {
-                const float speed = input_cmd.sprint ? 180.f : 80.f;
+            // {
+            //     const float speed = input_cmd.sprint ? 180.f : 80.f;
 
-                simulatedLocalPlayer.vel = input_cmd.move * speed;
-                simulatedLocalPlayer.pos += simulatedLocalPlayer.vel * common::TICK_DT;
+            //     simulatedLocalPlayer.vel = input_cmd.move * speed;
+            //     simulatedLocalPlayer.pos += simulatedLocalPlayer.vel * common::TICK_DT;
 
-                localPlayer.applySnapshot(simulatedLocalPlayer);
+            //     localPlayer.applySnapshot(simulatedLocalPlayer);
+            // }
+
+
+            for (int i = 0; i < common::MAX_PLAYERS; i++) {
+                auto& p = players[i];
+                if (!p.state().connected) {
+                    continue;
+                }
+                p.applySnapshot(newStates[i]);
+                //logger.log_info("Player ", i, "'s state: ", p.state());
             }
         }
 
@@ -236,7 +248,11 @@ int main() {
         // - animation
         // - camera smoothing
         // ---------------------------------------------------------------------
-        for (Player& p : players) {
+        for (int i = 0; i < common::MAX_PLAYERS; i++) {
+            auto& p = players[i];
+            if (!p.state().connected) {
+                continue;
+            }
             p.update(renderDt);
         }
 
@@ -270,13 +286,17 @@ int main() {
         window.draw(layerWalls);
         //window.draw(layerTrigger);
 
-        for (const Player& p : players) {
+        for (int i = 0; i < common::MAX_PLAYERS; i++) {
+            auto& p = players[i];
+            if (!p.state().connected) {
+                continue;
+            }
             window.draw(p);
         }
 
         // Draw debug rectangles in world space
         //window.draw(makeOutlinedRect(layerBounds, 2.f, sf::Color::Green)); // doesnt show up
-        //window.draw(makeOutlinedRect(sf::FloatRect({0.f, 0.f}, {100.f, 100.f}), 2.f, sf::Color::Blue));
+        window.draw(makeOutlinedRect(sf::FloatRect({300.f, 300.f}, {100.f, 100.f}), 2.f, sf::Color::Blue));
 
         // Draw hud & debug rectangles in screen space
         window.setView(window.getDefaultView()); // back to screen-space

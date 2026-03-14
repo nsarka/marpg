@@ -29,6 +29,7 @@ static const std::unordered_map<AttackKind, AttackDesc> kAttackTable{
 };
 
 void writeInputCmd(sf::Packet& packet, const common::InputCommand& cmd) {
+    packet << std::string(MSG_STATE);
     packet << cmd.sequence
            << cmd.move.x
            << cmd.move.y
@@ -73,7 +74,7 @@ bool readPlayerState(sf::Packet& packet, PlayerState& player) {
     float dx = 0.f;
     float dy = 0.f;
 
-    if (!(packet >> player.connected >> x >> y >> dx >> dy >> player.name >> player.health >> player.score)) {
+    if (!(packet >> player.connected >> player.alive >> x >> y >> dx >> dy >> player.name >> player.health >> player.score)) {
         return false;
     }
 
@@ -84,32 +85,18 @@ bool readPlayerState(sf::Packet& packet, PlayerState& player) {
 }
 
 void writeWorldPacket(sf::Packet& packet,
-                      int connectedCount,
                       const std::vector<PlayerState>& players) {
     packet << std::string(MSG_WORLD);
-    packet << connectedCount;
 
-    packet << static_cast<int>(players.size());
-    for (const auto& player : players) {
-        writePlayerState(packet, player);
+    for (int i = 0; i < MAX_PLAYERS; ++i) {
+        writePlayerState(packet, players[i]);
     }
 }
 
 bool readWorldPacket(sf::Packet& packet,
-                     int& connectedCount,
                      std::vector<PlayerState>& players) {
-    int playerCount = 0;
-
-    if (!(packet >> connectedCount >> playerCount)) {
-        return false;
-    }
-    if (playerCount < 0) {
-        return false;
-    }
-
-    players.resize(static_cast<std::size_t>(playerCount));
-    for (int i = 0; i < playerCount; ++i) {
-        if (!readPlayerState(packet, players[static_cast<std::size_t>(i)])) {
+    for (int i = 0; i < MAX_PLAYERS; ++i) {
+        if (!readPlayerState(packet, players[i])) {
             return false;
         }
     }
