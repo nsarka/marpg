@@ -76,7 +76,7 @@ common::PlayerId ClientConnection::connectToServer(const std::string serverText,
     return myId_;
 }
 
-void ClientConnection::pumpNetwork(std::vector<common::PlayerState>& newStates) {
+void ClientConnection::pumpNetwork(std::vector<common::PlayerState>& newStates, std::vector<common::PlayerId>& joinedPlayers) {
     while (true) {
         sf::Packet packet;
         std::optional<sf::IpAddress> senderIp;
@@ -95,12 +95,20 @@ void ClientConnection::pumpNetwork(std::vector<common::PlayerState>& newStates) 
                 continue;
             }
         }
+
+        if (type == common::MSG_JOIN_ACK) {
+            common::PlayerId joined_player_id;
+            packet >> joined_player_id;
+            newStates[joined_player_id].connected = true;
+            joinedPlayers.push_back(joined_player_id);
+            logger.log_info("join ack for ", joined_player_id);
+        }
     }
 }
 
-void ClientConnection::sendInput(common::InputCommand &cmd) {
+void ClientConnection::sendInput(common::PlayerId &id, common::InputCommand &cmd) {
     sf::Packet packet;
-    common::writeInputCmd(packet, cmd);
+    common::writeInputCmd(packet, id, cmd);
     if (!sendPacket(udp_socket_, packet, serverIp_, common::SERVER_PORT, "send input cmd")) {
         logger.log_error("Error sending input command to server: ", cmd);
     }

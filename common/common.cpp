@@ -28,9 +28,10 @@ static const std::unordered_map<AttackKind, AttackDesc> kAttackTable{
     }}
 };
 
-void writeInputCmd(sf::Packet& packet, const common::InputCommand& cmd) {
+void writeInputCmd(sf::Packet& packet, const common::PlayerId& id, const common::InputCommand& cmd) {
     packet << std::string(MSG_STATE);
-    packet << cmd.sequence
+    packet << id
+           << cmd.sequence
            << cmd.move.x
            << cmd.move.y
            << cmd.sprint
@@ -42,11 +43,11 @@ void writeInputCmd(sf::Packet& packet, const common::InputCommand& cmd) {
            << cmd.hookReleased;
 }
 
-bool readInputCmd(sf::Packet& packet, common::InputCommand& cmd) {
+bool readInputCmd(sf::Packet& packet, common::PlayerId& id, common::InputCommand& cmd) {
     float moveX = 0.f;
     float moveY = 0.f;
 
-    if (!(packet >> cmd.sequence >> moveX >> moveY >> cmd.sprint >> cmd.jabHeld >> cmd.jabPressed >> cmd.jabReleased >> cmd.hookHeld >> cmd.hookPressed >> cmd.hookReleased)) {
+    if (!(packet >> id >> cmd.sequence >> moveX >> moveY >> cmd.sprint >> cmd.jabHeld >> cmd.jabPressed >> cmd.jabReleased >> cmd.hookHeld >> cmd.hookPressed >> cmd.hookReleased)) {
         return false;
     }
 

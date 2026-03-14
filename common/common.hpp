@@ -86,8 +86,8 @@ struct PlayerState {
     //struct AttackState attack{};
 };
 
-void writeInputCmd(sf::Packet& packet, const common::InputCommand& cmd);
-bool readInputCmd(sf::Packet& packet, common::InputCommand& cmd);
+void writeInputCmd(sf::Packet& packet, const common::PlayerId& id, const common::InputCommand& cmd);
+bool readInputCmd(sf::Packet& packet, common::PlayerId& id, common::InputCommand& cmd);
 
 void writePlayerState(sf::Packet& packet, const PlayerState& player);
 bool readPlayerState(sf::Packet& packet, PlayerState& player);

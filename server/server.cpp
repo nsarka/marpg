@@ -34,7 +34,8 @@ void initializeBot(std::vector<ServerPlayer>& players) {
     players[botId].state.alive = true;
     players[botId].state.connected = true;
     players[botId].state.pos.x = 350.f;
-    players[botId].state.pos.y = -350.f;
+    players[botId].state.pos.y = 350.f;
+    players[botId].state.name = "Bot";
 }
 
 } // namespace
@@ -63,6 +64,7 @@ int main() {
     float accumulator = 0.f;
     float elapsedTime = 0.0f;
     common::Tick tick = 0;
+
     while (true) {
         const float dt = frameClock.restart().asSeconds();
         accumulator += dt;
@@ -103,7 +105,15 @@ int main() {
 
                 sf::Packet reply;
                 reply << std::string(common::MSG_JOIN_ACK) << assignedId;
-                sendPacket(socket, reply, *senderIp, senderPort, "join_ack send");
+
+                // Broadcast the join ack
+                for (const auto& player : players) {
+                    if (!player.state.connected || !player.ip) {
+                        continue;
+                    }
+
+                    sendPacket(socket, reply, *player.ip, player.port, "join_ack send");
+                }
 
                 if (assignedId >= 0) {
                     logger.info() << "Join from " << senderIp->toString() << ":" << senderPort
@@ -115,14 +125,13 @@ int main() {
                 }
             } else if (type == common::MSG_STATE) {
                 common::InputCommand cmd;
-                if(!readInputCmd(packet, cmd)) {
+                common::PlayerId playerId;
+                if(!readInputCmd(packet, playerId, cmd)) {
                     logger.log_error("Error reading input command");
                 }
                 const float speed = cmd.sprint ? 180.f : 80.f;
-                const common::PlayerId playerId = 1; // nick: TODO: get this based on ip/port
                 players[playerId].state.vel = cmd.move * speed;
                 players[playerId].state.pos += players[playerId].state.vel * common::TICK_DT;
-                logger.log_info("for input cmd: ", cmd, " updated player pos to ", players[playerId].state.pos);
             }
 
             packet.clear();
@@ -130,24 +139,29 @@ int main() {
             senderPort = 0;
         }
 
-        // Update
-        for (int i = 0; i < common::MAX_PLAYERS; i++) {
-            auto& player = players[i];
-            if (!player.state.connected) {
-                continue;
-            }
+        // Fixed simulation clock
+        while (accumulator >= common::TICK_DT) {
+            accumulator -= common::TICK_DT;
+            tick++;
 
-            // Bot moves in a lissajous-like path
-            if (i == botId) {
-                common::PlayerState& s = players[botId].state;
-                const float t = elapsedTime;
-                const sf::Vector2f newPos{
-                    std::sin(t * 1.2f) * 350.f - 250.f,
-                    std::cos(t * 0.7f) * 180.f + 200.f
-                };
+            for (int i = 0; i < common::MAX_PLAYERS; i++) {
+                auto& player = players[i];
+                if (!player.state.connected) {
+                    continue;
+                }
 
-                s.vel = (newPos - s.pos) / 10.f;
-                s.pos = newPos;
+                // Bot moves in a lissajous-like path
+                if (i == botId) {
+                    common::PlayerState& s = players[botId].state;
+                    const float t = elapsedTime;
+                    const sf::Vector2f newPos{
+                        std::sin(t * 1.2f) * 350.f + 600.f,
+                        std::cos(t * 0.7f) * 180.f + 600.f
+                    };
+
+                    s.vel = (newPos - s.pos) / 0.03f;
+                    s.pos = newPos;
+                }
             }
         }
 
@@ -165,8 +179,6 @@ int main() {
             common::writeWorldPacket(worldPacket, publicStates);
             sendPacket(socket, worldPacket, *player.ip, player.port, "world send");
         }
-
-        sf::sleep(sf::seconds(common::TICK_DT));
     }
 
     return 0;

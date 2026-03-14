@@ -143,14 +143,18 @@ int main() {
     // the local simulation for the client
     // -------------------------------------------------------------------------
     std::vector<Player> players{common::MAX_PLAYERS};
+    bool shouldDrawWaitingForPlayers = true;
+    int connectedPlayers = 0; // used for setting shouldDrawWaitingForPlayers
+    std::vector<common::PlayerId> joined_players; // pushed when a player joined later than me in order to set his connected = true. popped after it gets set
     //common::PlayerState simulatedLocalPlayer{.connected = true, .alive = true};
 
-    for (int i = 0; i < players.size(); i++) {
+    // Initialize world based on what the server tells us the state is the first time
+    std::vector<common::PlayerState> newStates(common::MAX_PLAYERS);
+    client_conn.pumpNetwork(newStates, joined_players);
+    for (int i = 0; i < common::MAX_PLAYERS; i++) {
         Player& p = players[i];
 
-        if (!p.state().connected) {
-            continue;
-        }
+        p.state() = newStates[i];
 
         p.setCharacterAnimations(resources.getCharacterAnimations("businessman"));
         p.setFont(resources.getFont("ui"));
@@ -196,8 +200,12 @@ int main() {
         // ---------------------------------------------------------------------
         // Network
         // ---------------------------------------------------------------------
-        std::vector<common::PlayerState> newStates(common::MAX_PLAYERS);
-        client_conn.pumpNetwork(newStates);
+        client_conn.pumpNetwork(newStates, joined_players);
+        while(joined_players.size() > 0) {
+            const common::PlayerId p = joined_players.back();
+            joined_players.pop_back();
+            players[p].state().connected = true;
+        }
         //simulatedLocalPlayer = players[myId].state(); // Set the sim state to the authoratative state
 
         // ---------------------------------------------------------------------
@@ -208,7 +216,7 @@ int main() {
 
             // Build, send, then simulate the local player's input command
             common::InputCommand input_cmd = input.buildCommand();
-            client_conn.sendInput(input_cmd);
+            client_conn.sendInput(myId, input_cmd);
 
             // -----------------------------------------------------------------
             // Local player simulation
@@ -248,13 +256,18 @@ int main() {
         // - animation
         // - camera smoothing
         // ---------------------------------------------------------------------
+        connectedPlayers = 0;
         for (int i = 0; i < common::MAX_PLAYERS; i++) {
             auto& p = players[i];
             if (!p.state().connected) {
                 continue;
             }
+            connectedPlayers++;
             p.update(renderDt);
         }
+
+        // Me and the bot
+        shouldDrawWaitingForPlayers = (connectedPlayers <= 2);
 
         // -------------------------------------------------------------------------
         // Update hud
@@ -262,7 +275,11 @@ int main() {
         hud.setHealth(players[myId].state().health, 100.f);
         hud.setStamina(100, 100);
         //hud.setPingMs(client_conn.pingMs());
-        hud.setCenterMessage("Waiting for other players...");
+        if (shouldDrawWaitingForPlayers) {
+            hud.setCenterMessage("Waiting for other players...");
+        } else {
+            hud.clearCenterMessage();
+        }
         hud.setFps(1.f / std::max(renderDt, 0.0001f));
 
         // -------------------------------------------------------------------------
