@@ -23,6 +23,8 @@ std::ostream& operator<<(std::ostream& os, const sf::Rect<T>& rect)
 
 std::ostream& operator<<(std::ostream& os, const common::PlayerState& p);
 
+std::ostream& operator<<(std::ostream& os, const common::InputCommand& cmd);
+
 namespace common {
 
 // ============================================================

@@ -17,8 +17,12 @@ namespace {
 InputManager::InputManager(sf::RenderWindow& window)
     : window_(window) {}
 
-common::InputCommand InputManager::handleEvents() {
-    beginFrame();
+void InputManager::handleEvents() {
+    edges_.jabPressed = false;
+    edges_.jabReleased = false;
+
+    edges_.hookPressed = false;
+    edges_.hookReleased = false;
 
     while (const std::optional event = window_.pollEvent()) {
         if (event->is<sf::Event::Closed>()) {
@@ -40,28 +44,19 @@ common::InputCommand InputManager::handleEvents() {
             clearAll();
         }
     }
-
-    return buildCommand();
-}
-
-void InputManager::beginFrame() {
-    edges_.jabPressed = false;
-    edges_.jabReleased = false;
-
-    edges_.hookPressed = false;
-    edges_.hookReleased = false;
 }
 
 common::InputCommand InputManager::buildCommand() {
     common::InputCommand cmd;
     cmd.sequence = nextSequence_;
 
-    if (keys_.left)  cmd.moveX -= 1.f;
-    if (keys_.right) cmd.moveX += 1.f;
-    if (keys_.up)    cmd.moveY -= 1.f;
-    if (keys_.down)  cmd.moveY += 1.f;
+    if (keys_.left)   cmd.move.x -= 1.f;
+    if (keys_.right)  cmd.move.x += 1.f;
+    if (keys_.up)     cmd.move.y -= 1.f;
+    if (keys_.down)   cmd.move.y += 1.f;
+    if (keys_.sprint) cmd.sprint = true;
 
-    normalize2D(cmd.moveX, cmd.moveY);
+    normalize2D(cmd.move.x, cmd.move.y);
 
     cmd.jabHeld = keys_.jab;
     cmd.jabPressed = edges_.jabPressed;
@@ -98,6 +93,9 @@ void InputManager::setKey(sf::Keyboard::Key key, bool pressed) {
     }
     else if (key == sf::Keyboard::Key::D) {
         keys_.right = pressed;
+    }
+    else if (key == sf::Keyboard::Key::LShift) {
+        keys_.sprint = pressed;
     }
 }
 

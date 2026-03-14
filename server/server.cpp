@@ -5,6 +5,7 @@
 
 #include <cstdlib>
 #include <ctime>
+#include <cmath>
 #include <iostream>
 #include <optional>
 #include <string>
@@ -16,11 +17,9 @@ struct ServerPlayer {
     unsigned short port = 0;
 };
 
-static bool sendPacket(sf::UdpSocket& socket,
-                       sf::Packet& packet,
-                       const sf::IpAddress& ip,
-                       unsigned short port,
-                       const char* context) {
+namespace {
+
+bool sendPacket(sf::UdpSocket& socket, sf::Packet& packet, const sf::IpAddress& ip, unsigned short port, const char* context) {
     const sf::Socket::Status status = socket.send(packet, ip, port);
     if (status != sf::Socket::Status::Done) {
         std::cerr << context << " failed with socket status "
@@ -29,6 +28,16 @@ static bool sendPacket(sf::UdpSocket& socket,
     }
     return true;
 }
+
+common::PlayerId botId = 0;
+void initializeBot(std::vector<ServerPlayer>& players) {
+    players[botId].state.alive = true;
+    players[botId].state.connected = true;
+    players[botId].state.pos.x = 350.f;
+    players[botId].state.pos.y = -350.f;
+}
+
+} // namespace
 
 int main() {
     common::Logger logger;
@@ -39,15 +48,18 @@ int main() {
 
     sf::UdpSocket socket;
     if (socket.bind(common::SERVER_PORT) != sf::Socket::Status::Done) {
-        std::cerr << "Failed to bind server socket on port " << common::SERVER_PORT << "\n";
+        logger.log_error("Failed to bind server socket on port ", common::SERVER_PORT);
         return 1;
     }
     socket.setBlocking(false);
 
     std::vector<ServerPlayer> players(common::MAX_PLAYERS);
+    initializeBot(players);
 
-    std::cout << "Server listening on port " << common::SERVER_PORT << "\n";
+    logger.log_info("Server listening on port ", common::SERVER_PORT);
 
+    float elapsedTime = 0.0f;
+    common::Tick tick = 0;
     while (true) {
         sf::Packet packet;
         std::optional<sf::IpAddress> senderIp;
@@ -70,6 +82,7 @@ int main() {
                 for (int i = 0; i < common::MAX_PLAYERS; ++i) {
                     if (!players[i].state.connected) {
                         assignedId = i;
+                        logger.log_info("Assigned player id ", assignedId);
                         players[i].state.connected = true;
                         players[i].ip = *senderIp;
                         players[i].port = senderPort;
@@ -86,11 +99,11 @@ int main() {
                 sendPacket(socket, reply, *senderIp, senderPort, "join_ack send");
 
                 if (assignedId >= 0) {
-                    std::cout << "Join from " << senderIp->toString() << ":" << senderPort
+                    logger.info() << "Join from " << senderIp->toString() << ":" << senderPort
                               << " -> player " << assignedId
                               << " name=" << players[assignedId].state.name << "\n";
                 } else {
-                    std::cout << "Rejected join from " << senderIp->toString() << ":" << senderPort
+                    logger.info() << "Rejected join from " << senderIp->toString() << ":" << senderPort
                               << " (server full)\n";
                 }
             } else if (type == common::MSG_STATE) {
@@ -111,10 +124,23 @@ int main() {
             senderPort = 0;
         }
 
-        for (auto& player : players) {
-            if (!player.state.connected) {
-                continue;
-            }
+        // Update
+        // for (auto& player : players) {
+        //     if (!player.state.connected) {
+        //         continue;
+        //     }
+        // }
+        // RemoteB moves in a lissajous-like path
+        {
+            common::PlayerState& s = players[botId].state;
+            const float t = elapsedTime;
+            const sf::Vector2f newPos{
+                std::sin(t * 1.2f) * 350.f - 250.f,
+                std::cos(t * 0.7f) * 180.f + 200.f
+            };
+
+            s.vel = (newPos - s.pos) / 10.f;
+            s.pos = newPos;
         }
 
         int connectedCount = 0;
@@ -140,7 +166,7 @@ int main() {
             sendPacket(socket, worldPacket, *player.ip, player.port, "world send");
         }
 
-        sf::sleep(sf::milliseconds(16));
+        sf::sleep(sf::milliseconds(common::TICK_DT * 1000.f));
     }
 
     return 0;

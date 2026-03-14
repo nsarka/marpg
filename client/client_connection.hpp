@@ -22,7 +22,13 @@ public:
     [[nodiscard]] common::PlayerId connectToServer(const std::string serverText = "127.0.0.1", const std::string myName = "Rick");
     void leaveServer();
 
+    void pumpNetwork(std::vector<Player>& players);
+
+    void sendInput(common::InputCommand &cmd);
+
 private:
     common::Logger& logger;
     sf::UdpSocket udp_socket_;
+    common::PlayerId myId_;
+    sf::IpAddress serverIp_;
 };

@@ -19,6 +19,8 @@ public:
         bool left = false;
         bool right = false;
 
+        bool sprint = false; // shift
+
         bool jab = false;   // left mouse
         bool hook = false;  // right mouse
     };
@@ -38,17 +40,17 @@ public:
     InputManager(const InputManager&) = delete;
     InputManager& operator=(const InputManager&) = delete;
 
-    // Poll events and produce one command for this tick
-    common::InputCommand handleEvents();
+    // Poll events
+    void handleEvents();
+
+    // Produce one command for this tick
+    common::InputCommand buildCommand();
 
     const KeyState& keys() const;
 
     void clearAll();
 
 private:
-    void beginFrame();
-    common::InputCommand buildCommand();
-
     void setKey(sf::Keyboard::Key key, bool pressed);
     void setMouseButton(sf::Mouse::Button button, bool pressed);
 

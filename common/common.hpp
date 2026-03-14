@@ -28,6 +28,7 @@ inline constexpr const char* MSG_STATE = "state";
 inline constexpr const char* MSG_WORLD = "world";
 
 using PlayerId = std::uint32_t;
+using Tick = std::uint32_t;
 
 enum class AttackKind : std::uint8_t {
     None = 0,
@@ -61,8 +62,9 @@ struct AttackState {
 struct InputCommand {
     std::uint32_t sequence = 0;
 
-    float moveX = 0.f;
-    float moveY = 0.f;
+    sf::Vector2f move{0.f, 0.f};
+
+    bool sprint = false;
 
     bool jabHeld = false;
     bool jabPressed = false;
@@ -76,13 +78,16 @@ struct InputCommand {
 struct PlayerState {
     bool connected = false;
     bool alive = true;
-    sf::Vector2f pos{300.f, 300.f};
+    sf::Vector2f pos{300.f, -300.f};
     sf::Vector2f vel{0.f, 0.f};
     std::string name = "Player";
     int health = 100;
     int score = 0;
     //struct AttackState attack{};
 };
+
+void writeInputCmd(sf::Packet& packet, const common::InputCommand& cmd);
+bool readInputCmd(sf::Packet& packet, common::InputCommand& cmd);
 
 void writePlayerState(sf::Packet& packet, const PlayerState& player);
 bool readPlayerState(sf::Packet& packet, PlayerState& player);
