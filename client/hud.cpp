@@ -216,7 +216,7 @@ void Hud::draw(sf::RenderTarget& target) const {
     target.draw(m_staminaBack);
     target.draw(m_staminaFill);
 
-    target.draw(m_ammoText);
+    //target.draw(m_ammoText); // TODO
     target.draw(m_pingText);
     target.draw(m_fpsText);
 

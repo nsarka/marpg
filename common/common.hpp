@@ -58,7 +58,22 @@ struct AttackState {
     bool hasHitThisSwing = false;
 };
 
-typedef struct PlayerState {
+struct InputCommand {
+    std::uint32_t sequence = 0;
+
+    float moveX = 0.f;
+    float moveY = 0.f;
+
+    bool jabHeld = false;
+    bool jabPressed = false;
+    bool jabReleased = false;
+
+    bool hookHeld = false;
+    bool hookPressed = false;
+    bool hookReleased = false;
+};
+
+struct PlayerState {
     bool connected = false;
     bool alive = true;
     sf::Vector2f pos{300.f, 300.f};
@@ -67,7 +82,7 @@ typedef struct PlayerState {
     int health = 100;
     int score = 0;
     //struct AttackState attack{};
-} PlayerState;
+};
 
 void writePlayerState(sf::Packet& packet, const PlayerState& player);
 bool readPlayerState(sf::Packet& packet, PlayerState& player);

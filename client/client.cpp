@@ -4,6 +4,7 @@
 #include "client_connection.hpp"
 #include "common/logger.hpp"
 #include "common/map_layer.hpp"
+#include "input_manager.hpp"
 #include "hud.hpp"
 
 #include <SFML/Graphics.hpp>
@@ -94,9 +95,9 @@ int main() {
     // -------------------------------------------------------------------------
     // Client connection
     // -------------------------------------------------------------------------
-    // ClientConnection conn{logger};
+    // ClientConnection client_conn{logger};
     common::PlayerId myId = 0;
-    // if(myId = conn.connectToServer() == -1) {
+    // if(myId = client_conn.connectToServer() == -1) {
     //     return 1;
     // }
 
@@ -129,7 +130,12 @@ int main() {
     hud.setPlayerName("Rick");
     hud.setHealth(100.f, 100.f);
     hud.setStamina(100.f, 100.f);
-    hud.setPingMs(18);
+    hud.setPingMs(0);
+
+    // -------------------------------------------------------------------------
+    // Input manager setup
+    // -------------------------------------------------------------------------
+    InputManager input{window};
 
     // -------------------------------------------------------------------------
     // Players
@@ -218,44 +224,10 @@ int main() {
         // ---------------------------------------------------------------------
         // Events
         // ---------------------------------------------------------------------
-        while (const std::optional event = window.pollEvent()) {
-            if (event->is<sf::Event::Closed>()) {
-                window.close();
-            } else if (const auto* keyPressed = event->getIf<sf::Event::KeyPressed>()) {
-                switch (keyPressed->code) {
-                    case sf::Keyboard::Key::J:
-                        players[localPlayerIndex].playOneShot(Player::Anim::LeftJab);
-                        break;
-                    case sf::Keyboard::Key::K:
-                        players[localPlayerIndex].playOneShot(Player::Anim::RightHook);
-                        break;
-                    case sf::Keyboard::Key::U:
-                        players[localPlayerIndex].playOneShot(Player::Anim::Uppercut);
-                        break;
-                    case sf::Keyboard::Key::H:
-                        players[localPlayerIndex].playOneShot(Player::Anim::Damaged);
-                        break;
-                    case sf::Keyboard::Key::X: {
-                        common::PlayerState s = players[localPlayerIndex].state();
-                        s.alive = false;
-                        s.vel = {0.f, 0.f};
-                        players[localPlayerIndex].applySnapshot(s);
-                        break;
-                    }
-                    case sf::Keyboard::Key::R: {
-                        common::PlayerState s = players[localPlayerIndex].state();
-                        s.alive = true;
-                        s.pos = {0.f, 0.f};
-                        s.vel = {0.f, 0.f};
-                        players[localPlayerIndex].teleportTo(s.pos);
-                        players[localPlayerIndex].applySnapshot(s);
-                        break;
-                    }
-                    default:
-                        break;
-                }
-            }
-        }
+        common::InputCommand input_cmd = input.handleEvents();
+        // client_conn.sendInput(input_cmd);
+        // simulatePredictedLocal(input_cmd);
+
 
         // ---------------------------------------------------------------------
         // Fixed simulation clock
@@ -297,10 +269,6 @@ int main() {
                 // - for remote players you would never simulate movement from input
                 //   like this; you would wait for server snapshots
                 localPlayer.applySnapshot(localState);
-
-                if (localState.vel.x != 0.f || localState.vel.y != 0.f) {
-                    localPlayer.setFacingFromVector(localState.vel);
-                }
             }
 
             // -----------------------------------------------------------------
@@ -377,11 +345,13 @@ int main() {
         // -------------------------------------------------------------------------
         hud.setHealth(players[localPlayerIndex].state().health, 100.f);
         hud.setStamina(100, 100);
-        //hud.setPingMs(conn.pingMs());
-        hud.setCenterMessage("Center message");
+        //hud.setPingMs(client_conn.pingMs());
+        hud.setCenterMessage("Waiting for other players...");
         hud.setFps(1.f / std::max(renderDt, 0.0001f));
 
-
+        // -------------------------------------------------------------------------
+        // Update camera
+        // -------------------------------------------------------------------------
         if (Player* target = chooseCameraTarget(players, localPlayerIndex)) {
             camera.follow(target->renderPosition());
         } else {
@@ -683,4 +653,49 @@ int main(int argc, char** argv) {
 
     return 0;
 }
+*/
+
+
+
+/*
+
+        while (const std::optional event = window.pollEvent()) {
+            if (event->is<sf::Event::Closed>()) {
+                window.close();
+            } else if (const auto* keyPressed = event->getIf<sf::Event::KeyPressed>()) {
+                switch (keyPressed->code) {
+                    case sf::Keyboard::Key::J:
+                        players[localPlayerIndex].playOneShot(Player::Anim::LeftJab);
+                        break;
+                    case sf::Keyboard::Key::K:
+                        players[localPlayerIndex].playOneShot(Player::Anim::RightHook);
+                        break;
+                    case sf::Keyboard::Key::U:
+                        players[localPlayerIndex].playOneShot(Player::Anim::Uppercut);
+                        break;
+                    case sf::Keyboard::Key::H:
+                        players[localPlayerIndex].playOneShot(Player::Anim::Damaged);
+                        break;
+                    case sf::Keyboard::Key::X: {
+                        common::PlayerState s = players[localPlayerIndex].state();
+                        s.alive = false;
+                        s.vel = {0.f, 0.f};
+                        players[localPlayerIndex].applySnapshot(s);
+                        break;
+                    }
+                    case sf::Keyboard::Key::R: {
+                        common::PlayerState s = players[localPlayerIndex].state();
+                        s.alive = true;
+                        s.pos = {0.f, 0.f};
+                        s.vel = {0.f, 0.f};
+                        players[localPlayerIndex].teleportTo(s.pos);
+                        players[localPlayerIndex].applySnapshot(s);
+                        break;
+                    }
+                    default:
+                        break;
+                }
+            }
+        }
+
 */

@@ -344,6 +344,10 @@ void Player::update(float dtSeconds)
         }
     }
 
+    if (m_state.vel.x != 0.f || m_state.vel.y != 0.f) {
+        setFacingFromVector(m_state.vel);
+    }
+
     stepAnimation(dtSeconds);
 }
 
