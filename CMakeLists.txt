@@ -57,7 +57,7 @@ target_link_libraries(server PRIVATE
     SFML::Network
 )
 
-add_executable(client client/client.cpp client/input_manager.cpp client/player.cpp client/camera.cpp client/client_connection.cpp client/resource_manager.cpp)
+add_executable(client client/client.cpp client/input_manager.cpp client/player.cpp client/camera.cpp client/client_connection.cpp client/resource_manager.cpp client/hud.cpp)
 target_link_libraries(client PRIVATE
     common
     SFML::System

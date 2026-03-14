@@ -4,6 +4,7 @@
 #include "client_connection.hpp"
 #include "common/logger.hpp"
 #include "common/map_layer.hpp"
+#include "hud.hpp"
 
 #include <SFML/Graphics.hpp>
 
@@ -115,11 +116,20 @@ int main() {
     // Camera setup
     // -------------------------------------------------------------------------
     sf::FloatRect layerBounds = layerFloor.getGlobalBounds();
-    sf::FloatRect oldBounds = sf::FloatRect({-2000.f, -2000.f}, {4000.f, 4000.f});
     Camera camera({common::WINDOW_WIDTH, common::WINDOW_HEIGHT});
     camera.setFollowSharpness(8.f);
     camera.setDeadZone({60.f, 40.f});
-    camera.setWorldBounds(oldBounds);
+    camera.setWorldBounds(layerBounds);
+
+    // -------------------------------------------------------------------------
+    // Hud setup
+    // -------------------------------------------------------------------------
+    Hud hud(resources.getFont("ui"));
+    hud.setWindowSize({common::WINDOW_WIDTH, common::WINDOW_HEIGHT});
+    hud.setPlayerName("Rick");
+    hud.setHealth(100.f, 100.f);
+    hud.setStamina(100.f, 100.f);
+    hud.setPingMs(18);
 
     // -------------------------------------------------------------------------
     // Players
@@ -131,7 +141,7 @@ int main() {
         common::PlayerState s;
         s.connected = true;
         s.alive = true;
-        s.pos = {100.f, 100.f};
+        s.pos = {-137.f, 426.f};
         s.vel = {0.f, 0.f};
         s.name = "Local";
         s.score = 0;
@@ -142,7 +152,7 @@ int main() {
         common::PlayerState s;
         s.connected = true;
         s.alive = true;
-        s.pos = {300.f, 150.f};
+        s.pos = {-600.f, 800.f};
         s.vel = {0.f, 0.f};
         s.name = "RemoteA";
         s.score = 0;
@@ -153,7 +163,7 @@ int main() {
         common::PlayerState s;
         s.connected = true;
         s.alive = true;
-        s.pos = {-250.f, 220.f};
+        s.pos = {-450.f, 700.f};
         s.vel = {0.f, 0.f};
         s.name = "RemoteB";
         s.score = 0;
@@ -291,8 +301,6 @@ int main() {
                 if (localState.vel.x != 0.f || localState.vel.y != 0.f) {
                     localPlayer.setFacingFromVector(localState.vel);
                 }
-
-                logger.log_info("Player pos: ", localState.pos);
             }
 
             // -----------------------------------------------------------------
@@ -364,6 +372,16 @@ int main() {
             p.update(renderDt);
         }
 
+        // -------------------------------------------------------------------------
+        // Update hud
+        // -------------------------------------------------------------------------
+        hud.setHealth(players[localPlayerIndex].state().health, 100.f);
+        hud.setStamina(100, 100);
+        //hud.setPingMs(conn.pingMs());
+        hud.setCenterMessage("Center message");
+        hud.setFps(1.f / std::max(renderDt, 0.0001f));
+
+
         if (Player* target = chooseCameraTarget(players, localPlayerIndex)) {
             camera.follow(target->renderPosition());
         } else {
@@ -387,13 +405,13 @@ int main() {
         }
 
         // Draw debug rectangles in world space
-        window.draw(makeOutlinedRect(layerBounds, 2.f, sf::Color::Green));
-        window.draw(makeOutlinedRect(oldBounds, 2.f, sf::Color::Red));
-        window.draw(makeOutlinedRect(sf::FloatRect({0.f, 0.f}, {100.f, 100.f}), 2.f, sf::Color::Blue));
+        //window.draw(makeOutlinedRect(layerBounds, 2.f, sf::Color::Green)); // doesnt show up
+        //window.draw(makeOutlinedRect(sf::FloatRect({0.f, 0.f}, {100.f, 100.f}), 2.f, sf::Color::Blue));
 
-        // Draw debug rectangles in screen space
+        // Draw hud & debug rectangles in screen space
         window.setView(window.getDefaultView()); // back to screen-space
-        window.draw(makeOutlinedRect(sf::FloatRect({common::WINDOW_WIDTH / 2, common::WINDOW_HEIGHT / 2}, {120.f, 80.f}), 2.f, sf::Color::Black));
+        hud.draw(window);
+        //window.draw(makeOutlinedRect(sf::FloatRect({common::WINDOW_WIDTH / 2, common::WINDOW_HEIGHT / 2}, {120.f, 80.f}), 2.f, sf::Color::Black));
 
         window.display();
     }
