@@ -263,6 +263,20 @@ int main() {
                 continue;
             }
             connectedPlayers++;
+
+            // Check if near another player
+            p.setCombatIdle(false);
+            for (int j = 0; j < common::MAX_PLAYERS; j++) {
+                auto& p_other = players[j];
+                if (!p_other.state().connected || j == i) {
+                    continue;
+                }
+                if (common::distance(p.state().pos, p_other.state().pos) < 150.f) {
+                    p.setCombatIdle(true);
+                    p_other.setCombatIdle(true);    
+                }
+            }
+
             p.update(renderDt);
         }
 

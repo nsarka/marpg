@@ -11,6 +11,7 @@
 
 #include <string>
 #include <vector>
+#include <cmath>
 
 namespace common {
 
@@ -78,7 +79,7 @@ struct InputCommand {
 struct PlayerState {
     bool connected = false;
     bool alive = true;
-    sf::Vector2f pos{-100.f, 500.f};
+    sf::Vector2f pos{-140.f, 620.f};
     sf::Vector2f vel{0.f, 0.f};
     std::string name = "Player";
     int health = 100;
@@ -99,5 +100,16 @@ bool readWorldPacket(sf::Packet& packet,
                      std::vector<PlayerState>& players);
 
 void parseTest(const char *map_path);
+
+template<typename T>
+T distance(const sf::Vector2<T>& p1, const sf::Vector2<T>& p2) {
+    // Calculate the difference between coordinates
+    T dx = p2.x - p1.x;
+    T dy = p2.y - p1.y;
+
+    // Use std::hypot (C++11) or std::sqrt(dx*dx + dy*dy)
+    // std::hypot is generally more robust against overflow
+    return std::hypot(dx, dy); 
+}
 
 } // namespace common
