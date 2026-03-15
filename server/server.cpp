@@ -33,8 +33,8 @@ common::PlayerId botId = 0;
 void initializeBot(std::vector<ServerPlayer>& players) {
     players[botId].state.alive = true;
     players[botId].state.connected = true;
-    players[botId].state.pos.x = 350.f;
-    players[botId].state.pos.y = 350.f;
+    players[botId].state.pos.x = 0.f;
+    players[botId].state.pos.y = 550.f;
     players[botId].state.name = "Bot";
 }
 
@@ -151,17 +151,17 @@ int main() {
                 }
 
                 // Bot moves in a lissajous-like path
-                if (i == botId) {
-                    common::PlayerState& s = players[botId].state;
-                    const float t = elapsedTime;
-                    const sf::Vector2f newPos{
-                        std::sin(t * 1.2f) * 350.f + 600.f,
-                        std::cos(t * 0.7f) * 180.f + 600.f
-                    };
+                // if (i == botId) {
+                //     common::PlayerState& s = players[botId].state;
+                //     const float t = elapsedTime;
+                //     const sf::Vector2f newPos{
+                //         std::sin(t * 1.2f) * 350.f + 600.f,
+                //         std::cos(t * 0.7f) * 180.f + 600.f
+                //     };
 
-                    s.vel = (newPos - s.pos) / 0.03f;
-                    s.pos = newPos;
-                }
+                //     s.vel = (newPos - s.pos) / 0.03f;
+                //     s.pos = newPos;
+                // }
             }
         }
 

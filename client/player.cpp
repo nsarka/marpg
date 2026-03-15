@@ -247,7 +247,7 @@ void Player::applySnapshot(const common::PlayerState& snapshot)
     m_targetPos = snapshot.pos;
 
     if (m_nameText) {
-        m_nameText->setString(m_state.name);
+        m_nameText->setString(m_state.name + " (" + std::to_string(m_state.health) + "), (" + std::to_string(m_state.pos.x) + ", " + std::to_string(m_state.pos.y) + ")");
         centerNameText();
     }
 

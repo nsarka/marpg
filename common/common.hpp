@@ -78,7 +78,7 @@ struct InputCommand {
 struct PlayerState {
     bool connected = false;
     bool alive = true;
-    sf::Vector2f pos{300.f, 300.f};
+    sf::Vector2f pos{-100.f, 500.f};
     sf::Vector2f vel{0.f, 0.f};
     std::string name = "Player";
     int health = 100;

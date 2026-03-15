@@ -313,11 +313,11 @@ int main() {
 
         // Draw debug rectangles in world space
         //window.draw(makeOutlinedRect(layerBounds, 2.f, sf::Color::Green)); // doesnt show up
-        window.draw(makeOutlinedRect(sf::FloatRect({300.f, 300.f}, {100.f, 100.f}), 2.f, sf::Color::Blue));
+        //window.draw(makeOutlinedRect(sf::FloatRect({300.f, 300.f}, {100.f, 100.f}), 2.f, sf::Color::Blue));
 
         // Draw hud & debug rectangles in screen space
         window.setView(window.getDefaultView()); // back to screen-space
-        hud.draw(window);
+        //hud.draw(window);
         //window.draw(makeOutlinedRect(sf::FloatRect({common::WINDOW_WIDTH / 2, common::WINDOW_HEIGHT / 2}, {120.f, 80.f}), 2.f, sf::Color::Black));
 
         window.display();
