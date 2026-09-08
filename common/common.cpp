@@ -126,12 +126,14 @@ void writeWorldPacket(sf::Packet& packet,
 
 bool readWorldPacket(sf::Packet& packet,
                      std::vector<PlayerState>& players) {
+    std::vector<PlayerState> snapshot(MAX_PLAYERS);
     for (int i = 0; i < MAX_PLAYERS; ++i) {
-        if (!readPlayerState(packet, players[i])) {
+        if (!readPlayerState(packet, snapshot[i])) {
             return false;
         }
     }
 
+    players=std::move(snapshot);
     return true;
 }
 

@@ -1,4 +1,5 @@
 """Run against a fresh local server."""
+from world_transport import recv_world
 import socket
 import struct
 import time
@@ -16,7 +17,7 @@ def receive(sock, kind, timeout=2):
     deadline=time.monotonic()+timeout
     while time.monotonic()<deadline:
         sock.settimeout(max(.001,deadline-time.monotonic()))
-        data=sock.recv(65535)
+        data=recv_world(sock)
         size=struct.unpack_from('!I',data)[0]
         if data[4:4+size].decode()==kind:
             return data[4+size:]

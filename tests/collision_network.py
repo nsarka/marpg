@@ -1,4 +1,5 @@
 """Run against a fresh local server: python3 tests/collision_network.py."""
+from world_transport import recv_world
 # Also exercises the existing attack protocol after the movement changes.
 from attack_network import sock, server, string, player_id
 import struct
@@ -18,7 +19,7 @@ def drive(seconds, move):
                         + struct.pack('=ff', *move) + bytes([1, 0, 0, 0, 0, 0, 0]) + struct.pack("=ff", 1, 0), server)
             sequence += 1
             next_send = now + 1/64
-        data = sock.recv(65535)
+        data = recv_world(sock)
         offset = 4 + struct.unpack_from('!I', data)[0]
         if data[4:offset] != b'world':
             continue

@@ -1,4 +1,5 @@
 """Run against a fresh demo server: python3 tests/combat_network.py."""
+from world_transport import recv_world
 # Establishes two facing players at contact and checks player collision first.
 from player_collision_network import a, b, aid, bid, seq, string, server
 import struct, time
@@ -38,7 +39,7 @@ for swing in range(4):
     end=time.monotonic()+1.1
     state=None
     while time.monotonic()<end:
-        got=victim(a.recv(65535))
+        got=victim(recv_world(a))
         if got: state=got
     expected=max(0,80-35*swing)
     assert state and state[1]==expected,(swing,state,expected)
@@ -48,7 +49,7 @@ assert state[0] is False and state[1]==0,'Victim must die at zero health'
 death_position=state[2]
 end=time.monotonic()+3
 while time.monotonic()<end:
-    state=victim(a.recv(65535))
+    state=victim(recv_world(a))
     if state and state[0]:
         assert state[1]==100,'Respawn health must be full'
         assert state[2]!=death_position,'Respawn should use a free spawn'

@@ -1,4 +1,5 @@
 """Run against a fresh demo server: python3 tests/player_collision_network.py."""
+from world_transport import recv_world
 import socket, struct, time, math
 server = ('127.0.0.1', 54000)
 def string(s):
@@ -8,7 +9,7 @@ def connect(name):
     s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM); s.settimeout(2)
     s.sendto(string('join')+string(name),server)
     while True:
-        b=s.recv(65535); n=struct.unpack_from('!I',b)[0]
+        b=recv_world(s); n=struct.unpack_from('!I',b)[0]
         if b[4:4+n]==b'join_ack':
             ident=struct.unpack_from('!i',b,4+n)[0]; assert ident>=0
             return s,ident
@@ -32,7 +33,7 @@ while time.monotonic()-start<1.5:
         for s,ident,x in [(a,aid,1),(b,bid,-1)]:
             s.sendto(string('state')+struct.pack('!II',ident,seq)+struct.pack('=ff',x,0)+bytes([1,0,0,0,0,0,0])+struct.pack("=ff", 1, 0),server)
         seq+=1; next_send=now+1/64
-    p=positions(a.recv(65535))
+    p=positions(recv_world(a))
     if p is None: continue
     left,right=p[aid],p[bid]
     if left is None or right is None: continue

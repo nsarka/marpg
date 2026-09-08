@@ -1,4 +1,5 @@
 """Run against a fresh server: python3 tests/join_network.py."""
+from world_transport import recv_world
 import socket
 import struct
 import time
@@ -14,7 +15,7 @@ def receive_ack(sock, timeout=2):
     while time.monotonic() < deadline:
         sock.settimeout(max(.001, deadline - time.monotonic()))
         try:
-            data = sock.recv(65535)
+            data = recv_world(sock)
         except socket.timeout:
             return None
         size = struct.unpack_from('!I', data)[0]

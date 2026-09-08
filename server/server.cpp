@@ -1,4 +1,5 @@
 #include "common/common.hpp"
+#include "common/world_transport.hpp"
 #include "common/collision_world.hpp"
 #include "common/trigger_system.hpp"
 #include "common/combat_system.hpp"
@@ -117,6 +118,8 @@ int main() {
         triggers.reset(id);
     };
 
+    sf::Clock snapshotClock;
+    std::uint32_t snapshotSequence=0;
     sf::Clock frameClock;
     float accumulator = 0.f;
     float elapsedTime = 0.0f;
@@ -144,6 +147,11 @@ int main() {
                 std::string requestedName;
                 if (!(packet >> requestedName)) continue;
 
+                if (requestedName.size()>64) {
+                    sf::Packet rejected; rejected << std::string(common::MSG_JOIN_ACK) << std::int32_t(-1);
+                    sendPacket(socket,rejected,*senderIp,senderPort,"invalid name reply");
+                    continue;
+                }
                 int assignedId = -1;
                 for (int i=0;i<common::MAX_PLAYERS;++i) {
                     if (players[i].state.connected && players[i].ip==senderIp && players[i].port==senderPort) {
@@ -321,6 +329,11 @@ int main() {
             }
         }
 
+        if (snapshotClock.getElapsedTime()<sf::seconds(1.f/30.f)) {
+            sf::sleep(sf::milliseconds(1));
+            continue;
+        }
+        snapshotClock.restart();
         std::vector<common::PlayerState> publicStates(common::MAX_PLAYERS);
         for (int i = 0; i < common::MAX_PLAYERS; i++) {
             publicStates[i] = players[i].state;
@@ -328,14 +341,10 @@ int main() {
             publicStates[i].combatDebug={combat.attack,combat.age,combat.attackDirection,combat.hit,combat.hitTarget};
         }
 
+        auto packets=common::worldPackets(publicStates,++snapshotSequence);
         for (const auto& player : players) {
-            if (!player.state.connected || !player.ip) {
-                continue;
-            }
-
-            sf::Packet worldPacket;
-            common::writeWorldPacket(worldPacket, publicStates);
-            sendPacket(socket, worldPacket, *player.ip, player.port, "world send");
+            if (!player.state.connected || !player.ip) continue;
+            for (auto& part:packets) sendPacket(socket,part,*player.ip,player.port,"world part send");
         }
     }
 

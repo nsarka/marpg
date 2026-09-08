@@ -1,4 +1,5 @@
 """Run against a fresh demo server: python3 tests/reliable_attack_network.py."""
+from world_transport import recv_world
 import socket, struct, time
 
 def string(value):
@@ -7,7 +8,7 @@ sock=socket.socket(socket.AF_INET,socket.SOCK_DGRAM);sock.settimeout(2)
 server=('127.0.0.1',54000)
 sock.sendto(string('join')+string('Reliable attack test'),server)
 while True:
-    data=sock.recv(65535);n=struct.unpack_from('!I',data)[0]
+    data=recv_world(sock);n=struct.unpack_from('!I',data)[0]
     if data[4:4+n]==b'join_ack':
         ident=struct.unpack_from('!i',data,4+n)[0];assert ident>=0;break
 
@@ -17,7 +18,7 @@ def pump(duration):
     global latest
     end=time.monotonic()+duration
     while time.monotonic()<end:
-        data=sock.recv(65535);offset=4+struct.unpack_from('!I',data)[0];kind=data[4:offset]
+        data=recv_world(sock);offset=4+struct.unpack_from('!I',data)[0];kind=data[4:offset]
         if kind==b'attack_ack':
             acks.add(struct.unpack_from('!I',data,offset)[0]);continue
         if kind!=b'world':continue

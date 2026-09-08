@@ -85,8 +85,8 @@ int main(int argc, char** argv) {
     }
     const std::string playerName=argc>1 ? argv[1] : "Rick";
     const std::string serverAddress=argc>2 ? argv[2] : "127.0.0.1";
-    if (playerName.empty() || serverAddress.empty()) {
-        std::cerr << "Player name and server IP must not be empty.\n";
+    if (playerName.empty() || playerName.size()>64 || serverAddress.empty()) {
+        std::cerr << "Player name must be 1-64 UTF-8 bytes and server IP must not be empty.\n";
         return 1;
     }
 

@@ -77,6 +77,7 @@ common::PlayerId ClientConnection::connectToServer(const std::string serverText,
         return -1;
     }
 
+    lastWorld_.restart();
     myId_ = myId;
 
     return myId_;
@@ -130,16 +131,28 @@ void ClientConnection::pumpNetwork(std::vector<common::PlayerState>& newStates, 
             continue;
         }
 
+        if (type == common::MSG_WORLD_PART) {
+            auto assembled=worldAssembler_.accept(packet);
+            if (!assembled) continue;
+            packet=std::move(*assembled);
+            if (!(packet >> type)) continue;
+        }
         if (type == common::MSG_WORLD) {
             if (!common::readWorldPacket(packet, newStates)) {
                 logger.log_error("Error reading new world states");
                 continue;
             }
+            lastWorld_.restart();
+            warnedMissingWorld_=false;
             if (myId_<newStates.size() && !newStates[myId_].alive) attackOutbox_.clear();
         }
 
         // Repeated world snapshots are the authoritative join/leave notification.
 
+    }
+    if (!warnedMissingWorld_ && lastWorld_.getElapsedTime()>=sf::seconds(3)) {
+        logger.log_error("No complete world update for 3 seconds. Update both server and client; check return UDP traffic/firewall if this persists.");
+        warnedMissingWorld_=true;
     }
 }
 

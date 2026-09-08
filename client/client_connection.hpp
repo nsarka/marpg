@@ -1,6 +1,7 @@
 #pragma once
 
 #include "common/common.hpp"
+#include "common/world_transport.hpp"
 #include "common/attack_delivery.hpp"
 #include "common/logger.hpp"
 #include "camera.hpp"
@@ -35,4 +36,7 @@ private:
     sf::IpAddress serverIp_;
     common::AttackOutbox attackOutbox_;
     sf::Clock attackClock_;
+    common::WorldAssembler worldAssembler_;
+    sf::Clock lastWorld_;
+    bool warnedMissingWorld_=false;
 };

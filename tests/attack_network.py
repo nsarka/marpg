@@ -1,4 +1,5 @@
 """Run against a fresh local server: python3 tests/attack_network.py."""
+from world_transport import recv_world
 import socket
 import struct
 import time
@@ -14,7 +15,7 @@ sock.settimeout(2)
 server = ('127.0.0.1', 54000)
 sock.sendto(string('join') + string('Attack test'), server)
 while True:
-    data = sock.recv(65535)
+    data = recv_world(sock)
     size = struct.unpack_from('!I', data)[0]
     if data[4:4 + size] == b'join_ack':
         player_id = struct.unpack_from('!i', data, 4 + size)[0]
@@ -50,7 +51,7 @@ def observe(expected, duration=0.2):
     deadline = time.monotonic() + duration
     latest = None
     while time.monotonic() < deadline:
-        state = attack_state(sock.recv(65535))
+        state = attack_state(recv_world(sock))
         if state is not None:
             latest = state
     assert latest == expected, (latest, expected)
