@@ -1,7 +1,8 @@
 """Run against a fresh demo server: python3 tests/combat_network.py."""
+import os
 from world_transport import recv_world
 # Establishes two facing players at contact and checks player collision first.
-from player_collision_network import a, b, aid, bid, seq, string, server
+from player_collision_network import a, b, aid, bid, seq, string, server, direction
 import struct, time
 
 
@@ -10,7 +11,7 @@ def send(s, ident, jab=False, hook=False):
     seq += 1
     if jab or hook:
         s.sendto(string('attack')+struct.pack('!IIB',ident,seq,1 if jab else 2)
-                 +struct.pack('=ff',1,0)+struct.pack('!I',0),server)
+                 +struct.pack('=ff',*direction)+struct.pack('!I',0),server)
     s.sendto(string('state')+struct.pack('!II',ident,seq)+struct.pack('=ff',0,0)
              +bytes([1,jab,jab,0,hook,hook,0])+struct.pack("=ff", 1, 0),server)
 
@@ -19,6 +20,7 @@ def victim(data):
     offset=4+struct.unpack_from('!I',data)[0]
     if data[4:offset]!=b'world': return None
     for i in range(bid+1):
+        offset+=4
         connected, alive=data[offset],data[offset+1]
         position=struct.unpack_from('=ff',data,offset+2)
         offset+=18
@@ -39,6 +41,7 @@ for swing in range(4):
     end=time.monotonic()+1.1
     state=None
     while time.monotonic()<end:
+        send(b,bid)
         got=victim(recv_world(a))
         if got: state=got
     expected=max(0,80-35*swing)
@@ -49,6 +52,7 @@ assert state[0] is False and state[1]==0,'Victim must die at zero health'
 death_position=state[2]
 end=time.monotonic()+3
 while time.monotonic()<end:
+    send(a,aid);send(b,bid)
     state=victim(recv_world(a))
     if state and state[0]:
         assert state[1]==100,'Respawn health must be full'

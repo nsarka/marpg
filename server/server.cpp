@@ -1,5 +1,7 @@
 #include "common/common.hpp"
 #include "common/world_transport.hpp"
+#include "common/team_spawns.hpp"
+#include "common/bot_ai.hpp"
 #include "common/collision_world.hpp"
 #include "common/trigger_system.hpp"
 #include "common/combat_system.hpp"
@@ -39,42 +41,26 @@ bool sendPacket(sf::UdpSocket& socket, sf::Packet& packet, const sf::IpAddress& 
     return true;
 }
 
-std::optional<sf::Vector2f> findSpawn(const std::vector<ServerPlayer>& players,
-    const common::CollisionWorld& collision, const common::TriggerSystem& triggers) {
-    const auto preferred = common::PlayerState{}.pos;
-    for (int ring=0; ring<32; ++ring) {
-        for (int step=0; step<16; ++step) {
-            const float angle=step*6.2831853f/16.f;
-            const auto candidate=preferred+sf::Vector2f{std::cos(angle)*ring*24.f,std::sin(angle)*ring*24.f};
-            if (collision.overlaps(candidate) || triggers.contains(candidate)) continue;
-            bool occupied=false;
-            for (const auto& other : players) {
-                if (other.state.connected && other.state.alive &&
-                    (other.state.pos-candidate).length()<2.f*common::CollisionWorld::PlayerRadius+1.f)
-                    occupied=true;
-            }
-            if (!occupied) return candidate;
-        }
-    }
-    return std::nullopt;
-}
-
-common::PlayerId botId = 0;
-common::PlayerId botId2 = 1;
-void initializeBot(std::vector<ServerPlayer>& players, common::PlayerId bid) {
-    players[bid].state.alive = true;
-    players[bid].state.connected = true;
-    players[bid].state.pos.x = 60.f * bid;
-    players[bid].state.pos.y = 550.f;
-    players[bid].state.name = "Bot";
+std::vector<common::PlayerState> states(const std::vector<ServerPlayer>& players) {
+    std::vector<common::PlayerState> result;for(const auto& p:players)result.push_back(p.state);return result;
 }
 
 } // namespace
 
-int main() {
+int main(int argc,char**) {
+    if(argc!=1) {
+        std::cerr<<"Server does not accept command-line arguments. Edit server.toml instead.\n";
+        return 1;
+    }
     common::Logger logger;
 
     logger.info() << "Server started";
+
+    common::ServerSettings settings;
+    try {
+        settings=common::loadServerSettings("../server.toml");
+        common::applySettings(settings);
+    } catch(const std::exception& error){logger.log_error(error.what());return 1;}
 
     std::srand(static_cast<unsigned>(std::time(nullptr)));
 
@@ -89,20 +75,31 @@ int main() {
     }
     logger.log_info("Loaded collision polygons: ", collision.size());
 
+    common::TeamSpawns spawns;
+    try {spawns.load(common::LEVEL_PATH,settings.teams,collision,triggers);}
+    catch(const std::exception& error){logger.log_error(error.what());return 1;}
+    common::Navigation navigation(common::LEVEL_PATH,collision,triggers);
+    common::BotAI botAI(navigation,collision);
+    const auto bindIp=sf::IpAddress::resolve(settings.ip);
+    if(!bindIp){logger.log_error("Invalid bind IP: ",settings.ip);return 1;}
     sf::UdpSocket socket;
-    if (socket.bind(common::SERVER_PORT) != sf::Socket::Status::Done) {
-        logger.log_error("Failed to bind server socket on port ", common::SERVER_PORT);
+    if (socket.bind(settings.port,*bindIp) != sf::Socket::Status::Done) {
+        logger.log_error("Failed to bind server socket on port ", settings.port);
         return 1;
     }
     socket.setBlocking(false);
 
     std::vector<ServerPlayer> players(common::MAX_PLAYERS);
-    initializeBot(players, 0);
-    logger.log_info("Initialized bot 0 state to ", players[0].state);
-    initializeBot(players, 1);
-    logger.log_info("Initialized bot 1 state to ", players[1].state);
+    for(unsigned i=0;i<settings.bots;++i) {
+        auto team=common::smallestTeam(states(players),settings.teams);
+        auto spawn=spawns.choose(team,states(players),collision,triggers);
+        if(!spawn){logger.log_error("No safe bot spawn");return 1;}
+        players[i].state.connected=true;players[i].state.team=team;
+        players[i].state.name="Bot "+std::to_string(i+1);players[i].state.pos=*spawn;
+    }
 
-    logger.log_info("Server listening on port ", common::SERVER_PORT);
+    logger.log_info("Server listening on port ", settings.port);
+    std::cout.flush();
 
     const auto disconnect=[&](common::PlayerId id) {
         auto& player=players[id];
@@ -122,13 +119,11 @@ int main() {
     std::uint32_t snapshotSequence=0;
     sf::Clock frameClock;
     float accumulator = 0.f;
-    float elapsedTime = 0.0f;
     common::Tick tick = 0;
 
     while (true) {
         const float dt = frameClock.restart().asSeconds();
         accumulator += dt;
-        elapsedTime += dt;
 
         sf::Packet packet;
         std::optional<sf::IpAddress> senderIp;
@@ -160,12 +155,14 @@ int main() {
                     }
                 }
                 const bool repeatedJoin=assignedId>=0;
-                for (int i = 0; assignedId<0 && i < common::MAX_PLAYERS; ++i) {
+                for (int i = 0; assignedId<0 && i < static_cast<int>(settings.players); ++i) {
                     if (!players[i].state.connected) {
                         assignedId = i;
                         logger.log_info("Assigned player id ", assignedId);
-                        const auto spawn = findSpawn(players, collision, triggers);
+                        const auto team=common::smallestTeam(states(players),settings.teams);
+                        const auto spawn = spawns.choose(team,states(players),collision,triggers);
                         if (!spawn) { assignedId = -1; break; }
+                        players[i].state.team=team;
                         players[i].state.pos = *spawn;
                         players[i].state.connected = true;
                         players[i].ip = *senderIp;
@@ -180,7 +177,8 @@ int main() {
 
                 if (assignedId>=0) players[assignedId].lastHeard.restart();
                 sf::Packet reply;
-                reply << std::string(common::MSG_JOIN_ACK) << assignedId;
+                reply << std::string(common::MSG_JOIN_ACK) << assignedId << common::ProtocolVersion;
+                common::writeSettings(reply,settings);
 
                 // Only the requester receives its assignment, including full-server rejection.
                 sendPacket(socket,reply,*senderIp,senderPort,"join_ack send");
@@ -276,16 +274,18 @@ int main() {
                 }
 
                 if (common::advanceDeath(player.state, player.combat)) {
-                    if (const auto spawn = findSpawn(players, collision, triggers)) {
+                    if (const auto spawn = spawns.choose(player.state.team,states(players),collision,triggers)) {
                         common::respawn(player.state, player.combat, *spawn);
                         player.requestedVelocity = {};
                         triggers.reset(i);
+                        botAI.reset(i);
                     }
                     continue;
                 }
                 if (!player.state.alive) {
                     player.requestedVelocity = {};
                     triggers.reset(i);
+                    botAI.reset(i);
                     continue;
                 }
                 std::vector<sf::Vector2f> blockers;
@@ -301,21 +301,10 @@ int main() {
                     player.state.vel = (player.state.pos - oldPosition) / common::TICK_DT;
                 }
 
-                // Bot moves in a lissajous-like path
-                if (i == botId) {
-                    common::PlayerState& s = players[botId].state;
-                    const float t = elapsedTime;
-                    const sf::Vector2f newPos{
-                        std::sin(t * 1.2f) * 350.f + 600.f,
-                        std::cos(t * 0.7f) * 180.f + 600.f
-                    };
-
-                    auto movement = newPos - oldPosition;
-                    const float distance = movement.length();
-                    const float maxStep = common::RUN_SPEED * common::TICK_DT;
-                    if (distance > maxStep) movement *= maxStep / distance;
-                    s.pos = collision.move(oldPosition, movement, common::CollisionWorld::PlayerRadius, blockers);
-                    s.vel = (s.pos - oldPosition) / common::TICK_DT;
+                if (i<static_cast<int>(settings.bots)) {
+                    std::vector<common::PlayerState*> opponents;
+                    for(auto& other:players)opponents.push_back(&other.state);
+                    botAI.update(i,player.state,player.combat,opponents);
                 }
                 if (player.state.vel.lengthSquared()>0.0001f)
                     player.combat.facing=player.state.vel.normalized();

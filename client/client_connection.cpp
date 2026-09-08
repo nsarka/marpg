@@ -22,7 +22,8 @@ static bool sendPacket(sf::UdpSocket& socket,
 ClientConnection::ClientConnection(common::Logger& logger) : logger(logger), serverIp_(sf::IpAddress::LocalHost) {}
 
 
-common::PlayerId ClientConnection::connectToServer(const std::string serverText, const std::string myName) {
+common::PlayerId ClientConnection::connectToServer(const std::string serverText, const std::string myName, unsigned short port) {
+    serverPort_=port;
     logger.log_info("Connecting to ", serverText, " as ", myName);
 
     const std::optional<sf::IpAddress> maybeIp = sf::IpAddress::resolve(serverText);
@@ -47,7 +48,7 @@ common::PlayerId ClientConnection::connectToServer(const std::string serverText,
         if (firstAttempt || retry.getElapsedTime()>=sf::milliseconds(500)) {
             sf::Packet join;
             join << std::string(common::MSG_JOIN) << myName;
-            if (!sendPacket(udp_socket_,join,serverIp_,common::SERVER_PORT,"join send")) return -1;
+            if (!sendPacket(udp_socket_,join,serverIp_,serverPort_,"join send")) return -1;
             firstAttempt=false;
             retry.restart();
         }
@@ -55,11 +56,20 @@ common::PlayerId ClientConnection::connectToServer(const std::string serverText,
         std::optional<sf::IpAddress> senderIp;
         unsigned short senderPort=0;
         while (udp_socket_.receive(packet,senderIp,senderPort)==sf::Socket::Status::Done) {
-            if (senderIp!=serverIp_ || senderPort!=common::SERVER_PORT) continue;
+            if (senderIp!=serverIp_ || senderPort!=serverPort_) continue;
             std::string type;
             int assignedId;
             if ((packet >> type) && type==common::MSG_JOIN_ACK && (packet >> assignedId) &&
                 assignedId>=-1 && assignedId<common::MAX_PLAYERS) {
+                if(assignedId<0){myId=assignedId;break;}
+                std::uint32_t version=0;
+                common::ServerSettings settings;
+                if(!(packet >> version) || version!=common::ProtocolVersion || !common::readSettings(packet,settings)) {
+                    logger.log_error("Incompatible server configuration/protocol. Rebuild server and client together.");
+                    return -1;
+                }
+                common::applySettings(settings);
+                logger.log_info("Received server settings: ",settings.players," players, ",settings.teams," teams");
                 myId=assignedId;
                 break;
             }
@@ -67,13 +77,13 @@ common::PlayerId ClientConnection::connectToServer(const std::string serverText,
         sf::sleep(sf::milliseconds(10));
     }
     if (myId == -2) {
-        logger.log_error("No join reply from ",serverText,":",common::SERVER_PORT,
+        logger.log_error("No join reply from ",serverText,":",serverPort_,
                          " after 10 seconds. Check the server, IP address, and Windows/WSL firewall or return UDP traffic.");
         return -1;
     }
 
     if (myId == -1) {
-        logger.log_error("Server is full.");
+        logger.log_error("Server rejected the join (full server or invalid player name).");
         return -1;
     }
 
@@ -93,7 +103,7 @@ void ClientConnection::leaveServer() {
         if (first || retry.getElapsedTime()>=sf::milliseconds(75)) {
             sf::Packet leave;
             leave << std::string("leave") << myId_;
-            sendPacket(udp_socket_,leave,serverIp_,common::SERVER_PORT,"leave send");
+            sendPacket(udp_socket_,leave,serverIp_,serverPort_,"leave send");
             first=false; retry.restart();
         }
         sf::Packet packet;
@@ -102,7 +112,7 @@ void ClientConnection::leaveServer() {
         while (udp_socket_.receive(packet,sender,port)==sf::Socket::Status::Done) {
             std::string type;
             common::PlayerId id;
-            if (sender==serverIp_ && port==common::SERVER_PORT && (packet >> type >> id) &&
+            if (sender==serverIp_ && port==serverPort_ && (packet >> type >> id) &&
                 type=="leave_ack" && id==myId_) { acknowledged=true; break; }
             if (timeout.getElapsedTime()>=sf::milliseconds(300)) break;
         }
@@ -122,7 +132,7 @@ void ClientConnection::pumpNetwork(std::vector<common::PlayerState>& newStates, 
             break;
         }
 
-        if (senderIp!=serverIp_ || senderPort!=common::SERVER_PORT) continue;
+        if (senderIp!=serverIp_ || senderPort!=serverPort_) continue;
         std::string type;
         packet >> type;
         if (type == common::MSG_ATTACK_ACK) {
@@ -162,11 +172,11 @@ void ClientConnection::sendInput(common::PlayerId &id, common::InputCommand &cmd
         attackOutbox_.enqueue(cmd.jabPressed ? common::AttackKind::Jab : common::AttackKind::Hook,cmd.aim,nowMs);
     for (const auto& request : attackOutbox_.requests(nowMs)) {
         auto attack=common::attackPacket(id,request);
-        sendPacket(udp_socket_,attack,serverIp_,common::SERVER_PORT,"attack send");
+        sendPacket(udp_socket_,attack,serverIp_,serverPort_,"attack send");
     }
     sf::Packet packet;
     common::writeInputCmd(packet, id, cmd);
-    if (!sendPacket(udp_socket_, packet, serverIp_, common::SERVER_PORT, "send input cmd")) {
+    if (!sendPacket(udp_socket_, packet, serverIp_, serverPort_, "send input cmd")) {
         logger.log_error("Error sending input command to server: ", cmd);
     }
 }

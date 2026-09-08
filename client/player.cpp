@@ -247,7 +247,7 @@ void Player::setOutlineShader(sf::Shader* shader)
 
 void Player::applySnapshot(const common::PlayerState& snapshot)
 {
-    const bool respawned = !m_state.alive && snapshot.alive;
+    const bool respawned = (!m_state.connected || !m_state.alive) && snapshot.alive;
     const bool newAttack = snapshot.attackSequence != m_state.attackSequence;
     const bool tookDamage = m_state.connected && snapshot.health < m_state.health;
     m_state = snapshot;

@@ -1,0 +1,17 @@
+[server]
+# Bind all interfaces. Use a specific local IP to restrict the interface.
+ip = "0.0.0.0"
+port = 54000
+# Total slots, including bots (1-32). Teams: 1-20, at most players.
+players = 20
+teams = 2
+bots = 10
+friendly_fire = false
+
+[damage]
+trigger = 2
+trigger_bpm = 120
+out_of_bounds = 2
+out_of_bounds_bpm = 120
+jab = 20
+hook = 35

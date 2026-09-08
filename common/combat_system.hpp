@@ -1,5 +1,6 @@
 #pragma once
 #include "common.hpp"
+#include "settings.hpp"
 #include "collision_world.hpp"
 #include "attack_delivery.hpp"
 #include "damage.hpp"
@@ -63,6 +64,7 @@ inline void updateAttack(PlayerState& attacker, CombatState& combat,
         float best=desc.range;
         for (auto* target : targets) {
             if (target==&attacker || !target->connected || !target->alive || target->health<=0) continue;
+            if (!activeSettings.friendlyFire && attacker.team>=0 && attacker.team==target->team) continue;
             const auto delta=target->pos-attacker.pos;
             const float distance=delta.length();
             if (distance>best) continue;

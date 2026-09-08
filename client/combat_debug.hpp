@@ -33,6 +33,7 @@ inline void drawCombatDebug(sf::RenderTarget& target, std::vector<Player>& playe
             const bool confirmed=debug.hit && debug.target==static_cast<std::int32_t>(i);
             const auto delta=other.pos-state.pos;
             if (!confirmed && (!other.alive || delta.length()>attack.range)) continue;
+            if (!common::activeSettings.friendlyFire && state.team>=0 && state.team==other.team) continue;
             const bool inArc=common::inAttackArc(delta,debug.direction,attack.range);
             const bool clear=common::attackPathClear(state.pos,other.pos,walls);
             const auto lineColor=confirmed ? sf::Color(60,255,130) : !inArc ? sf::Color(130,140,160)

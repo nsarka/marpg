@@ -1,5 +1,6 @@
 #pragma once
 #include "common.hpp"
+#include "settings.hpp"
 #include "collision_world.hpp"
 #include "damage.hpp"
 #include <unordered_map>
@@ -13,7 +14,8 @@ namespace common {
 // Non-solid, feet-position regions. Every player/region pair has its own timer.
 class TriggerSystem {
 public:
-    void load(const std::string& mapPath) {
+    void load(const std::string& mapPath, const ServerSettings& settings=activeSettings) {
+        boundsDamage_=settings.boundsDamage; boundsInterval_=damageInterval(settings.boundsBpm);
         CollisionWorld regions;
         regions.load(mapPath, true);
         tmx::Map map;
@@ -34,10 +36,10 @@ public:
         floorLoaded_=true;
         voidElapsed_.clear();
         zones_.clear();
-        for (auto points : regions.outlines()) addDamageTrigger(std::move(points), 2, TICK_RATE/2);
+        for (auto points : regions.outlines()) addDamageTrigger(std::move(points), settings.triggerDamage, damageInterval(settings.triggerBpm));
     }
     void addDamageTrigger(std::vector<sf::Vector2f> points, int damage, Tick interval) {
-        if (damage <= 0 || interval == 0) throw std::invalid_argument("Invalid damage trigger settings");
+        if (damage < 0 || interval == 0) throw std::invalid_argument("Invalid damage trigger settings");
         Zone zone;
         zone.region.addPolygon(std::move(points));
         zone.damage=damage; zone.interval=interval;
@@ -67,7 +69,7 @@ public:
         if (!player.connected || !player.alive) { reset(id); return; }
         if (!hasFloor(player.pos)) {
             for (auto& zone : zones_) zone.elapsed.erase(id);
-            beat(id,player,voidElapsed_,2,TICK_RATE/2);
+            beat(id,player,voidElapsed_,boundsDamage_,boundsInterval_);
             return;
         }
         voidElapsed_.erase(id);
@@ -93,6 +95,8 @@ private:
             applyDamage(player,damage,-1,player.pos);
         }
     }
+    int boundsDamage_=2;
+    Tick boundsInterval_=TICK_RATE/2;
     bool floorLoaded_=false;
     tmx::Vector2u floorSize_{}, tileSize_{};
     tmx::Vector2i floorOffset_{};

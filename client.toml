@@ -1,0 +1,4 @@
+[client]
+name = "Rick"
+ip = "127.0.0.1"
+port = 54000

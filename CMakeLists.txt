@@ -36,6 +36,7 @@ FetchContent_MakeAvailable(SFML tmxlite json)
 
 add_library(common STATIC
     common/collision_world.cpp
+    common/settings.cpp
     common/common.cpp
     common/logger.cpp
 )
@@ -70,6 +71,14 @@ target_link_libraries(client PRIVATE
 )
 include(CTest)
 if(BUILD_TESTING)
+    add_executable(bot_ai_tests tests/bot_ai_tests.cpp)
+    target_link_libraries(bot_ai_tests PRIVATE common)
+    add_test(NAME bot_ai COMMAND bot_ai_tests ${CMAKE_CURRENT_SOURCE_DIR}/assets/tiled/Demo.tmx)
+    add_executable(connection_probe tests/connection_probe.cpp client/client_connection.cpp)
+    target_link_libraries(connection_probe PRIVATE common)
+    add_executable(settings_tests tests/settings_tests.cpp)
+    target_link_libraries(settings_tests PRIVATE common)
+    add_test(NAME settings COMMAND settings_tests ${CMAKE_CURRENT_SOURCE_DIR})
     add_executable(world_transport_tests tests/world_transport_tests.cpp)
     target_link_libraries(world_transport_tests PRIVATE common)
     add_test(NAME world_transport COMMAND world_transport_tests)

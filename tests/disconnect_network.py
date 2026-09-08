@@ -1,10 +1,11 @@
 """Run against a fresh local server."""
+import os
 from world_transport import recv_world
 import socket
 import struct
 import time
 
-SERVER = ('127.0.0.1', 54000)
+SERVER = ('127.0.0.1', int(os.environ.get('MARPG_TEST_PORT','54000')))
 
 def string(value):
     data = value.encode()
@@ -25,11 +26,12 @@ def receive(sock, kind, timeout=2):
 
 def join(sock,name):
     message(sock,'join',string(name))
-    return struct.unpack('!i',receive(sock,'join_ack'))[0]
+    return struct.unpack_from('!i',receive(sock,'join_ack'))[0]
 
 def states(sock):
     data=receive(sock,'world');offset=0;result=[]
     for _ in range(32):
+        offset+=4
         connected,alive=struct.unpack_from('??',data,offset)
         offset+=18
         size=struct.unpack_from('!I',data,offset)[0];offset+=4

@@ -1,5 +1,5 @@
 <?xml version='1.0' encoding='UTF-8'?>
-<map version="1.10" tiledversion="1.11.2" orientation="isometric" renderorder="right-down" width="12" height="12" tilewidth="256" tileheight="128" infinite="0" nextlayerid="5" nextobjectid="12">
+<map version="1.10" tiledversion="1.11.2" orientation="isometric" renderorder="right-down" width="12" height="12" tilewidth="256" tileheight="128" infinite="0" nextlayerid="6" nextobjectid="32">
   <tileset firstgid="1" source="Demo.tsx" />
   <objectgroup id="1" name="Labels">
     <object id="1" name="Wall" x="474.0" y="346.0" />
@@ -46,4 +46,66 @@
 0,0,0,0,0,0,0,0,0,0,0,0
 </data>
   </layer>
+  <objectgroup id="5" name="Spawns" color="#ff55cc88">
+    <object id="12" name="Spawn 01" type="Spawn" x="230.4" y="102.4">
+      <point />
+    </object>
+    <object id="13" name="Spawn 02" type="Spawn" x="563.2" y="102.40000000000003">
+      <point />
+    </object>
+    <object id="14" name="Spawn 03" type="Spawn" x="896.0" y="102.39999999999998">
+      <point />
+    </object>
+    <object id="15" name="Spawn 04" type="Spawn" x="1228.8000000000002" y="102.39999999999998">
+      <point />
+    </object>
+    <object id="16" name="Spawn 05" type="Spawn" x="1561.6" y="102.40000000000009">
+      <point />
+    </object>
+    <object id="17" name="Spawn 06" type="Spawn" x="230.39999999999998" y="546.1333376">
+      <point />
+    </object>
+    <object id="18" name="Spawn 07" type="Spawn" x="563.2" y="546.1333376">
+      <point />
+    </object>
+    <object id="19" name="Spawn 08" type="Spawn" x="896.0" y="546.1333376">
+      <point />
+    </object>
+    <object id="20" name="Spawn 09" type="Spawn" x="1228.8" y="546.1333376">
+      <point />
+    </object>
+    <object id="21" name="Spawn 10" type="Spawn" x="1561.6" y="546.1333375999999">
+      <point />
+    </object>
+    <object id="22" name="Spawn 11" type="Spawn" x="230.40000000000003" y="989.8666624">
+      <point />
+    </object>
+    <object id="23" name="Spawn 12" type="Spawn" x="563.2" y="989.8666624">
+      <point />
+    </object>
+    <object id="24" name="Spawn 13" type="Spawn" x="896.0" y="989.8666624">
+      <point />
+    </object>
+    <object id="25" name="Spawn 14" type="Spawn" x="1228.8" y="989.8666624">
+      <point />
+    </object>
+    <object id="26" name="Spawn 15" type="Spawn" x="1561.6" y="989.8666624000001">
+      <point />
+    </object>
+    <object id="27" name="Spawn 16" type="Spawn" x="230.4000000000001" y="1433.6">
+      <point />
+    </object>
+    <object id="28" name="Spawn 17" type="Spawn" x="563.2" y="1433.6">
+      <point />
+    </object>
+    <object id="29" name="Spawn 18" type="Spawn" x="896.0" y="1433.6">
+      <point />
+    </object>
+    <object id="30" name="Spawn 19" type="Spawn" x="1228.7999999999997" y="1433.6">
+      <point />
+    </object>
+    <object id="31" name="Spawn 20" type="Spawn" x="1561.6" y="1433.6">
+      <point />
+    </object>
+  </objectgroup>
 </map>

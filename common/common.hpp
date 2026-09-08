@@ -52,6 +52,7 @@ struct AttackDesc {
 };
 
 const AttackDesc& attackDescription(AttackKind kind);
+void setAttackDamage(int jab,int hook);
 
 struct AttackState {
     AttackKind kind = AttackKind::None;
@@ -99,6 +100,7 @@ struct DamageEvent {
 };
 inline constexpr std::size_t DamageHistorySize = 8;
 struct PlayerState {
+    std::int32_t team=-1;
     bool connected = false;
     bool alive = true;
     sf::Vector2f pos{-140.f, 620.f};

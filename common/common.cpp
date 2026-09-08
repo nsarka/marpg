@@ -4,7 +4,7 @@
 
 namespace common {
 
-static const std::unordered_map<AttackKind, AttackDesc> kAttackTable{
+static std::unordered_map<AttackKind, AttackDesc> kAttackTable{
     {AttackKind::Jab, {
         .startupTicks = 16,
         .activeTicks = 8,
@@ -29,6 +29,8 @@ static const std::unordered_map<AttackKind, AttackDesc> kAttackTable{
 };
 
 const AttackDesc& attackDescription(AttackKind kind) { return kAttackTable.at(kind); }
+
+void setAttackDamage(int jab,int hook) { kAttackTable.at(AttackKind::Jab).damage=jab;kAttackTable.at(AttackKind::Hook).damage=hook; }
 
 void writeInputCmd(sf::Packet& packet, const common::PlayerId& id, const common::InputCommand& cmd) {
     packet << std::string(MSG_STATE);
@@ -61,7 +63,7 @@ bool readInputCmd(sf::Packet& packet, common::PlayerId& id, common::InputCommand
 }
 
 void writePlayerState(sf::Packet& packet, const PlayerState& player) {
-    packet << player.connected
+    packet << player.team << player.connected
            << player.alive
            << player.pos.x
            << player.pos.y
@@ -88,7 +90,7 @@ bool readPlayerState(sf::Packet& packet, PlayerState& player) {
     float dy = 0.f;
     std::uint8_t attack = 0, debugAttack = 0;
 
-    if (!(packet >> player.connected >> player.alive >> x >> y >> dx >> dy >> player.name >> player.health >> player.score >> attack >> player.attackSequence
+    if (!(packet >> player.team >> player.connected >> player.alive >> x >> y >> dx >> dy >> player.name >> player.health >> player.score >> attack >> player.attackSequence
           >> debugAttack >> player.combatDebug.age
           >> player.combatDebug.direction.x >> player.combatDebug.direction.y
           >> player.combatDebug.hit >> player.combatDebug.target)) {

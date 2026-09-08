@@ -12,6 +12,7 @@
 #include "combat_debug.hpp"
 #include "damage_numbers.hpp"
 #include "sound_system.hpp"
+#include "common/team_spawns.hpp"
 
 #include <SFML/Graphics.hpp>
 
@@ -75,21 +76,17 @@ sf::RectangleShape makeOutlinedRect(const sf::FloatRect& rect,
 
 } // namespace
 
-int main(int argc, char** argv) {
-    const bool help=argc==2 && (std::string(argv[1])=="--help" || std::string(argv[1])=="-h");
-    if (help || argc>3) {
-        auto& output=help ? std::cout : std::cerr;
-        output << "Usage: " << argv[0] << " [player-name] [server-ip]\n"
-               << "Defaults: player-name=Rick, server-ip=127.0.0.1\n";
-        return help ? 0 : 1;
-    }
-    const std::string playerName=argc>1 ? argv[1] : "Rick";
-    const std::string serverAddress=argc>2 ? argv[2] : "127.0.0.1";
-    if (playerName.empty() || playerName.size()>64 || serverAddress.empty()) {
-        std::cerr << "Player name must be 1-64 UTF-8 bytes and server IP must not be empty.\n";
+int main(int argc, char**) {
+    if(argc!=1) {
+        std::cerr<<"Client does not accept command-line arguments. Edit client.toml instead.\n";
         return 1;
     }
-
+    common::ClientSettings options;
+    try {
+        options=common::loadClientSettings("../client.toml");
+    }catch(const std::exception& error){std::cerr<<error.what()<<'\n';return 1;}
+    const auto& playerName=options.name;
+    const auto& serverAddress=options.ip;
     std::signal(SIGINT,requestQuit);
     std::signal(SIGTERM,requestQuit);
     common::Logger logger;
@@ -123,7 +120,7 @@ int main(int argc, char** argv) {
     // Client connection
     // -------------------------------------------------------------------------
     ClientConnection client_conn{logger};
-    common::PlayerId myId = client_conn.connectToServer(serverAddress, playerName);
+    common::PlayerId myId = client_conn.connectToServer(serverAddress, playerName, options.port);
     if(myId == -1) {
         return 1;
     }
@@ -158,6 +155,8 @@ int main(int argc, char** argv) {
         shape.setOutlineThickness(1.5f);
         collisionDebugShapes.push_back(std::move(shape));
     }
+    common::TeamSpawns teamSpawns;
+    teamSpawns.load(common::LEVEL_PATH,common::activeSettings.teams,collision,triggers);
     std::vector<sf::Text> levelLabels;
     for (const auto& mapLayer : map.getLayers()) {
         if (mapLayer->getType() != tmx::Layer::Type::Object || mapLayer->getName() != "Labels") continue;
@@ -234,15 +233,10 @@ int main(int argc, char** argv) {
         p.setRunSpeed((common::WALK_SPEED + common::RUN_SPEED) * 0.5f);
         p.teleportTo(p.state().pos);
 
-        if (i == myId) {
-            p.setOutlineEnabled(false);
-            p.setOutlineShader(nullptr);
-        } else {
-            p.setOutlineEnabled(true);
-            p.setOutlineShader(&resources.getShader("sprite_outline"));
-            p.setOutlineColor(sf::Color(255, 70, 70, 220));
-            p.setOutlineThickness(1.f);
-        }
+        p.setOutlineEnabled(true);
+        p.setOutlineShader(&resources.getShader("sprite_outline"));
+        p.setOutlineColor(common::teamColor(p.state().team,common::activeSettings.teams));
+        p.setOutlineThickness(1.f);
     }
 
     // -------------------------------------------------------------------------
@@ -325,6 +319,7 @@ int main(int argc, char** argv) {
                     damageFlash = damageFlashDuration;
                 if (i == myId && !p.isAlive() && newStates[i].alive) camera.snapTo(newStates[i].pos);
                 p.applySnapshot(newStates[i]);
+                p.setOutlineColor(common::teamColor(p.state().team,common::activeSettings.teams));
                 //logger.log_info("Player ", i, "'s state: ", p.state());
             }
         }
@@ -425,6 +420,11 @@ int main(int argc, char** argv) {
                 window.draw(feet);
             }
             drawCombatDebug(window, players, collision, resources.getFont("ui"));
+            for(unsigned team=0;team<teamSpawns.groups().size();++team)for(auto point:teamSpawns.groups()[team]) {
+                sf::CircleShape marker(12);marker.setOrigin({12,12});marker.setPosition(point);
+                marker.setFillColor(sf::Color::Transparent);marker.setOutlineThickness(2);
+                marker.setOutlineColor(common::teamColor(team,common::activeSettings.teams));window.draw(marker);
+            }
         }
 
         damageNumbers.draw(window, resources.getFont("ui"));

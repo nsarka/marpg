@@ -1,11 +1,12 @@
 """Run against a fresh demo server: python3 tests/reliable_attack_network.py."""
+import os
 from world_transport import recv_world
 import socket, struct, time
 
 def string(value):
     b=value.encode();return struct.pack('!I',len(b))+b
 sock=socket.socket(socket.AF_INET,socket.SOCK_DGRAM);sock.settimeout(2)
-server=('127.0.0.1',54000)
+server=('127.0.0.1',int(os.environ.get('MARPG_TEST_PORT','54000')))
 sock.sendto(string('join')+string('Reliable attack test'),server)
 while True:
     data=recv_world(sock);n=struct.unpack_from('!I',data)[0]
@@ -23,7 +24,7 @@ def pump(duration):
             acks.add(struct.unpack_from('!I',data,offset)[0]);continue
         if kind!=b'world':continue
         for i in range(ident+1):
-            offset+=18;n=struct.unpack_from('!I',data,offset)[0];offset+=4+n+8
+            offset+=22;n=struct.unpack_from('!I',data,offset)[0];offset+=4+n+8
             attack,latest=struct.unpack_from('!BI',data,offset);offset+=23
             count=data[offset+4];offset+=5+count*20
     return latest

@@ -1,4 +1,5 @@
 """Run against a fresh local server: python3 tests/attack_network.py."""
+import os
 from world_transport import recv_world
 import socket
 import struct
@@ -12,7 +13,7 @@ def string(value):
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 sock.settimeout(2)
-server = ('127.0.0.1', 54000)
+server = ('127.0.0.1', int(os.environ.get('MARPG_TEST_PORT','54000')))
 sock.sendto(string('join') + string('Attack test'), server)
 while True:
     data = recv_world(sock)
@@ -37,7 +38,7 @@ def attack_state(data):
     if data[4:offset] != b'world':
         return None
     for index in range(player_id + 1):
-        offset += 18  # connected, alive, position and velocity
+        offset += 22  # connected, alive, position and velocity
         size = struct.unpack_from('!I', data, offset)[0]
         offset += 4 + size + 8  # name, health and score
         kind, serial = struct.unpack_from('!BI', data, offset)

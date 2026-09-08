@@ -2,6 +2,7 @@
 
 #include "common/common.hpp"
 #include "common/world_transport.hpp"
+#include "common/settings.hpp"
 #include "common/attack_delivery.hpp"
 #include "common/logger.hpp"
 #include "camera.hpp"
@@ -21,7 +22,7 @@ class ClientConnection {
 public:
     explicit ClientConnection(common::Logger& logger);
 
-    [[nodiscard]] common::PlayerId connectToServer(const std::string serverText = "127.0.0.1", const std::string myName = "Rick");
+    [[nodiscard]] common::PlayerId connectToServer(const std::string serverText = "127.0.0.1", const std::string myName = "Rick", unsigned short port=54000);
     ~ClientConnection();
     void leaveServer();
 
@@ -34,6 +35,7 @@ private:
     sf::UdpSocket udp_socket_;
     common::PlayerId myId_=static_cast<common::PlayerId>(-1);
     sf::IpAddress serverIp_;
+    unsigned short serverPort_=54000;
     common::AttackOutbox attackOutbox_;
     sf::Clock attackClock_;
     common::WorldAssembler worldAssembler_;
