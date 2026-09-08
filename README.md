@@ -1,6 +1,8 @@
 # marpg
 
 Multiplayer Action RPG
+
+Run `./server.sh` and `./client.sh` in separate terminals after building. The scripts select the correct working directory for assets and can also be invoked by absolute path from anywhere.
 ## Wall collision
 
 The server loads collision polygons from the tile object groups in
