@@ -27,8 +27,8 @@ std::uint32_t integer(const toml::table& t,const char* section,const char* key,s
 }
 }
 void ServerSettings::validate() const {
-    if (ip.empty() || ip.size()>255 || !port || players<1 || players>MAX_PLAYERS || teams<1 || teams>20 || teams>players || bots>players)
-        throw std::runtime_error("Server requires a valid address/port, 1-32 players, 1-20 teams (no more than players), and bots <= players");
+    if (ip.empty() || ip.size()>255 || !port || slots<1 || slots>MAX_PLAYERS || teams<1 || teams>20 || teams>slots || bots>slots)
+        throw std::runtime_error("Server requires a valid address/port, 1-32 slots, 1-20 teams (no more than slots), and bots <= slots");
     for (auto damage:{triggerDamage,boundsDamage,jabDamage,hookDamage})
         if (damage<0 || damage>10000) throw std::runtime_error("Damage must be between 0 and 10000");
     for (auto rate:{triggerBpm,boundsBpm})
@@ -37,13 +37,14 @@ void ServerSettings::validate() const {
 ServerSettings loadServerSettings(const std::string& path) {
     auto t=toml::parse_file(path); ServerSettings s;
     for (const auto& [key,value]:t) if(key!="server" && key!="damage") throw std::runtime_error("Unknown server configuration table: "+std::string(key.str()));
-    keys(t,"server",{"ip","port","players","teams","bots","friendly_fire"});
+    keys(t,"server",{"ip","port","slots","teams","bots","friendly_fire","honor_team_requests"});
     keys(t,"damage",{"trigger","trigger_bpm","out_of_bounds","out_of_bounds_bpm","jab","hook"});
     s.ip=get<std::string>(t,"server","ip",s.ip);
     s.port=integer(t,"server","port",s.port,65535);
-    s.players=integer(t,"server","players",s.players,MAX_PLAYERS);
+    s.slots=integer(t,"server","slots",s.slots,MAX_PLAYERS);
     s.teams=integer(t,"server","teams",s.teams,20);
     s.bots=integer(t,"server","bots",s.bots,MAX_PLAYERS);
+    s.honorTeamRequests=get<bool>(t,"server","honor_team_requests",s.honorTeamRequests);
     s.friendlyFire=get<bool>(t,"server","friendly_fire",s.friendlyFire);
     s.triggerDamage=integer(t,"damage","trigger",s.triggerDamage,10000);
     s.boundsDamage=integer(t,"damage","out_of_bounds",s.boundsDamage,10000);
@@ -56,7 +57,9 @@ ServerSettings loadServerSettings(const std::string& path) {
 ClientSettings loadClientSettings(const std::string& path) {
     auto t=toml::parse_file(path);ClientSettings s;
     for (const auto& [key,value]:t) if(key!="client") throw std::runtime_error("Unknown client configuration table: "+std::string(key.str()));
-    keys(t,"client",{"name","ip","port"});
+    keys(t,"client",{"name","ip","port","team","show_other_damage_numbers"});
+    s.showOtherDamageNumbers=get<bool>(t,"client","show_other_damage_numbers",s.showOtherDamageNumbers);
+    s.team=integer(t,"client","team",s.team,20);
     s.name=get<std::string>(t,"client","name",s.name);s.ip=get<std::string>(t,"client","ip",s.ip);
     s.port=integer(t,"client","port",s.port,65535);
     if (s.name.empty() || s.name.size()>64 || s.ip.empty() || !s.port) throw std::runtime_error("Invalid client name, address, or port");
@@ -64,13 +67,13 @@ ClientSettings loadClientSettings(const std::string& path) {
 }
 void applySettings(const ServerSettings& s) {s.validate();activeSettings=s;setAttackDamage(s.jabDamage,s.hookDamage);}
 void writeSettings(sf::Packet& p,const ServerSettings& s) {
-    p<<s.ip<<s.port<<s.players<<s.teams<<s.bots<<s.friendlyFire
-     <<s.triggerDamage<<s.triggerBpm<<s.boundsDamage<<s.boundsBpm<<s.jabDamage<<s.hookDamage;
+    p<<s.ip<<s.port<<s.slots<<s.teams<<s.bots<<s.friendlyFire
+     <<s.triggerDamage<<s.triggerBpm<<s.boundsDamage<<s.boundsBpm<<s.jabDamage<<s.hookDamage<<s.honorTeamRequests;
 }
 bool readSettings(sf::Packet& p,ServerSettings& s) {
     ServerSettings value;
-    if (!(p>>value.ip>>value.port>>value.players>>value.teams>>value.bots>>value.friendlyFire
-          >>value.triggerDamage>>value.triggerBpm>>value.boundsDamage>>value.boundsBpm>>value.jabDamage>>value.hookDamage)) return false;
+    if (!(p>>value.ip>>value.port>>value.slots>>value.teams>>value.bots>>value.friendlyFire
+          >>value.triggerDamage>>value.triggerBpm>>value.boundsDamage>>value.boundsBpm>>value.jabDamage>>value.hookDamage>>value.honorTeamRequests)) return false;
     try {value.validate();}catch(const std::exception&){return false;}
     s=value;return true;
 }

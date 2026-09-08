@@ -2,3 +2,7 @@
 name = "Rick"
 ip = "127.0.0.1"
 port = 54000
+# 0 = automatic, 1 = red, 2 = blue; further teams use 3-20.
+team = 3
+# Show white damage numbers for combat between other players/bots.
+show_other_damage_numbers = true

@@ -11,6 +11,7 @@
 #include "wall_occlusion.hpp"
 #include "combat_debug.hpp"
 #include "damage_numbers.hpp"
+#include "kill_feed.hpp"
 #include "sound_system.hpp"
 #include "common/team_spawns.hpp"
 
@@ -120,7 +121,7 @@ int main(int argc, char**) {
     // Client connection
     // -------------------------------------------------------------------------
     ClientConnection client_conn{logger};
-    common::PlayerId myId = client_conn.connectToServer(serverAddress, playerName, options.port);
+    common::PlayerId myId = client_conn.connectToServer(serverAddress, playerName, options.port, options.team);
     if(myId == -1) {
         return 1;
     }
@@ -246,6 +247,8 @@ int main(int argc, char**) {
     sf::Clock frameClock;
     float accumulator = 0.f;
     DamageNumbers damageNumbers;
+    KillFeed killFeed;
+    std::optional<sf::Clock> shutdownDisplay;
     float damageFlash = 0.f;
     constexpr float damageFlashDuration = 0.35f;
 
@@ -260,17 +263,30 @@ int main(int argc, char**) {
         accumulator += renderDt;
         damageFlash = std::max(0.f, damageFlash-renderDt);
         damageNumbers.update(renderDt);
+        killFeed.update(renderDt);
 
         // ---------------------------------------------------------------------
         // Events
         // ---------------------------------------------------------------------
         input.handleEvents();
+        if(!window.isOpen())break;
 
         // ---------------------------------------------------------------------
         // Network
         // ---------------------------------------------------------------------
         client_conn.pumpNetwork(newStates, joined_players);
-        damageNumbers.observe(newStates, myId);
+        if(client_conn.shuttingDown()) {
+            if(!shutdownDisplay)shutdownDisplay.emplace();
+            window.setView(window.getDefaultView());window.clear(sf::Color(24,28,35));
+            sf::Text message(resources.getFont("ui"),client_conn.shutdownReason()+"\nClosing game...",24);
+            auto bounds=message.getLocalBounds();message.setOrigin(bounds.position+bounds.size*.5f);
+            message.setPosition(window.getDefaultView().getSize()*.5f);message.setFillColor(sf::Color::White);
+            window.draw(message);window.display();
+            if(shutdownDisplay->getElapsedTime()>=sf::seconds(2))window.close();
+            continue;
+        }
+        damageNumbers.observe(newStates, myId, options.showOtherDamageNumbers);
+        if(client_conn.hasWorldSnapshot())killFeed.observe(client_conn.killEvents(),myId);
         sounds.observe(newStates, players[myId].renderPosition());
         while(joined_players.size() > 0) {
             const common::PlayerId p = joined_players.back();
@@ -453,6 +469,7 @@ int main(int argc, char**) {
             flash.setFillColor(sf::Color(220, 15, 25, static_cast<std::uint8_t>(70.f*fade*fade)));
             window.draw(flash);
         }
+        killFeed.draw(window,resources.getFont("ui"));
         window.display();
     }
 

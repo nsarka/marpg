@@ -2,6 +2,7 @@
 #include "common/world_transport.hpp"
 #include "common/team_spawns.hpp"
 #include "common/bot_ai.hpp"
+#include "common/kill_history.hpp"
 #include "common/collision_world.hpp"
 #include "common/trigger_system.hpp"
 #include "common/combat_system.hpp"
@@ -10,6 +11,7 @@
 #include <SFML/Network.hpp>
 
 #include <cstdlib>
+#include <csignal>
 #include <ctime>
 #include <cmath>
 #include <iostream>
@@ -30,6 +32,8 @@ struct ServerPlayer {
 };
 
 namespace {
+volatile std::sig_atomic_t stopRequested=0;
+void requestStop(int) {stopRequested=1;}
 
 bool sendPacket(sf::UdpSocket& socket, sf::Packet& packet, const sf::IpAddress& ip, unsigned short port, const char* context) {
     const sf::Socket::Status status = socket.send(packet, ip, port);
@@ -52,6 +56,11 @@ int main(int argc,char**) {
         std::cerr<<"Server does not accept command-line arguments. Edit server.toml instead.\n";
         return 1;
     }
+    std::signal(SIGINT,requestStop);
+    std::signal(SIGTERM,requestStop);
+#ifdef SIGHUP
+    std::signal(SIGHUP,requestStop);
+#endif
     common::Logger logger;
 
     logger.info() << "Server started";
@@ -115,13 +124,14 @@ int main(int argc,char**) {
         triggers.reset(id);
     };
 
+    common::KillHistory killHistory;
     sf::Clock snapshotClock;
     std::uint32_t snapshotSequence=0;
     sf::Clock frameClock;
     float accumulator = 0.f;
     common::Tick tick = 0;
 
-    while (true) {
+    while (!stopRequested) {
         const float dt = frameClock.restart().asSeconds();
         accumulator += dt;
 
@@ -129,7 +139,7 @@ int main(int argc,char**) {
         std::optional<sf::IpAddress> senderIp;
         unsigned short senderPort = 0;
 
-        while (socket.receive(packet, senderIp, senderPort) == sf::Socket::Status::Done) {
+        while (!stopRequested && socket.receive(packet, senderIp, senderPort) == sf::Socket::Status::Done) {
             if (!senderIp) {
                 packet.clear();
                 continue;
@@ -141,6 +151,8 @@ int main(int argc,char**) {
             if (type == common::MSG_JOIN) {
                 std::string requestedName;
                 if (!(packet >> requestedName)) continue;
+                std::uint32_t requestedTeam=0;
+                if(!packet.endOfPacket() && !(packet >> requestedTeam))continue;
 
                 if (requestedName.size()>64) {
                     sf::Packet rejected; rejected << std::string(common::MSG_JOIN_ACK) << std::int32_t(-1);
@@ -155,11 +167,11 @@ int main(int argc,char**) {
                     }
                 }
                 const bool repeatedJoin=assignedId>=0;
-                for (int i = 0; assignedId<0 && i < static_cast<int>(settings.players); ++i) {
+                for (int i = 0; assignedId<0 && i < static_cast<int>(settings.slots); ++i) {
                     if (!players[i].state.connected) {
                         assignedId = i;
                         logger.log_info("Assigned player id ", assignedId);
-                        const auto team=common::smallestTeam(states(players),settings.teams);
+                        const auto team=common::chooseTeam(states(players),settings,requestedTeam);
                         const auto spawn = spawns.choose(team,states(players),collision,triggers);
                         if (!spawn) { assignedId = -1; break; }
                         players[i].state.team=team;
@@ -263,7 +275,7 @@ int main(int argc,char**) {
         }
 
         // Fixed simulation clock
-        while (accumulator >= common::TICK_DT) {
+        while (!stopRequested && accumulator >= common::TICK_DT) {
             accumulator -= common::TICK_DT;
             tick++;
 
@@ -316,6 +328,7 @@ int main(int argc,char**) {
                 if (player.state.connected)
                     common::updateAttack(player.state, player.combat, targets, collision);
             }
+            killHistory.observe(targets,triggers);
         }
 
         if (snapshotClock.getElapsedTime()<sf::seconds(1.f/30.f)) {
@@ -330,12 +343,30 @@ int main(int argc,char**) {
             publicStates[i].combatDebug={combat.attack,combat.age,combat.attackDirection,combat.hit,combat.hitTarget};
         }
 
-        auto packets=common::worldPackets(publicStates,++snapshotSequence);
+        auto packets=common::worldPackets(publicStates,++snapshotSequence,killHistory.events());
         for (const auto& player : players) {
             if (!player.state.connected || !player.ip) continue;
             for (auto& part:packets) sendPacket(socket,part,*player.ip,player.port,"world part send");
         }
     }
 
+    logger.log_info("Server is shutting down. Notifying clients...");
+    std::vector<bool> pending(players.size());
+    for(std::size_t i=0;i<players.size();++i)pending[i]=players[i].state.connected && players[i].ip.has_value();
+    sf::Clock shutdownClock,retry;bool first=true;
+    while(shutdownClock.getElapsedTime()<sf::milliseconds(800) && std::any_of(pending.begin(),pending.end(),[](bool value){return value;})) {
+        if(first || retry.getElapsedTime()>=sf::milliseconds(100)) {
+            sf::Packet notice;notice << std::string("server_shutdown");
+            for(std::size_t i=0;i<players.size();++i)if(pending[i])sendPacket(socket,notice,*players[i].ip,players[i].port,"shutdown notice");
+            first=false;retry.restart();
+        }
+        sf::Packet packet;std::optional<sf::IpAddress> address;unsigned short port=0;
+        while(socket.receive(packet,address,port)==sf::Socket::Status::Done) {
+            std::string kind;common::PlayerId id;
+            if((packet >> kind >> id) && kind=="shutdown_ack" && id<players.size() && players[id].ip==address && players[id].port==port)pending[id]=false;
+            if(shutdownClock.getElapsedTime()>=sf::milliseconds(800))break;
+        }
+        sf::sleep(sf::milliseconds(5));
+    }
     return 0;
 }

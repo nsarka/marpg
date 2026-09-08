@@ -22,9 +22,13 @@ class ClientConnection {
 public:
     explicit ClientConnection(common::Logger& logger);
 
-    [[nodiscard]] common::PlayerId connectToServer(const std::string serverText = "127.0.0.1", const std::string myName = "Rick", unsigned short port=54000);
+    [[nodiscard]] common::PlayerId connectToServer(const std::string serverText = "127.0.0.1", const std::string myName = "Rick", unsigned short port=54000, std::uint32_t requestedTeam=0);
     ~ClientConnection();
     void leaveServer();
+    bool shuttingDown() const {return !shutdownReason_.empty();}
+    const std::string& shutdownReason() const {return shutdownReason_;}
+    bool hasWorldSnapshot() const {return hasWorld_;}
+    const std::vector<common::KillEvent>& killEvents() const {return killEvents_;}
 
     void pumpNetwork(std::vector<common::PlayerState>& newStates, std::vector<common::PlayerId>& joinedPlayers);
 
@@ -41,4 +45,7 @@ private:
     common::WorldAssembler worldAssembler_;
     sf::Clock lastWorld_;
     bool warnedMissingWorld_=false;
+    bool hasWorld_=false;
+    std::string shutdownReason_;
+    std::vector<common::KillEvent> killEvents_;
 };

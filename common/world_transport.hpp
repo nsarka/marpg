@@ -10,8 +10,8 @@ namespace common {
 inline constexpr const char* MSG_WORLD_PART="world_part";
 inline constexpr std::size_t WorldPartBytes=1000;
 inline constexpr std::size_t MaxWorldBytes=65536;
-inline std::vector<sf::Packet> worldPackets(const std::vector<PlayerState>& players,std::uint32_t sequence) {
-    sf::Packet world; writeWorldPacket(world,players);
+inline std::vector<sf::Packet> worldPackets(const std::vector<PlayerState>& players,std::uint32_t sequence,const std::vector<KillEvent>& kills={}) {
+    sf::Packet world; writeWorldPacket(world,players,kills);
     const auto size=world.getDataSize();
     if (size>MaxWorldBytes) throw std::runtime_error("World snapshot exceeds transport limit");
     const auto count=static_cast<std::uint16_t>((size+WorldPartBytes-1)/WorldPartBytes);

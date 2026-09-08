@@ -62,4 +62,18 @@ inline unsigned smallestTeam(const std::vector<PlayerState>& players,unsigned te
     for(const auto& p:players)if(p.connected && p.team>=0 && unsigned(p.team)<teams)++count[p.team];
     return std::min_element(count.begin(),count.end())-count.begin();
 }
+// Requests use 1-based team numbers; zero means automatic assignment.
+inline unsigned chooseTeam(const std::vector<PlayerState>& players,const ServerSettings& settings,unsigned request) {
+    const auto automatic=smallestTeam(players,settings.teams);
+    if(request==0 || request>settings.teams)return automatic;
+    const auto preferred=request-1;
+    if(settings.honorTeamRequests)return preferred;
+    unsigned smallestCount=0,preferredCount=0;
+    for(const auto& player:players)if(player.connected) {
+        if(player.team==static_cast<int>(automatic))++smallestCount;
+        if(player.team==static_cast<int>(preferred))++preferredCount;
+    }
+    return preferredCount==smallestCount?preferred:automatic;
+}
+
 }

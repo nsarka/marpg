@@ -15,13 +15,14 @@ public:
     };
     static constexpr float Lifetime=0.9f;
     explicit DamageNumbers(unsigned seed=std::random_device{}()) : random_(seed) {}
-    void observe(const std::vector<common::PlayerState>& players, common::PlayerId local) {
+    void observe(const std::vector<common::PlayerState>& players, common::PlayerId local, bool showOtherDamageNumbers=true) {
         for (std::size_t victim=0;victim<players.size() && victim<seen_.size();++victim) {
             if (!players[victim].connected) continue;
             for (const auto& event : players[victim].damageEvents) {
                 if (seen_[victim] && !common::sequenceNewer(event.sequence,*seen_[victim])) continue;
                 seen_[victim]=event.sequence;
-                if (victim!=local && event.source!=static_cast<std::int32_t>(local)) continue;
+                if (victim!=local && event.source!=static_cast<std::int32_t>(local) &&
+                    !(showOtherDamageNumbers && event.source>=0)) continue;
                 if (event.amount<=0) continue;
                 std::uniform_real_distribution<float> x(-12.f,12.f),y(-6.f,6.f);
                 if (numbers_.size()==64) numbers_.erase(numbers_.begin());

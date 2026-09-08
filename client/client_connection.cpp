@@ -22,7 +22,7 @@ static bool sendPacket(sf::UdpSocket& socket,
 ClientConnection::ClientConnection(common::Logger& logger) : logger(logger), serverIp_(sf::IpAddress::LocalHost) {}
 
 
-common::PlayerId ClientConnection::connectToServer(const std::string serverText, const std::string myName, unsigned short port) {
+common::PlayerId ClientConnection::connectToServer(const std::string serverText, const std::string myName, unsigned short port, std::uint32_t requestedTeam) {
     serverPort_=port;
     logger.log_info("Connecting to ", serverText, " as ", myName);
 
@@ -47,7 +47,7 @@ common::PlayerId ClientConnection::connectToServer(const std::string serverText,
     while (myId == -2 && timeout.getElapsedTime()<sf::seconds(10)) {
         if (firstAttempt || retry.getElapsedTime()>=sf::milliseconds(500)) {
             sf::Packet join;
-            join << std::string(common::MSG_JOIN) << myName;
+            join << std::string(common::MSG_JOIN) << myName << requestedTeam;
             if (!sendPacket(udp_socket_,join,serverIp_,serverPort_,"join send")) return -1;
             firstAttempt=false;
             retry.restart();
@@ -59,7 +59,12 @@ common::PlayerId ClientConnection::connectToServer(const std::string serverText,
             if (senderIp!=serverIp_ || senderPort!=serverPort_) continue;
             std::string type;
             int assignedId;
-            if ((packet >> type) && type==common::MSG_JOIN_ACK && (packet >> assignedId) &&
+            if(!(packet >> type))continue;
+            if(type=="server_shutdown") {
+                logger.log_error("Server is shutting down.");
+                return -1;
+            }
+            if (type==common::MSG_JOIN_ACK && (packet >> assignedId) &&
                 assignedId>=-1 && assignedId<common::MAX_PLAYERS) {
                 if(assignedId<0){myId=assignedId;break;}
                 std::uint32_t version=0;
@@ -69,7 +74,7 @@ common::PlayerId ClientConnection::connectToServer(const std::string serverText,
                     return -1;
                 }
                 common::applySettings(settings);
-                logger.log_info("Received server settings: ",settings.players," players, ",settings.teams," teams");
+                logger.log_info("Received server settings: ",settings.slots," total slots (",settings.slots-settings.bots," human), ",settings.teams," teams");
                 myId=assignedId;
                 break;
             }
@@ -96,7 +101,7 @@ common::PlayerId ClientConnection::connectToServer(const std::string serverText,
 ClientConnection::~ClientConnection() { leaveServer(); }
 
 void ClientConnection::leaveServer() {
-    if (myId_>=common::MAX_PLAYERS) return;
+    if (myId_>=common::MAX_PLAYERS || shuttingDown()) return;
     sf::Clock timeout,retry;
     bool first=true,acknowledged=false;
     while (!acknowledged && timeout.getElapsedTime()<sf::milliseconds(300)) {
@@ -135,6 +140,16 @@ void ClientConnection::pumpNetwork(std::vector<common::PlayerState>& newStates, 
         if (senderIp!=serverIp_ || senderPort!=serverPort_) continue;
         std::string type;
         packet >> type;
+        if (type=="server_shutdown") {
+            sf::Packet ack;ack << std::string("shutdown_ack") << myId_;
+            sendPacket(udp_socket_,ack,serverIp_,serverPort_,"shutdown ack");
+            if(!shuttingDown()) {
+                shutdownReason_="Server is shutting down.";
+                logger.log_error(shutdownReason_);
+                attackOutbox_.clear();
+            }
+            continue;
+        }
         if (type == common::MSG_ATTACK_ACK) {
             std::uint32_t sequence;
             if (packet >> sequence) attackOutbox_.acknowledge(sequence);
@@ -148,10 +163,11 @@ void ClientConnection::pumpNetwork(std::vector<common::PlayerState>& newStates, 
             if (!(packet >> type)) continue;
         }
         if (type == common::MSG_WORLD) {
-            if (!common::readWorldPacket(packet, newStates)) {
+            if (!common::readWorldPacket(packet, newStates, &killEvents_)) {
                 logger.log_error("Error reading new world states");
                 continue;
             }
+            hasWorld_=true;
             lastWorld_.restart();
             warnedMissingWorld_=false;
             if (myId_<newStates.size() && !newStates[myId_].alive) attackOutbox_.clear();
@@ -160,13 +176,19 @@ void ClientConnection::pumpNetwork(std::vector<common::PlayerState>& newStates, 
         // Repeated world snapshots are the authoritative join/leave notification.
 
     }
-    if (!warnedMissingWorld_ && lastWorld_.getElapsedTime()>=sf::seconds(3)) {
+    if(!shuttingDown() && lastWorld_.getElapsedTime()>=sf::seconds(10)) {
+        shutdownReason_="Connection to the server was lost.";
+        logger.log_error(shutdownReason_);
+        attackOutbox_.clear();
+    }
+    if (!shuttingDown() && !warnedMissingWorld_ && lastWorld_.getElapsedTime()>=sf::seconds(3)) {
         logger.log_error("No complete world update for 3 seconds. Update both server and client; check return UDP traffic/firewall if this persists.");
         warnedMissingWorld_=true;
     }
 }
 
 void ClientConnection::sendInput(common::PlayerId &id, common::InputCommand &cmd) {
+    if(shuttingDown())return;
     const auto nowMs=static_cast<std::uint32_t>(attackClock_.getElapsedTime().asMilliseconds());
     if (cmd.jabPressed || cmd.hookPressed)
         attackOutbox_.enqueue(cmd.jabPressed ? common::AttackKind::Jab : common::AttackKind::Hook,cmd.aim,nowMs);

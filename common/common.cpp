@@ -118,16 +118,23 @@ bool readPlayerState(sf::Packet& packet, PlayerState& player) {
 }
 
 void writeWorldPacket(sf::Packet& packet,
-                      const std::vector<PlayerState>& players) {
+                      const std::vector<PlayerState>& players, const std::vector<KillEvent>& kills) {
     packet << std::string(MSG_WORLD);
 
     for (int i = 0; i < MAX_PLAYERS; ++i) {
         writePlayerState(packet, players[i]);
     }
+    const auto count=std::min(kills.size(),KillHistorySize);
+    packet << static_cast<std::uint8_t>(count);
+    for(std::size_t i=kills.size()-count;i<kills.size();++i) {
+        const auto& event=kills[i];
+        packet << event.sequence << event.killer << event.victim << event.killerTeam << event.victimTeam
+               << event.killerName << event.victimName << static_cast<std::uint8_t>(event.cause);
+    }
 }
 
 bool readWorldPacket(sf::Packet& packet,
-                     std::vector<PlayerState>& players) {
+                     std::vector<PlayerState>& players, std::vector<KillEvent>* kills) {
     std::vector<PlayerState> snapshot(MAX_PLAYERS);
     for (int i = 0; i < MAX_PLAYERS; ++i) {
         if (!readPlayerState(packet, snapshot[i])) {
@@ -135,6 +142,21 @@ bool readWorldPacket(sf::Packet& packet,
         }
     }
 
+    std::vector<KillEvent> history;
+    // Older snapshots have no trailing kill history; player state remains compatible.
+    if(!packet.endOfPacket()) {
+        std::uint8_t count;
+        if(!(packet >> count) || count>KillHistorySize)return false;
+        for(unsigned i=0;i<count;++i) {
+            KillEvent event;std::uint8_t cause;
+            if(!(packet >> event.sequence >> event.killer >> event.victim >> event.killerTeam >> event.victimTeam
+                 >> event.killerName >> event.victimName >> cause) || cause>static_cast<std::uint8_t>(KillCause::Bounds) ||
+                 event.victim>=MAX_PLAYERS || event.killer<-1 || event.killer>=MAX_PLAYERS ||
+                 event.killerName.size()>64 || event.victimName.size()>64)return false;
+            event.cause=static_cast<KillCause>(cause);history.push_back(std::move(event));
+        }
+    }
+    if(kills)*kills=std::move(history);
     players=std::move(snapshot);
     return true;
 }

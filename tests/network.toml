@@ -2,7 +2,7 @@
 [server]
 ip = "127.0.0.1"
 port = 54000
-players = 32
+slots = 32
 teams = 1
 bots = 2
 friendly_fire = true

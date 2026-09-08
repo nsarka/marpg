@@ -10,18 +10,23 @@ void check(bool ok,const char* message){if(!ok)throw std::runtime_error(message)
 int main(int argc,char** argv){
     check(argc==2,"Project path required");std::filesystem::path root=argv[1];
     auto temp=std::filesystem::temp_directory_path()/("marpg-settings-"+std::to_string(std::chrono::steady_clock::now().time_since_epoch().count())+".toml");
-    for(const auto& text:{"[server]\nplayers = -1\n","[damage]\ntrigger_bpm = 0\n","[server]\nport = 70000\n","[server]\nteams = \"two\"\n","[server]\nplyers = 12\n","[server\n"}) {
+    for(const auto& text:{"[server]\nslots = -1\n","[damage]\ntrigger_bpm = 0\n","[server]\nport = 70000\n","[server]\nteams = \"two\"\n","[server]\nslts = 12\n","[server\n"}) {
         {std::ofstream file(temp);file<<text;}
         bool rejected=false;try{common::loadServerSettings(temp.string());}catch(const std::exception&){rejected=true;}
         std::filesystem::remove(temp);check(rejected,"Invalid TOML setting was silently accepted");
     }
     auto settings=common::loadServerSettings((root/"server.toml").string());
     auto client=common::loadClientSettings((root/"client.toml").string());
-    check(settings.teams==2 && settings.players==20 && client.port==54000,"Default files not loaded");
-    settings.port=55001;settings.players=12;settings.teams=3;settings.triggerDamage=7;settings.triggerBpm=60;
+    // User-editable TOML files may intentionally override the built-in defaults.
+    settings=common::ServerSettings{};client=common::ClientSettings{};
+    check(client.showOtherDamageNumbers,"Third-party damage numbers should default to enabled");
+    check(settings.honorTeamRequests && client.team==0,"Default team request policy changed");
+    check(settings.teams==2 && settings.slots==20 && client.port==54000,"Default files not loaded");
+    settings.port=55001;settings.slots=12;settings.teams=3;settings.triggerDamage=7;settings.triggerBpm=60;
     settings.boundsDamage=9;settings.boundsBpm=240;settings.jabDamage=27;settings.hookDamage=40;
+    settings.honorTeamRequests=true;
     sf::Packet packet;common::writeSettings(packet,settings);common::ServerSettings received;
-    check(common::readSettings(packet,received) && received.port==55001 && received.teams==3 && received.boundsBpm==240,"Settings wire roundtrip failed");
+    check(common::readSettings(packet,received) && received.port==55001 && received.teams==3 && received.boundsBpm==240 && received.honorTeamRequests,"Settings wire roundtrip failed");
     common::applySettings(settings);
     check(common::attackDescription(common::AttackKind::Jab).damage==27 && common::attackDescription(common::AttackKind::Hook).damage==40,"Combat ignores config");
     common::TriggerSystem triggers;triggers.load((root/"assets/tiled/Demo.tmx").string());
@@ -61,6 +66,23 @@ int main(int argc,char** argv){
     check(target.health==60,"Enemy/configured hook damage");
     common::respawn(target,combat,{10,20});check(target.team==1,"Respawn changed team");
     auto invalid=settings;invalid.teams=0;bool failed=false;try{invalid.validate();}catch(...){failed=true;}check(failed,"Invalid config accepted");
+    {
+        common::ServerSettings rules;rules.teams=2;rules.honorTeamRequests=false;
+        std::vector<common::PlayerState> members(3);
+        check(common::chooseTeam(members,rules,2)==1,"Balanced request must break a tie");
+        members[0].connected=true;members[0].team=1;
+        check(common::chooseTeam(members,rules,2)==0,"Request must not bypass balancing by default");
+        rules.honorTeamRequests=true;
+        check(common::chooseTeam(members,rules,2)==1,"Server override must honor crowded team");
+        check(common::chooseTeam(members,rules,0)==0,"Automatic assignment must still balance");
+        check(common::chooseTeam(members,rules,20)==0,"Unavailable team must fall back to automatic");
+        auto clientPath=std::filesystem::temp_directory_path()/"marpg-client-team-test.toml";
+        {std::ofstream file(clientPath);file<<"[client]\nteam=2\nshow_other_damage_numbers=true\n";}
+        check(common::loadClientSettings(clientPath.string()).team==2 && common::loadClientSettings(clientPath.string()).showOtherDamageNumbers,"Client team preference not loaded");
+        {std::ofstream file(clientPath);file<<"[client]\nteam=21\n";}
+        bool rejected=false;try{common::loadClientSettings(clientPath.string());}catch(...){rejected=true;}
+        std::filesystem::remove(clientPath);check(rejected,"Invalid client team accepted");
+    }
     common::applySettings(common::ServerSettings{});
     std::cout<<"PASS: TOML, settings sync, damage/BPM, teams, friendly fire, 20 safe spawns for every team count\n";
 }

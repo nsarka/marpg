@@ -8,6 +8,7 @@ import time
 import math
 from world_transport import recv_world
 root=pathlib.Path(__file__).resolve().parent.parent
+observed_kills={}
 
 def string(text):
     data=text.encode();return struct.pack('!I',len(data))+data
@@ -27,13 +28,24 @@ def decode(data):
             serial,amount,source=struct.unpack_from('!Iii',data,offset);offset+=20
             events.append((serial,amount,source))
         players.append((connected,alive,pos,team,health,attack,sequence,events))
+    if offset<len(data):
+        count=data[offset];offset+=1
+        for _ in range(count):
+            sequence,killer,victim,killer_team,victim_team=struct.unpack_from('!IiIii',data,offset);offset+=20
+            names=[]
+            for _ in range(2):
+                n=struct.unpack_from('!I',data,offset)[0];offset+=4
+                names.append(data[offset:offset+n].decode());offset+=n
+            cause=data[offset];offset+=1
+            assert all(names) and killer_team!=victim_team and cause in (1,2)
+            observed_kills[sequence]=(killer,victim,names,cause)
     return players
 
 with socket.socket(socket.AF_INET,socket.SOCK_DGRAM) as reservation:
     reservation.bind(('127.0.0.1',0));port=reservation.getsockname()[1]
 with tempfile.TemporaryDirectory(prefix='marpg-bots-') as tmp:
     folder=pathlib.Path(tmp);(folder/'build').mkdir();(folder/'assets').symlink_to(root/'assets',target_is_directory=True)
-    (folder/'server.toml').write_text(f'[server]\nip="127.0.0.1"\nport={port}\nplayers=20\nteams=2\nbots=10\n')
+    (folder/'server.toml').write_text(f'[server]\nip="127.0.0.1"\nport={port}\nslots=20\nteams=2\nbots=10\n')
     with open(folder/'server.log','w') as log:
         server=subprocess.Popen([str(root/'build/server')],cwd=folder/'build',stdout=log,stderr=log)
         observer=socket.socket(socket.AF_INET,socket.SOCK_DGRAM);observer.settimeout(3)
@@ -68,7 +80,8 @@ with tempfile.TemporaryDirectory(prefix='marpg-bots-') as tmp:
             assert len(attacks)>=6,('Too few bots reached combat',attacks)
             assert len(damaged)>=4,('No sustained enemy combat',damaged)
             assert {1,2}.issubset(kinds),kinds
+            assert observed_kills,'Server did not publish combat kills to the feed'
             assert snapshots>250,('Server update rate too slow',snapshots)
-            print(f'PASS: all 10 bots moved; {len(attacks)} attacked; {len(damaged)} took enemy hits; both attacks observed; {snapshots} snapshots')
+            print(f'PASS: all 10 bots moved; {len(attacks)} attacked; {len(damaged)} took enemy hits; both attacks observed; {snapshots} snapshots; {len(observed_kills)} kill-feed events')
         finally:
             observer.close();server.terminate();server.wait(timeout=5)

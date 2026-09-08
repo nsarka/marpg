@@ -40,7 +40,7 @@ with tempfile.TemporaryDirectory(prefix='marpg-config-') as tmp:
     config.write_text(f'''[server]
 ip = "127.0.0.1"
 port = {port}
-players = 6
+slots = 6
 teams = 3
 bots = 0
 [damage]
@@ -62,7 +62,7 @@ hook = 41
                 s.sendto(string('join')+string(f'Player {i}'),('127.0.0.1',port))
                 ack=receive(s,'join_ack');ident=struct.unpack_from('!i',ack)[0]
                 assert ident==(i if i<6 else -1),(i,ident)
-                assert struct.unpack_from('!I',ack,4)[0]==2
+                assert struct.unpack_from('!I',ack,4)[0]==3
                 if i<6:
                     current=states(s)
                     assert current[i][0] and current[i][1]==i%3 and current[i][3]==f'Player {i}',current[i]

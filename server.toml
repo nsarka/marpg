@@ -2,11 +2,14 @@
 # Bind all interfaces. Use a specific local IP to restrict the interface.
 ip = "0.0.0.0"
 port = 54000
-# Total slots, including bots (1-32). Teams: 1-20, at most players.
-players = 20
-teams = 2
-bots = 10
+# Total capacity (1-32). Human player slots = slots - bots.
+# With these defaults: 20 total slots - 10 bots = 10 human players.
+slots = 20
+teams = 4
+bots = 12
 friendly_fire = false
+# Honor valid client team requests even when they unbalance the teams.
+honor_team_requests = true
 
 [damage]
 trigger = 2

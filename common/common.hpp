@@ -99,6 +99,17 @@ struct DamageEvent {
     sf::Vector2f contact{};
 };
 inline constexpr std::size_t DamageHistorySize = 8;
+enum class KillCause : std::uint8_t { Hit, Jab, Hook, Floor, Bounds };
+struct KillEvent {
+    std::uint32_t sequence=0;
+    std::int32_t killer=-1;
+    PlayerId victim=0;
+    std::int32_t killerTeam=-1,victimTeam=-1;
+    std::string killerName,victimName;
+    KillCause cause=KillCause::Hit;
+};
+inline constexpr std::size_t KillHistorySize=32;
+
 struct PlayerState {
     std::int32_t team=-1;
     bool connected = false;
@@ -123,10 +134,10 @@ void writePlayerState(sf::Packet& packet, const PlayerState& player);
 bool readPlayerState(sf::Packet& packet, PlayerState& player);
 
 void writeWorldPacket(sf::Packet& packet,
-                      const std::vector<PlayerState>& players);
+                      const std::vector<PlayerState>& players, const std::vector<KillEvent>& kills = {});
 
 bool readWorldPacket(sf::Packet& packet,
-                     std::vector<PlayerState>& players);
+                     std::vector<PlayerState>& players, std::vector<KillEvent>* kills = nullptr);
 
 void parseTest(const char *map_path);
 
