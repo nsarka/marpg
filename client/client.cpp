@@ -16,6 +16,7 @@
 #include <SFML/Graphics.hpp>
 
 #include <cmath>
+#include <csignal>
 #include <cstdint>
 #include <filesystem>
 #include <iostream>
@@ -23,6 +24,8 @@
 #include <vector>
 
 namespace {
+volatile std::sig_atomic_t quitRequested=0;
+void requestQuit(int) { quitRequested=1; }
 constexpr float kRemoteSnapshotInterval = 0.10f; // 10 Hz fake network updates
 
 sf::Vector2f normalizeOrZero(sf::Vector2f v) {
@@ -87,6 +90,8 @@ int main(int argc, char** argv) {
         return 1;
     }
 
+    std::signal(SIGINT,requestQuit);
+    std::signal(SIGTERM,requestQuit);
     common::Logger logger;
 
     logger.info() << "Client started";
@@ -253,7 +258,7 @@ int main(int argc, char** argv) {
     // -------------------------------------------------------------------------
     // Main loop
     // -------------------------------------------------------------------------
-    while (window.isOpen()) {
+    while (window.isOpen() && !quitRequested) {
         // ---------------------------------------------------------------------
         // Render clock: real time between rendered frames
         // ---------------------------------------------------------------------
@@ -311,9 +316,11 @@ int main(int argc, char** argv) {
 
             for (int i = 0; i < common::MAX_PLAYERS; i++) {
                 auto& p = players[i];
-                if (!p.state().connected) {
+                if (!newStates[i].connected) {
+                    p.state().connected=false;
                     continue;
                 }
+                if (!p.state().connected) p.teleportTo(newStates[i].pos);
                 if (i == myId && newStates[i].connected && newStates[i].health < p.state().health)
                     damageFlash = damageFlashDuration;
                 if (i == myId && !p.isAlive() && newStates[i].alive) camera.snapTo(newStates[i].pos);

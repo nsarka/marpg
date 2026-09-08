@@ -39,31 +39,37 @@ common::PlayerId ClientConnection::connectToServer(const std::string serverText,
     }
     udp_socket_.setBlocking(false);
 
-    {
-        sf::Packet join;
-        join << std::string(common::MSG_JOIN) << myName;
-        if (!sendPacket(udp_socket_, join, serverIp_, common::SERVER_PORT, "join send")) {
-            return -1;
-        }
-    }
-
     int myId = -2;
     logger.log_info("Waiting for server...");
-
-    while (myId == -2) {
+    sf::Clock timeout, retry;
+    bool firstAttempt=true;
+    while (myId == -2 && timeout.getElapsedTime()<sf::seconds(10)) {
+        if (firstAttempt || retry.getElapsedTime()>=sf::milliseconds(500)) {
+            sf::Packet join;
+            join << std::string(common::MSG_JOIN) << myName;
+            if (!sendPacket(udp_socket_,join,serverIp_,common::SERVER_PORT,"join send")) return -1;
+            firstAttempt=false;
+            retry.restart();
+        }
         sf::Packet packet;
         std::optional<sf::IpAddress> senderIp;
-        unsigned short senderPort = 0;
-
-        if (udp_socket_.receive(packet, senderIp, senderPort) == sf::Socket::Status::Done) {
+        unsigned short senderPort=0;
+        while (udp_socket_.receive(packet,senderIp,senderPort)==sf::Socket::Status::Done) {
+            if (senderIp!=serverIp_ || senderPort!=common::SERVER_PORT) continue;
             std::string type;
-            packet >> type;
-            if (type == common::MSG_JOIN_ACK) {
-                packet >> myId;
+            int assignedId;
+            if ((packet >> type) && type==common::MSG_JOIN_ACK && (packet >> assignedId) &&
+                assignedId>=-1 && assignedId<common::MAX_PLAYERS) {
+                myId=assignedId;
+                break;
             }
         }
-
         sf::sleep(sf::milliseconds(10));
+    }
+    if (myId == -2) {
+        logger.log_error("No join reply from ",serverText,":",common::SERVER_PORT,
+                         " after 10 seconds. Check the server, IP address, and Windows/WSL firewall or return UDP traffic.");
+        return -1;
     }
 
     if (myId == -1) {
@@ -74,6 +80,35 @@ common::PlayerId ClientConnection::connectToServer(const std::string serverText,
     myId_ = myId;
 
     return myId_;
+}
+
+ClientConnection::~ClientConnection() { leaveServer(); }
+
+void ClientConnection::leaveServer() {
+    if (myId_>=common::MAX_PLAYERS) return;
+    sf::Clock timeout,retry;
+    bool first=true,acknowledged=false;
+    while (!acknowledged && timeout.getElapsedTime()<sf::milliseconds(300)) {
+        if (first || retry.getElapsedTime()>=sf::milliseconds(75)) {
+            sf::Packet leave;
+            leave << std::string("leave") << myId_;
+            sendPacket(udp_socket_,leave,serverIp_,common::SERVER_PORT,"leave send");
+            first=false; retry.restart();
+        }
+        sf::Packet packet;
+        std::optional<sf::IpAddress> sender;
+        unsigned short port=0;
+        while (udp_socket_.receive(packet,sender,port)==sf::Socket::Status::Done) {
+            std::string type;
+            common::PlayerId id;
+            if (sender==serverIp_ && port==common::SERVER_PORT && (packet >> type >> id) &&
+                type=="leave_ack" && id==myId_) { acknowledged=true; break; }
+            if (timeout.getElapsedTime()>=sf::milliseconds(300)) break;
+        }
+        if (!acknowledged) sf::sleep(sf::milliseconds(5));
+    }
+    myId_=static_cast<common::PlayerId>(-1);
+    attackOutbox_.clear();
 }
 
 void ClientConnection::pumpNetwork(std::vector<common::PlayerState>& newStates, std::vector<common::PlayerId>& joinedPlayers) {
@@ -103,13 +138,8 @@ void ClientConnection::pumpNetwork(std::vector<common::PlayerState>& newStates, 
             if (myId_<newStates.size() && !newStates[myId_].alive) attackOutbox_.clear();
         }
 
-        if (type == common::MSG_JOIN_ACK) {
-            common::PlayerId joined_player_id;
-            packet >> joined_player_id;
-            newStates[joined_player_id].connected = true;
-            joinedPlayers.push_back(joined_player_id);
-            logger.log_info("join ack for ", joined_player_id);
-        }
+        // Repeated world snapshots are the authoritative join/leave notification.
+
     }
 }
 

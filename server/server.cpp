@@ -23,6 +23,7 @@ struct ServerPlayer {
     common::AttackInbox attackInbox;
     sf::Vector2f requestedVelocity{};
     sf::Clock lastInputTime;
+    sf::Clock lastHeard;
 };
 
 namespace {
@@ -102,6 +103,20 @@ int main() {
 
     logger.log_info("Server listening on port ", common::SERVER_PORT);
 
+    const auto disconnect=[&](common::PlayerId id) {
+        auto& player=players[id];
+        logger.log_info("Player disconnected: ",id," (",player.state.name,")");
+        const auto attackSequence=player.state.attackSequence;
+        const auto damageSequence=player.state.damageSequence;
+        player.state=common::PlayerState{};
+        // Keep event counters monotonic when a slot is reused between snapshots.
+        player.state.attackSequence=attackSequence;
+        player.state.damageSequence=damageSequence;
+        player.combat={}; player.attackInbox={}; player.lastInputSequence.reset();
+        player.requestedVelocity={};
+        triggers.reset(id);
+    };
+
     sf::Clock frameClock;
     float accumulator = 0.f;
     float elapsedTime = 0.0f;
@@ -127,10 +142,17 @@ int main() {
 
             if (type == common::MSG_JOIN) {
                 std::string requestedName;
-                packet >> requestedName;
+                if (!(packet >> requestedName)) continue;
 
                 int assignedId = -1;
-                for (int i = 0; i < common::MAX_PLAYERS; ++i) {
+                for (int i=0;i<common::MAX_PLAYERS;++i) {
+                    if (players[i].state.connected && players[i].ip==senderIp && players[i].port==senderPort) {
+                        assignedId=i;
+                        break;
+                    }
+                }
+                const bool repeatedJoin=assignedId>=0;
+                for (int i = 0; assignedId<0 && i < common::MAX_PLAYERS; ++i) {
                     if (!players[i].state.connected) {
                         assignedId = i;
                         logger.log_info("Assigned player id ", assignedId);
@@ -148,16 +170,19 @@ int main() {
                     }
                 }
 
+                if (assignedId>=0) players[assignedId].lastHeard.restart();
                 sf::Packet reply;
                 reply << std::string(common::MSG_JOIN_ACK) << assignedId;
 
-                // Broadcast the join ack
-                for (const auto& player : players) {
-                    if (!player.state.connected || !player.ip) {
-                        continue;
+                // Only the requester receives its assignment, including full-server rejection.
+                sendPacket(socket,reply,*senderIp,senderPort,"join_ack send");
+                if (!repeatedJoin && assignedId>=0) {
+                    sf::Packet joined;
+                    joined << std::string("player_joined") << static_cast<common::PlayerId>(assignedId);
+                    for (const auto& player:players) {
+                        if (!player.state.connected || !player.ip) continue;
+                        sendPacket(socket,joined,*player.ip,player.port,"player_joined send");
                     }
-
-                    sendPacket(socket, reply, *player.ip, player.port, "join_ack send");
                 }
 
                 if (assignedId >= 0) {
@@ -168,12 +193,22 @@ int main() {
                     logger.info() << "Rejected join from " << senderIp->toString() << ":" << senderPort
                               << " (server full)\n";
                 }
+            } else if (type == "leave") {
+                common::PlayerId id;
+                if (!(packet >> id) || id>=players.size()) continue;
+                auto& player=players[id];
+                if (player.ip!=senderIp || player.port!=senderPort) continue;
+                if (player.state.connected) disconnect(id);
+                sf::Packet ack;
+                ack << std::string("leave_ack") << id;
+                sendPacket(socket,ack,*senderIp,senderPort,"leave ack");
             } else if (type == common::MSG_ATTACK) {
                 common::PlayerId playerId;
                 common::AttackRequest request;
                 if (!common::readAttackRequest(packet,playerId,request) || playerId>=players.size()) continue;
                 auto& player=players[playerId];
                 if (!player.state.connected || player.ip!=senderIp || player.port!=senderPort) continue;
+                player.lastHeard.restart();
                 // ACK duplicates and expired/dead-player requests as well, so a lost
                 // ACK never creates a second attack or an endless client retry.
                 sf::Packet ack;
@@ -191,6 +226,7 @@ int main() {
                 if (!player.state.connected || player.ip != senderIp || player.port != senderPort) {
                     continue;
                 }
+                player.lastHeard.restart();
                 // Ignore duplicate or out-of-order UDP inputs (including wraparound).
                 if (player.lastInputSequence &&
                     (cmd.sequence - *player.lastInputSequence == 0 ||
@@ -212,6 +248,12 @@ int main() {
             packet.clear();
             senderIp.reset();
             senderPort = 0;
+        }
+
+        for (common::PlayerId id=0;id<players.size();++id) {
+            auto& player=players[id];
+            if (player.state.connected && player.ip && player.lastHeard.getElapsedTime()>=sf::seconds(5))
+                disconnect(id);
         }
 
         // Fixed simulation clock

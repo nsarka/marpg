@@ -21,6 +21,7 @@ public:
     explicit ClientConnection(common::Logger& logger);
 
     [[nodiscard]] common::PlayerId connectToServer(const std::string serverText = "127.0.0.1", const std::string myName = "Rick");
+    ~ClientConnection();
     void leaveServer();
 
     void pumpNetwork(std::vector<common::PlayerState>& newStates, std::vector<common::PlayerId>& joinedPlayers);
@@ -30,7 +31,7 @@ public:
 private:
     common::Logger& logger;
     sf::UdpSocket udp_socket_;
-    common::PlayerId myId_;
+    common::PlayerId myId_=static_cast<common::PlayerId>(-1);
     sf::IpAddress serverIp_;
     common::AttackOutbox attackOutbox_;
     sf::Clock attackClock_;
