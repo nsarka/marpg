@@ -1,6 +1,7 @@
 #pragma once
 
 #include "common/common.hpp"
+#include "common/attack_delivery.hpp"
 #include "common/logger.hpp"
 #include "camera.hpp"
 #include "player.hpp"
@@ -31,4 +32,6 @@ private:
     sf::UdpSocket udp_socket_;
     common::PlayerId myId_;
     sf::IpAddress serverIp_;
+    common::AttackOutbox attackOutbox_;
+    sf::Clock attackClock_;
 };

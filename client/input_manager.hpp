@@ -19,7 +19,8 @@ public:
         bool left = false;
         bool right = false;
 
-        bool sprint = false; // shift
+        bool walk = false; // left shift
+        bool rightWalk = false; // right shift
 
         bool jab = false;   // left mouse
         bool hook = false;  // right mouse
@@ -44,11 +45,12 @@ public:
     void handleEvents();
 
     // Produce one command for this tick
-    common::InputCommand buildCommand();
+    common::InputCommand buildCommand(sf::Vector2f playerPosition, const sf::View& worldView);
 
     const KeyState& keys() const;
 
     void clearAll();
+    bool collisionDebugEnabled() const { return collisionDebugEnabled_; }
 
 private:
     void setKey(sf::Keyboard::Key key, bool pressed);
@@ -57,9 +59,12 @@ private:
 private:
     sf::RenderWindow& window_;
 
+    bool collisionDebugEnabled_ = false;
+    bool debugKeyHeld_ = false;
+    std::optional<sf::Vector2i> attackMousePosition_;
     KeyState keys_;
     EdgeState edges_;
 
     common::SequenceBuffer<common::InputCommand, 128> seq_buffer;
-    std::uint32_t nextSequence_;
+    std::uint32_t nextSequence_ = 0;
 };

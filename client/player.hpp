@@ -63,7 +63,7 @@ public:
     void setFont(const sf::Font& font, unsigned int characterSize = 16);
     void setNameColor(sf::Color color);
     void setSpriteScale(sf::Vector2f scale);
-    void setOriginToFeet(float xFraction = 0.5f, float yFraction = 0.88f);
+    void setOriginToFeet(float xFraction = 0.5f, float yFraction = 0.5f);
     void setInterpolationSharpness(float sharpness);
     void setWalkSpeed(float speed);
     void setRunSpeed(float speed);
@@ -74,6 +74,7 @@ public:
     void setOutlineColor(const sf::Color& color);
     void setOutlineThickness(float pixels);
     void setOutlineShader(sf::Shader* shader);
+    void setOcclusionShader(sf::Shader* shader) { m_occlusionShader = shader; }
 
     void setAirborne(bool value);
     void setBlocking(bool value);
@@ -151,10 +152,12 @@ private:
     bool m_inCombatIdle = false;
 
     float m_originXF = 0.5f;
-    float m_originYF = 0.88f;
+    // Businessman frames are padded: the ground pivot is (128,128), not the bottom.
+    float m_originYF = 0.5f;
 
     bool m_outlineEnabled = false;
     sf::Color m_outlineColor = sf::Color(255, 60, 60, 220);
     float m_outlineThickness = 2.f;
+    sf::Shader* m_occlusionShader = nullptr; // non-owning
     sf::Shader* m_outlineShader = nullptr; // non-owning
 };

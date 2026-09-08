@@ -18,12 +18,6 @@ InputManager::InputManager(sf::RenderWindow& window)
     : window_(window) {}
 
 void InputManager::handleEvents() {
-    edges_.jabPressed = false;
-    edges_.jabReleased = false;
-
-    edges_.hookPressed = false;
-    edges_.hookReleased = false;
-
     while (const std::optional event = window_.pollEvent()) {
         if (event->is<sf::Event::Closed>()) {
             window_.close();
@@ -36,6 +30,8 @@ void InputManager::handleEvents() {
         }
         else if (const auto* mouse = event->getIf<sf::Event::MouseButtonPressed>()) {
             setMouseButton(mouse->button, true);
+            if (mouse->button == sf::Mouse::Button::Left || mouse->button == sf::Mouse::Button::Right)
+                attackMousePosition_ = mouse->position;
         }
         else if (const auto* mouse = event->getIf<sf::Event::MouseButtonReleased>()) {
             setMouseButton(mouse->button, false);
@@ -46,7 +42,7 @@ void InputManager::handleEvents() {
     }
 }
 
-common::InputCommand InputManager::buildCommand() {
+common::InputCommand InputManager::buildCommand(sf::Vector2f playerPosition, const sf::View& worldView) {
     common::InputCommand cmd;
     cmd.sequence = nextSequence_;
 
@@ -54,9 +50,13 @@ common::InputCommand InputManager::buildCommand() {
     if (keys_.right)  cmd.move.x += 1.f;
     if (keys_.up)     cmd.move.y -= 1.f;
     if (keys_.down)   cmd.move.y += 1.f;
-    if (keys_.sprint) cmd.sprint = true;
+    cmd.sprint = !keys_.walk && !keys_.rightWalk;
 
     normalize2D(cmd.move.x, cmd.move.y);
+    const auto cursor = attackMousePosition_.value_or(sf::Mouse::getPosition(window_));
+    cmd.aim = window_.mapPixelToCoords(cursor, worldView) - playerPosition;
+    normalize2D(cmd.aim.x, cmd.aim.y);
+    attackMousePosition_.reset();
 
     cmd.jabHeld = keys_.jab;
     cmd.jabPressed = edges_.jabPressed;
@@ -65,6 +65,9 @@ common::InputCommand InputManager::buildCommand() {
     cmd.hookHeld = keys_.hook;
     cmd.hookPressed = edges_.hookPressed;
     cmd.hookReleased = edges_.hookReleased;
+
+    // Consume edges only when a simulation command is produced.
+    edges_ = {};
 
     seq_buffer.insert(nextSequence_, cmd);
     nextSequence_++;
@@ -78,6 +81,8 @@ const InputManager::KeyState& InputManager::keys() const {
 
 void InputManager::clearAll() {
     keys_ = {};
+    debugKeyHeld_ = false;
+    attackMousePosition_.reset();
     edges_ = {};
 }
 
@@ -95,7 +100,14 @@ void InputManager::setKey(sf::Keyboard::Key key, bool pressed) {
         keys_.right = pressed;
     }
     else if (key == sf::Keyboard::Key::LShift) {
-        keys_.sprint = pressed;
+        keys_.walk = pressed;
+    }
+    else if (key == sf::Keyboard::Key::RShift) {
+        keys_.rightWalk = pressed;
+    }
+    else if (key == sf::Keyboard::Key::F1) {
+        if (pressed && !debugKeyHeld_) collisionDebugEnabled_ = !collisionDebugEnabled_;
+        debugKeyHeld_ = pressed;
     }
 }
 

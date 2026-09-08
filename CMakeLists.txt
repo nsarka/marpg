@@ -35,6 +35,7 @@ FetchContent_Declare(json
 FetchContent_MakeAvailable(SFML tmxlite json)
 
 add_library(common STATIC
+    common/collision_world.cpp
     common/common.cpp
     common/logger.cpp
 )
@@ -64,5 +65,30 @@ target_link_libraries(client PRIVATE
     SFML::Window
     SFML::Graphics
     SFML::Network
+    SFML::Audio
     nlohmann_json::nlohmann_json
 )
+include(CTest)
+if(BUILD_TESTING)
+    add_executable(sound_tests tests/sound_tests.cpp)
+    target_link_libraries(sound_tests PRIVATE common SFML::Audio)
+    add_test(NAME sound COMMAND sound_tests ${CMAKE_CURRENT_SOURCE_DIR}/assets/sound/Retro_Combat_FX)
+    add_executable(collision_tests tests/collision_tests.cpp)
+    target_link_libraries(collision_tests PRIVATE common)
+    add_executable(combat_tests tests/combat_tests.cpp)
+    target_link_libraries(combat_tests PRIVATE common)
+    add_test(NAME combat COMMAND combat_tests)
+    add_executable(damage_number_tests tests/damage_number_tests.cpp)
+    target_link_libraries(damage_number_tests PRIVATE common)
+    add_test(NAME damage_numbers COMMAND damage_number_tests)
+    add_executable(trigger_tests tests/trigger_tests.cpp)
+    target_link_libraries(trigger_tests PRIVATE common)
+    add_test(NAME triggers COMMAND trigger_tests ${CMAKE_CURRENT_SOURCE_DIR}/assets/tiled/Demo.tmx)
+    add_executable(occlusion_tests tests/occlusion_tests.cpp)
+    target_link_libraries(occlusion_tests PRIVATE common)
+    add_test(NAME occlusion COMMAND occlusion_tests ${CMAKE_CURRENT_SOURCE_DIR}/shaders/player_occlusion.frag ${CMAKE_CURRENT_SOURCE_DIR}/assets/tiled/Demo.tmx)
+    add_executable(demo_level_tests tests/demo_level_tests.cpp)
+    target_link_libraries(demo_level_tests PRIVATE common)
+    add_test(NAME demo_level COMMAND demo_level_tests ${CMAKE_CURRENT_SOURCE_DIR}/assets/tiled/Demo.tmx)
+    add_test(NAME collision COMMAND collision_tests ${CMAKE_CURRENT_SOURCE_DIR}/assets/tiled/Sample.tmx)
+endif()

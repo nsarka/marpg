@@ -1,4 +1,6 @@
 #include "player.hpp"
+#include <SFML/Graphics/RectangleShape.hpp>
+#include <algorithm>
 
 #include <cmath>
 #include <stdexcept>
@@ -153,6 +155,8 @@ void Player::setFont(const sf::Font& font, unsigned int characterSize)
 {
     m_nameText.emplace(font, m_state.name, characterSize);
     m_nameText->setFillColor(sf::Color::White);
+    m_nameText->setOutlineColor(sf::Color(20, 23, 28));
+    m_nameText->setOutlineThickness(1.f);
     centerNameText();
 }
 
@@ -243,11 +247,31 @@ void Player::setOutlineShader(sf::Shader* shader)
 
 void Player::applySnapshot(const common::PlayerState& snapshot)
 {
+    const bool respawned = !m_state.alive && snapshot.alive;
+    const bool newAttack = snapshot.attackSequence != m_state.attackSequence;
+    const bool tookDamage = m_state.connected && snapshot.health < m_state.health;
     m_state = snapshot;
+    if (respawned) {
+        m_lockedAnim.reset();
+        m_facing = Facing8::Dir1;
+        setAnimation(Anim::Idle, true);
+        teleportTo(snapshot.pos);
+    }
+    if (newAttack && m_state.alive) {
+        setFacingFromVector(m_state.combatDebug.direction);
+        switch (m_state.lastAttack) {
+            case common::AttackKind::Jab: playOneShot(Anim::LeftJab); break;
+            case common::AttackKind::Hook: playOneShot(Anim::RightHook); break;
+            default: break;
+        }
+    }
+    if (tookDamage && m_state.alive) {
+        playOneShot(Anim::Damaged);
+    }
     m_targetPos = snapshot.pos;
 
     if (m_nameText) {
-        m_nameText->setString(m_state.name + " (" + std::to_string(m_state.health) + "), (" + std::to_string(m_state.pos.x) + ", " + std::to_string(m_state.pos.y) + ")");
+        m_nameText->setString(m_state.name);
         centerNameText();
     }
 
@@ -299,7 +323,11 @@ void Player::update(float dtSeconds)
     }
     updateNameTextPosition();
 
-    if (lengthSquared(m_state.vel) > 0.0001f) {
+    const bool attacking = m_lockedAnim &&
+        (*m_lockedAnim == Anim::LeftJab || *m_lockedAnim == Anim::RightHook);
+    if (attacking) {
+        setFacingFromVector(m_state.combatDebug.direction);
+    } else if (lengthSquared(m_state.vel) > 0.0001f) {
         m_facing = vectorToFacing8(m_state.vel);
     }
 
@@ -344,7 +372,7 @@ void Player::update(float dtSeconds)
         }
     }
 
-    if (m_state.vel.x != 0.f || m_state.vel.y != 0.f) {
+    if (!attacking && (m_state.vel.x != 0.f || m_state.vel.y != 0.f)) {
         setFacingFromVector(m_state.vel);
     }
 
@@ -389,14 +417,10 @@ void Player::updateNameTextPosition()
 
     const sf::FloatRect textBounds = m_nameText->getLocalBounds();
 
-    float spriteTopY = m_renderPos.y - 80.f;
-    if (m_sprite) {
-        spriteTopY = m_sprite->getGlobalBounds().position.y;
-    }
-
+    // Anchor overhead UI to the ground pivot, not transparent sprite padding.
     m_nameText->setPosition({
-        m_renderPos.x - textBounds.size.x * 0.5f,
-        spriteTopY + 45.f
+        m_renderPos.x - textBounds.position.x - textBounds.size.x * 0.5f,
+        m_renderPos.y - 76.f - textBounds.position.y - textBounds.size.y
     });
 }
 
@@ -412,7 +436,16 @@ void Player::draw(sf::RenderTarget& target, sf::RenderStates states) const
     }
 
     if (m_sprite) {
-        if (m_outlineEnabled && m_outlineShader) {
+        if (m_occlusionShader) {
+            const auto size = m_sprite->getTexture().getSize();
+            m_occlusionShader->setUniform("texture", sf::Shader::CurrentTexture);
+            m_occlusionShader->setUniform("footDepth", m_renderPos.y);
+            m_occlusionShader->setUniform("texelSize", sf::Glsl::Vec2(1.f/size.x,1.f/size.y));
+            m_occlusionShader->setUniform("outlined", m_outlineEnabled);
+            m_occlusionShader->setUniform("thickness", m_outlineThickness);
+            m_occlusionShader->setUniform("outlineColor", sf::Glsl::Vec4(m_outlineColor));
+            states.shader = m_occlusionShader;
+        } else if (m_outlineEnabled && m_outlineShader) {
             sf::RenderStates outlineStates = states;
             outlineStates.shader = m_outlineShader;
 
@@ -438,7 +471,26 @@ void Player::draw(sf::RenderTarget& target, sf::RenderStates states) const
         target.draw(*m_sprite, states);
     }
 
+    // Overhead UI stays readable and must not inherit the sprite occlusion shader.
+    states.shader = nullptr;
     if (m_nameText) {
         target.draw(*m_nameText, states);
+    }
+    constexpr float barWidth = 48.f;
+    constexpr float barHeight = 5.f;
+    const auto barPosition = m_renderPos + sf::Vector2f{-barWidth * 0.5f, -70.f};
+    sf::RectangleShape bar({barWidth, barHeight});
+    bar.setPosition(barPosition);
+    bar.setFillColor(sf::Color(180, 45, 50));
+    bar.setOutlineColor(sf::Color(20, 23, 28));
+    bar.setOutlineThickness(1.f);
+    target.draw(bar, states);
+
+    const float fraction = std::clamp(m_state.health / 100.f, 0.f, 1.f);
+    if (fraction > 0.f) {
+        sf::RectangleShape remaining({barWidth * fraction, barHeight});
+        remaining.setPosition(barPosition);
+        remaining.setFillColor(sf::Color(65, 210, 105));
+        target.draw(remaining, states);
     }
 }

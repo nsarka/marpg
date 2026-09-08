@@ -15,10 +15,14 @@
 
 namespace common {
 
+inline constexpr const char* LEVEL_PATH = "../assets/tiled/Demo.tmx";
+
 inline constexpr unsigned short SERVER_PORT = 54000;
 inline constexpr int MAX_PLAYERS = 32;
 inline constexpr int TICK_RATE = 64;
 inline constexpr float TICK_DT = 1.f / (float)TICK_RATE;
+inline constexpr float WALK_SPEED = 120.f;
+inline constexpr float RUN_SPEED = 270.f;
 
 inline constexpr float WINDOW_WIDTH = 1024.f;
 inline constexpr float WINDOW_HEIGHT = 768.f;
@@ -47,6 +51,8 @@ struct AttackDesc {
     int damage;
 };
 
+const AttackDesc& attackDescription(AttackKind kind);
+
 struct AttackState {
     AttackKind kind = AttackKind::None;
 
@@ -64,6 +70,7 @@ struct InputCommand {
     std::uint32_t sequence = 0;
 
     sf::Vector2f move{0.f, 0.f};
+    sf::Vector2f aim{0.f, 0.f};
 
     bool sprint = false;
 
@@ -76,6 +83,21 @@ struct InputCommand {
     bool hookReleased = false;
 };
 
+struct CombatDebugState {
+    AttackKind attack = AttackKind::None;
+    Tick age = 0;
+    sf::Vector2f direction{0.70710678f,-0.70710678f};
+    bool hit = false;
+    std::int32_t target = -1;
+};
+
+struct DamageEvent {
+    std::uint32_t sequence = 0;
+    int amount = 0;
+    std::int32_t source = -1; // -1 means environmental damage.
+    sf::Vector2f contact{};
+};
+inline constexpr std::size_t DamageHistorySize = 8;
 struct PlayerState {
     bool connected = false;
     bool alive = true;
@@ -84,7 +106,12 @@ struct PlayerState {
     std::string name = "Player";
     int health = 100;
     int score = 0;
-    //struct AttackState attack{};
+    // Retain the last event so a dropped snapshot does not lose the animation.
+    AttackKind lastAttack = AttackKind::None;
+    std::uint32_t attackSequence = 0;
+    CombatDebugState combatDebug;
+    std::uint32_t damageSequence = 0;
+    std::vector<DamageEvent> damageEvents;
 };
 
 void writeInputCmd(sf::Packet& packet, const common::PlayerId& id, const common::InputCommand& cmd);

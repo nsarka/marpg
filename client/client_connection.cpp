@@ -86,14 +86,21 @@ void ClientConnection::pumpNetwork(std::vector<common::PlayerState>& newStates, 
             break;
         }
 
+        if (senderIp!=serverIp_ || senderPort!=common::SERVER_PORT) continue;
         std::string type;
         packet >> type;
+        if (type == common::MSG_ATTACK_ACK) {
+            std::uint32_t sequence;
+            if (packet >> sequence) attackOutbox_.acknowledge(sequence);
+            continue;
+        }
 
         if (type == common::MSG_WORLD) {
             if (!common::readWorldPacket(packet, newStates)) {
                 logger.log_error("Error reading new world states");
                 continue;
             }
+            if (myId_<newStates.size() && !newStates[myId_].alive) attackOutbox_.clear();
         }
 
         if (type == common::MSG_JOIN_ACK) {
@@ -107,6 +114,13 @@ void ClientConnection::pumpNetwork(std::vector<common::PlayerState>& newStates, 
 }
 
 void ClientConnection::sendInput(common::PlayerId &id, common::InputCommand &cmd) {
+    const auto nowMs=static_cast<std::uint32_t>(attackClock_.getElapsedTime().asMilliseconds());
+    if (cmd.jabPressed || cmd.hookPressed)
+        attackOutbox_.enqueue(cmd.jabPressed ? common::AttackKind::Jab : common::AttackKind::Hook,cmd.aim,nowMs);
+    for (const auto& request : attackOutbox_.requests(nowMs)) {
+        auto attack=common::attackPacket(id,request);
+        sendPacket(udp_socket_,attack,serverIp_,common::SERVER_PORT,"attack send");
+    }
     sf::Packet packet;
     common::writeInputCmd(packet, id, cmd);
     if (!sendPacket(udp_socket_, packet, serverIp_, common::SERVER_PORT, "send input cmd")) {

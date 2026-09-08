@@ -6,18 +6,18 @@ namespace common {
 
 static const std::unordered_map<AttackKind, AttackDesc> kAttackTable{
     {AttackKind::Jab, {
-        .startupTicks = 3,
-        .activeTicks = 2,
-        .recoveryTicks = 8,
+        .startupTicks = 16,
+        .activeTicks = 8,
+        .recoveryTicks = 40,
         .range = 70.f,
-        .damage = 10
+        .damage = 20
     }},
     {AttackKind::Hook, {
-        .startupTicks = 5,
-        .activeTicks = 2,
-        .recoveryTicks = 10,
+        .startupTicks = 24,
+        .activeTicks = 8,
+        .recoveryTicks = 32,
         .range = 80.f,
-        .damage = 15
+        .damage = 35
     }},
     {AttackKind::Uppercut, {
         .startupTicks = 6,
@@ -27,6 +27,8 @@ static const std::unordered_map<AttackKind, AttackDesc> kAttackTable{
         .damage = 20
     }}
 };
+
+const AttackDesc& attackDescription(AttackKind kind) { return kAttackTable.at(kind); }
 
 void writeInputCmd(sf::Packet& packet, const common::PlayerId& id, const common::InputCommand& cmd) {
     packet << std::string(MSG_STATE);
@@ -40,14 +42,15 @@ void writeInputCmd(sf::Packet& packet, const common::PlayerId& id, const common:
            << cmd.jabReleased
            << cmd.hookHeld
            << cmd.hookPressed
-           << cmd.hookReleased;
+           << cmd.hookReleased
+           << cmd.aim.x << cmd.aim.y;
 }
 
 bool readInputCmd(sf::Packet& packet, common::PlayerId& id, common::InputCommand& cmd) {
     float moveX = 0.f;
     float moveY = 0.f;
 
-    if (!(packet >> id >> cmd.sequence >> moveX >> moveY >> cmd.sprint >> cmd.jabHeld >> cmd.jabPressed >> cmd.jabReleased >> cmd.hookHeld >> cmd.hookPressed >> cmd.hookReleased)) {
+    if (!(packet >> id >> cmd.sequence >> moveX >> moveY >> cmd.sprint >> cmd.jabHeld >> cmd.jabPressed >> cmd.jabReleased >> cmd.hookHeld >> cmd.hookPressed >> cmd.hookReleased >> cmd.aim.x >> cmd.aim.y)) {
         return false;
     }
 
@@ -66,7 +69,16 @@ void writePlayerState(sf::Packet& packet, const PlayerState& player) {
            << player.vel.y
            << player.name
            << player.health
-           << player.score;
+           << player.score
+           << static_cast<std::uint8_t>(player.lastAttack)
+           << player.attackSequence
+           << static_cast<std::uint8_t>(player.combatDebug.attack)
+           << player.combatDebug.age
+           << player.combatDebug.direction.x << player.combatDebug.direction.y
+           << player.combatDebug.hit << player.combatDebug.target
+           << player.damageSequence << static_cast<std::uint8_t>(player.damageEvents.size());
+    for (const auto& event : player.damageEvents)
+        packet << event.sequence << event.amount << event.source << event.contact.x << event.contact.y;
 }
 
 bool readPlayerState(sf::Packet& packet, PlayerState& player) {
@@ -74,11 +86,29 @@ bool readPlayerState(sf::Packet& packet, PlayerState& player) {
     float y = 0.f;
     float dx = 0.f;
     float dy = 0.f;
+    std::uint8_t attack = 0, debugAttack = 0;
 
-    if (!(packet >> player.connected >> player.alive >> x >> y >> dx >> dy >> player.name >> player.health >> player.score)) {
+    if (!(packet >> player.connected >> player.alive >> x >> y >> dx >> dy >> player.name >> player.health >> player.score >> attack >> player.attackSequence
+          >> debugAttack >> player.combatDebug.age
+          >> player.combatDebug.direction.x >> player.combatDebug.direction.y
+          >> player.combatDebug.hit >> player.combatDebug.target)) {
         return false;
     }
 
+    if (attack > static_cast<std::uint8_t>(AttackKind::Uppercut) ||
+        debugAttack > static_cast<std::uint8_t>(AttackKind::Uppercut)) {
+        return false;
+    }
+    std::uint8_t damageCount=0;
+    if (!(packet >> player.damageSequence >> damageCount) || damageCount>DamageHistorySize) return false;
+    player.damageEvents.clear();
+    for (unsigned i=0;i<damageCount;++i) {
+        DamageEvent event;
+        if (!(packet >> event.sequence >> event.amount >> event.source >> event.contact.x >> event.contact.y)) return false;
+        player.damageEvents.push_back(event);
+    }
+    player.lastAttack = static_cast<AttackKind>(attack);
+    player.combatDebug.attack = static_cast<AttackKind>(debugAttack);
     player.pos = {x, y};
     player.vel = {dx, dy};
 

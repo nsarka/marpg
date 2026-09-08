@@ -1,3 +1,113 @@
 # marpg
 
 Multiplayer Action RPG
+## Wall collision
+
+The server loads collision polygons from the tile object groups in
+`assets/tiled/Demo.tsx`, placing them with the same isometric transform as the
+renderer. The original Sample level has 24 wall and 20 fence colliders. Floor tiles and
+the doorway opening remain walkable.
+
+Players use a 10-pixel foot radius. Swept movement prevents tunneling and slides
+along wall edges. Movement runs at 64 server ticks per second; missing inputs
+stop movement after 250 ms. Bots also use the collision solver.
+
+To add obstacles, draw convex polygon or rectangle collision objects in the
+Tiled tileset editor. This loader supports the current finite isometric map's
+unflipped tiles and top-level tile layers. Split concave collision shapes into
+convex pieces.
+
+Build and test with `cmake --build build` and
+`ctest --test-dir build --output-on-failure`. Run `server` and `client` from the
+`build` directory so their relative asset paths resolve.
+
+## Tileset demo level
+
+`assets/tiled/Demo.tmx` is the default level, selected by `common::LEVEL_PATH`.
+It uses a separate `Demo.tsx` so the original Sample level stays available.
+The gallery has labeled stations for every sample item: wall, doorway, window,
+fence, crate, curved wall, three stairs, floor switch, and the floor throughout.
+
+Solid exhibits have authored ground-footprint collision polygons. The doorway
+has two separate post colliders, leaving its opening clear. The curved wall
+uses four convex pieces. Floor and switch are walkable; stairs are solid display
+props until elevation movement is implemented. All shapes can be edited in Tiled.
+
+`ctest --test-dir build --output-on-failure` checks both maps and the demo's item
+coverage, colliders, spawn, doorway passage, and walkable switch. With a fresh
+server running, `python3 tests/collision_network.py` verifies networked movement
+against the demo fence and checks attack regression behavior.
+
+Controls: WASD sprints by default; hold either Shift key to walk. F1 toggles
+collision debug drawing: red obstacle polygons and green player foot circles.
+
+The Businessman sprite uses the padded frame's center `(128,128)` as its ground
+pivot, keeping its feet on the collision/debug center. Living players and bots
+collide using 10-pixel foot circles, with swept contact and sliding. Spawns are
+spaced apart and bot movement is capped to sprint speed. Against a fresh demo
+server, `python3 tests/player_collision_network.py` tests two clients sprinting
+head-on without overlapping or crossing.
+
+Players hidden by solid props render as a translucent black silhouette only on
+covered pixels. The wall mask follows image transparency (including doorway
+holes) and each image column's ground baseline; exposed parts stay full color.
+The graphics regression test checks partial coverage, foreground characters,
+mask orientation, and the actual demo wall/doorway textures.
+
+The floor switch has a non-solid `DamageTrigger` polygon in `Demo.tsx`. Each
+living player loses 2 health immediately on entry, then every 32 server ticks
+(0.5 seconds / 120 BPM) while inside.
+Leaving resets that player's timer; reaching zero health marks the player dead.
+F1 draws trigger regions in amber. A decrease in the local player's replicated
+health produces a red screen flash that fades out over 0.35 seconds. Each
+nonlethal hit also plays the hurt animation; lethal damage plays death instead.
+
+Left click now lands a jab for 20 damage; right click lands a hook for 35.
+Attacks aim toward the mouse cursor at click time, have a forward arc and limited
+range, and cannot hit through walls. Each swing damages at most one target once,
+with a short windup and a one-second total attack/recovery period. Hurt reactions,
+health bars, and the local red flash reflect the server-confirmed damage.
+
+At zero or negative health, players stop moving and attacking, play the death
+animation, and automatically respawn after 2.5 seconds at a clear spawn with
+100 health. The local camera stays on the death animation and snaps to respawn.
+The same lifecycle applies to bots. Run `python3 tests/combat_network.py` against
+a fresh server to test network attacks, death, and full-health respawn.
+
+F1 also shows server-authoritative combat sectors and facing lines during attacks:
+amber windup, red active hit window, green confirmed hit, and gray recovery.
+Nearby target lines are cyan when in the arc with a clear path, red when blocked
+by a wall, or gray when outside the arc. A green marker identifies the selected
+hit target. Attack range, 90-degree arc, timing, and target checks match the
+server combat logic; debug feet and sectors use server positions.
+
+Mouse aim is converted through the camera view into world coordinates. The server
+normalizes it and locks it for the swing; animation facing and F1 combat sectors
+use that same direction. If the cursor is exactly at the feet, facing is used.
+
+Movement speeds: walking is 120 world units/second and running is 270 (1.5x
+the original speeds). Running is the default; hold Shift to walk.
+
+Attack clicks use a dedicated reliable request/ACK exchange, independent of the
+movement sequence. The client retries unacknowledged IDs; the server acknowledges
+duplicates without executing them again. The latest click can buffer for up to
+250 ms and starts as recovery ends, retaining its click-time aim. Request age
+counts toward that window, so delayed requests and early clicks cannot replay as
+surprise attacks later. Death clears queued attacks. Run
+`python3 tests/reliable_attack_network.py` against a fresh server to exercise
+request loss, ACK loss, duplicate/reordered input, and buffer timing.
+
+The melee cone is now 90 degrees, shared by damage checks and F1 drawing. Actual
+server damage events produce floating numbers near a randomized hit position:
+white for damage you deal, red for damage you receive (including triggers).
+Numbers rise 42 world units and fade over 0.9 seconds. Recent hit history is sent
+in snapshots and deduplicated, so repeated packets cannot duplicate numbers.
+
+Damage numbers always carry a minus sign (for example, `-20` or `-2`). Outgoing
+damage is white; incoming damage remains red. At 100 health, five jabs (20 each)
+or three hooks (35 each) defeat a player. Final-hit numbers show actual health
+lost, capped at the remaining health.
+
+Players standing off the floor (outside the isometric map or on an empty Floor tile) take 2 damage immediately, then every 0.5 seconds at 120 BPM. Returning to a floor tile stops this damage. Missing-floor damage uses the same hurt effects, death, and respawn behavior as the floor switch.
+
+Combat audio loads from `assets/sound/Retro_Combat_FX` using SFML Audio. All 36 applicable variants are used: `SwordSwing_*` for accepted attacks (including misses), `Punch_*` for successful player hits (including lethal hits), `Damage_Short_*` for floor hazards, `Big_Damage_*` for death, and `SpecialFX_Magic_*` for respawn. Each group selects randomly without consecutive repeats. Sounds pan left/right and fade with distance, with up to 32 overlapping voices. Snapshot event tracking prevents duplicate sounds and suppresses old events when joining. Weapon, parry, jump, charge, and monster-specific clips are reserved for those future mechanics.

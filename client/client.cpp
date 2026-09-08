@@ -1,4 +1,6 @@
 #include "common/common.hpp"
+#include "common/collision_world.hpp"
+#include "common/trigger_system.hpp"
 #include "camera.hpp"
 #include "player.hpp"
 #include "client_connection.hpp"
@@ -6,6 +8,10 @@
 #include "common/map_layer.hpp"
 #include "input_manager.hpp"
 #include "hud.hpp"
+#include "wall_occlusion.hpp"
+#include "combat_debug.hpp"
+#include "damage_numbers.hpp"
+#include "sound_system.hpp"
 
 #include <SFML/Graphics.hpp>
 
@@ -32,7 +38,7 @@ sf::Vector2f normalizeOrZero(sf::Vector2f v) {
 Player* chooseCameraTarget(std::vector<Player>& players, std::size_t localIndex) {
     if (localIndex < players.size()) {
         Player& local = players[localIndex];
-        if (local.isConnected() && local.isAlive()) {
+        if (local.isConnected()) {
             return &local;
         }
     }
@@ -88,6 +94,8 @@ int main() {
         return 1;
     }
 
+    if (!resources.loadFragmentShader("player_occlusion", "../shaders/player_occlusion.frag")) return 1;
+
     if (!resources.loadBusinessmanCharacter("businessman", assetRoot)) {
         return 1;
     }
@@ -106,9 +114,50 @@ int main() {
     // Level setup
     // -------------------------------------------------------------------------
     tmx::Map map;
-    map.load("../assets/tiled/Sample.tmx");
+    if (!map.load(common::LEVEL_PATH)) {
+        logger.log_error("Failed to load level: ", common::LEVEL_PATH);
+        return 1;
+    }
+    common::CollisionWorld collision;
+    collision.load(common::LEVEL_PATH);
+    std::vector<sf::ConvexShape> collisionDebugShapes;
+    for (const auto& points : collision.outlines()) {
+        sf::ConvexShape shape(points.size());
+        for (std::size_t i = 0; i < points.size(); ++i) shape.setPoint(i, points[i]);
+        shape.setFillColor(sf::Color(255, 70, 90, 55));
+        shape.setOutlineColor(sf::Color(255, 80, 100));
+        shape.setOutlineThickness(1.5f);
+        collisionDebugShapes.push_back(std::move(shape));
+    }
+    common::TriggerSystem triggers;
+    triggers.load(common::LEVEL_PATH);
+    for (const auto& points : triggers.outlines()) {
+        sf::ConvexShape shape(points.size());
+        for (std::size_t i=0; i<points.size(); ++i) shape.setPoint(i, points[i]);
+        shape.setFillColor(sf::Color(255,180,40,40));
+        shape.setOutlineColor(sf::Color(255,180,40));
+        shape.setOutlineThickness(1.5f);
+        collisionDebugShapes.push_back(std::move(shape));
+    }
+    std::vector<sf::Text> levelLabels;
+    for (const auto& mapLayer : map.getLayers()) {
+        if (mapLayer->getType() != tmx::Layer::Type::Object || mapLayer->getName() != "Labels") continue;
+        for (const auto& object : mapLayer->getLayerAs<tmx::ObjectGroup>().getObjects()) {
+            sf::Text label(resources.getFont("ui"), object.getName(), 18);
+            const auto p = object.getPosition();
+            const float scale = float(map.getTileSize().x) / (2.f * map.getTileSize().y);
+            label.setPosition({(p.x - p.y) * scale, (p.x + p.y) * 0.5f});
+            const auto bounds = label.getLocalBounds();
+            label.setOrigin({bounds.position.x + bounds.size.x * 0.5f, 0.f});
+            label.setFillColor(sf::Color(245, 235, 200));
+            label.setOutlineColor(sf::Color(25, 25, 30));
+            label.setOutlineThickness(2.f);
+            levelLabels.push_back(std::move(label));
+        }
+    }
     MapLayer layerFloor(map, 1);
     MapLayer layerWalls(map, 2);
+    WallOcclusion wallOcclusion(map, 2);
     //MapLayer layerTriggers(map, 9);
     layerWalls.update(sf::Time::Zero);
     layerFloor.update(sf::Time::Zero);
@@ -160,9 +209,10 @@ int main() {
         p.setFont(resources.getFont("ui"));
         p.setSpriteScale({1.10f, 1.10f});
         p.setOriginToFeet();
+        p.setOcclusionShader(&resources.getShader("player_occlusion"));
         p.setInterpolationSharpness(14.f);
-        p.setWalkSpeed(80.f);
-        p.setRunSpeed(180.f);
+        p.setWalkSpeed(common::WALK_SPEED * 0.5f);
+        p.setRunSpeed((common::WALK_SPEED + common::RUN_SPEED) * 0.5f);
         p.teleportTo(p.state().pos);
 
         if (i == myId) {
@@ -179,8 +229,12 @@ int main() {
     // -------------------------------------------------------------------------
     // Timing
     // -------------------------------------------------------------------------
+    SoundSystem sounds("../assets/sound/Retro_Combat_FX");
     sf::Clock frameClock;
     float accumulator = 0.f;
+    DamageNumbers damageNumbers;
+    float damageFlash = 0.f;
+    constexpr float damageFlashDuration = 0.35f;
 
     // -------------------------------------------------------------------------
     // Main loop
@@ -191,6 +245,8 @@ int main() {
         // ---------------------------------------------------------------------
         const float renderDt = frameClock.restart().asSeconds();
         accumulator += renderDt;
+        damageFlash = std::max(0.f, damageFlash-renderDt);
+        damageNumbers.update(renderDt);
 
         // ---------------------------------------------------------------------
         // Events
@@ -201,6 +257,8 @@ int main() {
         // Network
         // ---------------------------------------------------------------------
         client_conn.pumpNetwork(newStates, joined_players);
+        damageNumbers.observe(newStates, myId);
+        sounds.observe(newStates, players[myId].renderPosition());
         while(joined_players.size() > 0) {
             const common::PlayerId p = joined_players.back();
             joined_players.pop_back();
@@ -215,7 +273,7 @@ int main() {
             accumulator -= common::TICK_DT;
 
             // Build, send, then simulate the local player's input command
-            common::InputCommand input_cmd = input.buildCommand();
+            common::InputCommand input_cmd = input.buildCommand(players[myId].renderPosition(), camera.view());
             client_conn.sendInput(myId, input_cmd);
 
             // -----------------------------------------------------------------
@@ -228,7 +286,7 @@ int main() {
             // Player& localPlayer = players[myId];
 
             // {
-            //     const float speed = input_cmd.sprint ? 180.f : 80.f;
+            //     const float speed = input_cmd.sprint ? common::RUN_SPEED : common::WALK_SPEED;
 
             //     simulatedLocalPlayer.vel = input_cmd.move * speed;
             //     simulatedLocalPlayer.pos += simulatedLocalPlayer.vel * common::TICK_DT;
@@ -242,6 +300,9 @@ int main() {
                 if (!p.state().connected) {
                     continue;
                 }
+                if (i == myId && newStates[i].connected && newStates[i].health < p.state().health)
+                    damageFlash = damageFlashDuration;
+                if (i == myId && !p.isAlive() && newStates[i].alive) camera.snapTo(newStates[i].pos);
                 p.applySnapshot(newStates[i]);
                 //logger.log_info("Player ", i, "'s state: ", p.state());
             }
@@ -311,10 +372,15 @@ int main() {
         // ---------------------------------------------------------------------
         // Draw
         // ---------------------------------------------------------------------
+        wallOcclusion.update(window.getSize(), camera.view());
+        auto& visibilityShader = resources.getShader("player_occlusion");
+        visibilityShader.setUniform("wallDepth", wallOcclusion.texture());
+        visibilityShader.setUniform("renderSize", sf::Glsl::Vec2(window.getSize()));
         window.clear(sf::Color(30, 34, 42));
 
         window.draw(layerFloor);
         window.draw(layerWalls);
+        for (const auto& label : levelLabels) window.draw(label);
         //window.draw(layerTrigger);
 
         for (int i = 0; i < common::MAX_PLAYERS; i++) {
@@ -325,6 +391,23 @@ int main() {
             window.draw(p);
         }
 
+        if (input.collisionDebugEnabled()) {
+            for (const auto& shape : collisionDebugShapes) window.draw(shape);
+            sf::CircleShape feet(common::CollisionWorld::PlayerRadius);
+            feet.setOrigin({common::CollisionWorld::PlayerRadius, common::CollisionWorld::PlayerRadius});
+            feet.setFillColor(sf::Color::Transparent);
+            feet.setOutlineColor(sf::Color(80, 255, 180));
+            feet.setOutlineThickness(1.5f);
+            for (auto& player : players) {
+                if (!player.isConnected()) continue;
+                feet.setPosition(player.state().pos);
+                window.draw(feet);
+            }
+            drawCombatDebug(window, players, collision, resources.getFont("ui"));
+        }
+
+        damageNumbers.draw(window, resources.getFont("ui"));
+
         // Draw debug rectangles in world space
         //window.draw(makeOutlinedRect(layerBounds, 2.f, sf::Color::Green)); // doesnt show up
         //window.draw(makeOutlinedRect(sf::FloatRect({300.f, 300.f}, {100.f, 100.f}), 2.f, sf::Color::Blue));
@@ -334,6 +417,21 @@ int main() {
         //hud.draw(window);
         //window.draw(makeOutlinedRect(sf::FloatRect({common::WINDOW_WIDTH / 2, common::WINDOW_HEIGHT / 2}, {120.f, 80.f}), 2.f, sf::Color::Black));
 
+        if (input.collisionDebugEnabled()) {
+            sf::Text legend(resources.getFont("ui"),
+                "F1 combat: amber windup | red active | green hit | gray recovery\n"
+                "Target lines: cyan clear | red wall blocked | gray outside arc\n"
+                "Attack zones and feet show server positions", 13);
+            legend.setPosition({12,12});
+            legend.setOutlineColor(sf::Color::Black);legend.setOutlineThickness(1.f);
+            window.draw(legend);
+        }
+        if (damageFlash > 0.f) {
+            sf::RectangleShape flash(sf::Vector2f(window.getSize()));
+            const float fade = damageFlash / damageFlashDuration;
+            flash.setFillColor(sf::Color(220, 15, 25, static_cast<std::uint8_t>(70.f*fade*fade)));
+            window.draw(flash);
+        }
         window.display();
     }
 
