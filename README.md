@@ -200,9 +200,11 @@ Press **Q**, then **left-click** to place lightning. Configure Q with `[bindings
 
 ## Windows downloads
 
-Open the GitHub repository **Actions > Windows build**, select the latest successful run, and download **MARPG-Windows-x64** under Artifacts. Extract the entire ZIP, edit `client.toml` for your name and server address, then double-click `client.bat`. To host, edit `server.toml` and run `server.bat`. Keep `bin`, `assets`, and the TOML files together. This is a native Windows x64 release with static runtime libraries; WSL and developer tools are not required.
+[Download MARPG for Windows](https://github.com/nsarka/marpg/releases/latest/download/MARPG-Windows-x64.zip) — no GitHub account required.
 
-The workflow runs on pushes to `main` or manually using **Run workflow**. Artifacts are retained for 30 days. GitHub requires sign-in and repository access to download private-repository artifacts; you can share the downloaded ZIP with friends.
+Extract the entire ZIP, edit `client.toml` for your name and server address, then double-click `client.bat`. To host, edit `server.toml` and run `server.bat`. Keep `bin`, `assets`, and the TOML files together. This is a native Windows x64 release with static runtime libraries; WSL and developer tools are not required.
+
+Successful Windows builds on `main` automatically publish a GitHub Release with the ZIP. The link above always downloads the latest published build. Previous builds remain available on the Releases page. The workflow also supports manual runs and retains Actions artifacts for 30 days.
 
 ## Ubuntu 24.04 VPS server
 

@@ -14,6 +14,8 @@ concurrency:
 
 jobs:
   windows:
+    permissions:
+      contents: write
     runs-on: windows-2022
     timeout-minutes: 30
     steps:
@@ -64,3 +66,23 @@ jobs:
           path: dist/MARPG-Windows-x64/
           if-no-files-found: error
           retention-days: 30
+      - name: Publish public Windows download
+        if: github.ref == 'refs/heads/main'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          $archive = "dist/MARPG-Windows-x64.zip"
+          Compress-Archive -Path "dist/MARPG-Windows-x64/*" -DestinationPath $archive
+          $tag = "windows-$env:GITHUB_RUN_NUMBER-$env:GITHUB_RUN_ATTEMPT"
+          @"
+          Download MARPG-Windows-x64.zip below, extract it, and run client.bat.
+          Edit client.toml to set your player name. No GitHub account is needed to download.
+
+          Built from commit $env:GITHUB_SHA. Includes the client, server, assets, and configuration files.
+          "@ | Set-Content -Path release-notes.md -Encoding utf8
+          gh release create $tag $archive --target $env:GITHUB_SHA --title "MARPG Windows build $env:GITHUB_RUN_NUMBER" --notes-file release-notes.md --draft
+          if ($LASTEXITCODE -ne 0) { throw "Release upload failed" }
+          gh release edit $tag --draft=false --latest
+          if ($LASTEXITCODE -ne 0) { throw "Release publishing failed" }
