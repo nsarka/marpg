@@ -22,11 +22,16 @@ int main(int argc,char** argv){
     check(client.showOtherDamageNumbers,"Third-party damage numbers should default to enabled");
     check(settings.honorTeamRequests && client.team==0,"Default team request policy changed");
     check(settings.teams==2 && settings.slots==20 && client.port==54000,"Default files not loaded");
+    check(settings.name=="Rick's Funhaus","Default server name changed");
+    {std::ofstream file(temp);file<<"[server]\nname=\"Custom Arena\"\n";}
+    check(common::loadServerSettings(temp.string()).name=="Custom Arena","Server name not loaded");
+    std::filesystem::remove(temp);
+    settings.name="Custom Arena";
     settings.port=55001;settings.slots=12;settings.teams=3;settings.triggerDamage=7;settings.triggerBpm=60;
     settings.boundsDamage=9;settings.boundsBpm=240;settings.jabDamage=27;settings.hookDamage=40;
     settings.honorTeamRequests=true;
     sf::Packet packet;common::writeSettings(packet,settings);common::ServerSettings received;
-    check(common::readSettings(packet,received) && received.port==55001 && received.teams==3 && received.boundsBpm==240 && received.honorTeamRequests,"Settings wire roundtrip failed");
+    check(common::readSettings(packet,received) && received.name=="Custom Arena" && received.port==55001 && received.teams==3 && received.boundsBpm==240 && received.honorTeamRequests,"Settings wire roundtrip failed");
     common::applySettings(settings);
     check(common::attackDescription(common::AttackKind::Jab).damage==27 && common::attackDescription(common::AttackKind::Hook).damage==40,"Combat ignores config");
     common::TriggerSystem triggers;triggers.load((root/"assets/tiled/Demo.tmx").string());
@@ -79,6 +84,15 @@ int main(int argc,char** argv){
         auto clientPath=std::filesystem::temp_directory_path()/"marpg-client-team-test.toml";
         {std::ofstream file(clientPath);file<<"[client]\nteam=2\nshow_other_damage_numbers=true\n";}
         check(common::loadClientSettings(clientPath.string()).team==2 && common::loadClientSettings(clientPath.string()).showOtherDamageNumbers,"Client team preference not loaded");
+        {std::ofstream file(clientPath);file<<"[bindings]\nmove_up=\"Up\"\njab=[\"Space\",\"Mouse_Left\"]\ndebug=[]\n";}
+        const auto bindings=common::loadClientSettings(clientPath.string()).bindings;
+        check(bindings.actions[0][0]==common::parseBinding("up") && bindings.actions[5].size()==2 && bindings.actions[8].empty(),"Custom bindings not parsed");
+        check(bindings.actions[4].size()==2 && bindings.actions[7][0]==common::parseBinding("Tab"),"Missing bindings lost defaults");
+        for(const auto& invalid:{"[bindings]\njab=42\n","[bindings]\njab=\"typo\"\n","[bindings]\nunknown=\"W\"\n"}) {
+            {std::ofstream file(clientPath);file<<invalid;}
+            bool rejected=false;try{common::loadClientSettings(clientPath.string());}catch(...){rejected=true;}
+            check(rejected,"Invalid keybinding accepted");
+        }
         {std::ofstream file(clientPath);file<<"[client]\nteam=21\n";}
         bool rejected=false;try{common::loadClientSettings(clientPath.string());}catch(...){rejected=true;}
         std::filesystem::remove(clientPath);check(rejected,"Invalid client team accepted");

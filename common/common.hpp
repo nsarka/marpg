@@ -119,6 +119,7 @@ struct PlayerState {
     std::string name = "Player";
     int health = 100;
     int score = 0;
+    std::uint32_t kills = 0, deaths = 0;
     // Retain the last event so a dropped snapshot does not lose the animation.
     AttackKind lastAttack = AttackKind::None;
     std::uint32_t attackSequence = 0;

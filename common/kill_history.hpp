@@ -9,11 +9,15 @@ class KillHistory {
 public:
     void observe(const std::vector<PlayerState*>& players,const TriggerSystem& hazards) {
         for(std::size_t victim=0;victim<players.size() && victim<seen_.size();++victim) {
-            const auto& player=*players[victim];
+            auto& player=*players[victim];
             const bool changed=sequenceNewer(player.damageSequence,seen_[victim]);
             seen_[victim]=player.damageSequence;
             if(!changed || !player.connected || player.alive || player.health>0 || player.damageEvents.empty())continue;
+            ++player.deaths;
             const auto& damage=player.damageEvents.back();
+            if(damage.source>=0 && std::size_t(damage.source)<players.size() &&
+               std::size_t(damage.source)!=victim && players[damage.source]->connected)
+                ++players[damage.source]->kills;
             KillEvent event;
             event.sequence=++sequence_;event.victim=static_cast<PlayerId>(victim);
             event.victimName=player.name;event.victimTeam=player.team;

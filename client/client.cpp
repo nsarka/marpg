@@ -12,6 +12,7 @@
 #include "combat_debug.hpp"
 #include "damage_numbers.hpp"
 #include "kill_feed.hpp"
+#include "scoreboard.hpp"
 #include "sound_system.hpp"
 #include "common/team_spawns.hpp"
 
@@ -204,7 +205,7 @@ int main(int argc, char**) {
     // -------------------------------------------------------------------------
     // Input manager setup
     // -------------------------------------------------------------------------
-    InputManager input{window};
+    InputManager input{window, options.bindings};
 
     // -------------------------------------------------------------------------
     // Players: Complete Player for everybody, and an extra PlayerState for running
@@ -456,7 +457,7 @@ int main(int argc, char**) {
 
         if (input.collisionDebugEnabled()) {
             sf::Text legend(resources.getFont("ui"),
-                "F1 combat: amber windup | red active | green hit | gray recovery\n"
+                "Combat: amber windup | red active | green hit | gray recovery\n"
                 "Target lines: cyan clear | red wall blocked | gray outside arc\n"
                 "Attack zones and feet show server positions", 13);
             legend.setPosition({12,12});
@@ -470,6 +471,8 @@ int main(int argc, char**) {
             window.draw(flash);
         }
         killFeed.draw(window,resources.getFont("ui"));
+        if(input.keys().scoreboard)
+            drawScoreboard(window,resources.getFont("ui"),newStates,myId);
         window.display();
     }
 

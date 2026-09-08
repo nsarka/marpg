@@ -1,9 +1,11 @@
 #pragma once
 #include "common.hpp"
+#include "keybindings.hpp"
 #include <stdexcept>
 
 namespace common {
 struct ServerSettings {
+    std::string name="Rick's Funhaus";
     std::string ip="0.0.0.0";
     std::uint16_t port=54000;
     std::uint32_t slots=20, teams=2, bots=10;
@@ -13,7 +15,7 @@ struct ServerSettings {
     bool honorTeamRequests=true;
     void validate() const;
 };
-struct ClientSettings {std::string name="Rick",ip="127.0.0.1";std::uint16_t port=54000;std::uint32_t team=0;bool showOtherDamageNumbers=true;};
+struct ClientSettings {KeyBindings bindings;std::string name="Rick",ip="127.0.0.1";std::uint16_t port=54000;std::uint32_t team=0;bool showOtherDamageNumbers=true;};
 ServerSettings loadServerSettings(const std::string& path);
 ClientSettings loadClientSettings(const std::string& path);
 inline ServerSettings activeSettings{};

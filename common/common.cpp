@@ -131,6 +131,8 @@ void writeWorldPacket(sf::Packet& packet,
         packet << event.sequence << event.killer << event.victim << event.killerTeam << event.victimTeam
                << event.killerName << event.victimName << static_cast<std::uint8_t>(event.cause);
     }
+    // Full totals survive lost snapshots and joining after the kill history expires.
+    for(int i=0;i<MAX_PLAYERS;++i)packet << players[i].kills << players[i].deaths;
 }
 
 bool readWorldPacket(sf::Packet& packet,
@@ -155,6 +157,9 @@ bool readWorldPacket(sf::Packet& packet,
                  event.killerName.size()>64 || event.victimName.size()>64)return false;
             event.cause=static_cast<KillCause>(cause);history.push_back(std::move(event));
         }
+    }
+    if(!packet.endOfPacket()) {
+        for(auto& player:snapshot)if(!(packet >> player.kills >> player.deaths))return false;
     }
     if(kills)*kills=std::move(history);
     players=std::move(snapshot);

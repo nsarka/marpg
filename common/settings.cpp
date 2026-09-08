@@ -27,6 +27,8 @@ std::uint32_t integer(const toml::table& t,const char* section,const char* key,s
 }
 }
 void ServerSettings::validate() const {
+    if (name.empty() || name.size()>128 || name.find_first_of("\r\n\t")!=std::string::npos)
+        throw std::runtime_error("Server name must be 1-128 bytes and a single line");
     if (ip.empty() || ip.size()>255 || !port || slots<1 || slots>MAX_PLAYERS || teams<1 || teams>20 || teams>slots || bots>slots)
         throw std::runtime_error("Server requires a valid address/port, 1-32 slots, 1-20 teams (no more than slots), and bots <= slots");
     for (auto damage:{triggerDamage,boundsDamage,jabDamage,hookDamage})
@@ -37,8 +39,9 @@ void ServerSettings::validate() const {
 ServerSettings loadServerSettings(const std::string& path) {
     auto t=toml::parse_file(path); ServerSettings s;
     for (const auto& [key,value]:t) if(key!="server" && key!="damage") throw std::runtime_error("Unknown server configuration table: "+std::string(key.str()));
-    keys(t,"server",{"ip","port","slots","teams","bots","friendly_fire","honor_team_requests"});
+    keys(t,"server",{"name","ip","port","slots","teams","bots","friendly_fire","honor_team_requests"});
     keys(t,"damage",{"trigger","trigger_bpm","out_of_bounds","out_of_bounds_bpm","jab","hook"});
+    s.name=get<std::string>(t,"server","name",s.name);
     s.ip=get<std::string>(t,"server","ip",s.ip);
     s.port=integer(t,"server","port",s.port,65535);
     s.slots=integer(t,"server","slots",s.slots,MAX_PLAYERS);
@@ -56,8 +59,23 @@ ServerSettings loadServerSettings(const std::string& path) {
 }
 ClientSettings loadClientSettings(const std::string& path) {
     auto t=toml::parse_file(path);ClientSettings s;
-    for (const auto& [key,value]:t) if(key!="client") throw std::runtime_error("Unknown client configuration table: "+std::string(key.str()));
+    for (const auto& [key,value]:t) if(key!="client" && key!="bindings") throw std::runtime_error("Unknown client configuration table: "+std::string(key.str()));
     keys(t,"client",{"name","ip","port","team","show_other_damage_numbers"});
+    keys(t,"bindings",{"move_up","move_down","move_left","move_right","walk","jab","hook","scoreboard","debug"});
+    for(std::size_t i=0;i<s.bindings.actions.size();++i) {
+        const std::string action=i<BindingNames.size()?BindingNames[i]:"debug";
+        const auto node=t["bindings"][action];
+        if(!node)continue;
+        auto& inputs=s.bindings.actions[i];inputs.clear();
+        if(auto value=node.value<std::string>())inputs.push_back(parseBinding(*value));
+        else if(auto array=node.as_array()) {
+            for(const auto& entry:*array) {
+                auto value=entry.value<std::string>();
+                if(!value)throw std::runtime_error("bindings."+action+" must contain key names");
+                inputs.push_back(parseBinding(*value));
+            }
+        }else throw std::runtime_error("bindings."+action+" must be a key name or array of key names");
+    }
     s.showOtherDamageNumbers=get<bool>(t,"client","show_other_damage_numbers",s.showOtherDamageNumbers);
     s.team=integer(t,"client","team",s.team,20);
     s.name=get<std::string>(t,"client","name",s.name);s.ip=get<std::string>(t,"client","ip",s.ip);
@@ -68,12 +86,13 @@ ClientSettings loadClientSettings(const std::string& path) {
 void applySettings(const ServerSettings& s) {s.validate();activeSettings=s;setAttackDamage(s.jabDamage,s.hookDamage);}
 void writeSettings(sf::Packet& p,const ServerSettings& s) {
     p<<s.ip<<s.port<<s.slots<<s.teams<<s.bots<<s.friendlyFire
-     <<s.triggerDamage<<s.triggerBpm<<s.boundsDamage<<s.boundsBpm<<s.jabDamage<<s.hookDamage<<s.honorTeamRequests;
+     <<s.triggerDamage<<s.triggerBpm<<s.boundsDamage<<s.boundsBpm<<s.jabDamage<<s.hookDamage<<s.honorTeamRequests<<s.name;
 }
 bool readSettings(sf::Packet& p,ServerSettings& s) {
     ServerSettings value;
     if (!(p>>value.ip>>value.port>>value.slots>>value.teams>>value.bots>>value.friendlyFire
           >>value.triggerDamage>>value.triggerBpm>>value.boundsDamage>>value.boundsBpm>>value.jabDamage>>value.hookDamage>>value.honorTeamRequests)) return false;
+    if(!p.endOfPacket() && !(p>>value.name))return false;
     try {value.validate();}catch(const std::exception&){return false;}
     s=value;return true;
 }

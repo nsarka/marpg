@@ -14,8 +14,8 @@ namespace {
     }
 }
 
-InputManager::InputManager(sf::RenderWindow& window)
-    : window_(window) {}
+InputManager::InputManager(sf::RenderWindow& window, const common::KeyBindings& bindings)
+    : bindings_(bindings), window_(window) {}
 
 void InputManager::handleEvents() {
     while (const std::optional event = window_.pollEvent()) {
@@ -30,8 +30,7 @@ void InputManager::handleEvents() {
         }
         else if (const auto* mouse = event->getIf<sf::Event::MouseButtonPressed>()) {
             setMouseButton(mouse->button, true);
-            if (mouse->button == sf::Mouse::Button::Left || mouse->button == sf::Mouse::Button::Right)
-                attackMousePosition_ = mouse->position;
+            if (edges_.jabPressed || edges_.hookPressed)attackMousePosition_ = mouse->position;
         }
         else if (const auto* mouse = event->getIf<sf::Event::MouseButtonReleased>()) {
             setMouseButton(mouse->button, false);
@@ -80,6 +79,7 @@ const InputManager::KeyState& InputManager::keys() const {
 }
 
 void InputManager::clearAll() {
+    held_.clear();
     keys_ = {};
     debugKeyHeld_ = false;
     attackMousePosition_.reset();
@@ -87,53 +87,24 @@ void InputManager::clearAll() {
 }
 
 void InputManager::setKey(sf::Keyboard::Key key, bool pressed) {
-    if (key == sf::Keyboard::Key::W) {
-        keys_.up = pressed;
-    }
-    else if (key == sf::Keyboard::Key::S) {
-        keys_.down = pressed;
-    }
-    else if (key == sf::Keyboard::Key::A) {
-        keys_.left = pressed;
-    }
-    else if (key == sf::Keyboard::Key::D) {
-        keys_.right = pressed;
-    }
-    else if (key == sf::Keyboard::Key::LShift) {
-        keys_.walk = pressed;
-    }
-    else if (key == sf::Keyboard::Key::RShift) {
-        keys_.rightWalk = pressed;
-    }
-    else if (key == sf::Keyboard::Key::F1) {
-        if (pressed && !debugKeyHeld_) collisionDebugEnabled_ = !collisionDebugEnabled_;
-        debugKeyHeld_ = pressed;
-    }
+    if(key!=sf::Keyboard::Key::Unknown)setBinding(int(key),pressed);
 }
-
 void InputManager::setMouseButton(sf::Mouse::Button button, bool pressed) {
-    switch (button) {
-        case sf::Mouse::Button::Left:
-            if (pressed) {
-                edges_.jabPressed = true;
-                keys_.jab = true;
-            } else {
-                edges_.jabReleased = true;
-                keys_.jab = false;
-            }
-            break;
-
-        case sf::Mouse::Button::Right:
-            if (pressed) {
-                edges_.hookPressed = true;
-                keys_.hook = true;
-            } else {
-                edges_.hookReleased = true;
-                keys_.hook = false;
-            }
-            break;
-
-        default:
-            break;
-    }
+    setBinding(common::mouseBinding(button),pressed);
+}
+void InputManager::setBinding(int code, bool pressed) {
+    if(pressed)held_.insert(code);else held_.erase(code);
+    const auto active=[&](std::size_t action) {
+        const auto& inputs=bindings_.actions[action];
+        return std::any_of(inputs.begin(),inputs.end(),[&](int input){return held_.count(input)>0;});
+    };
+    keys_.up=active(0);keys_.down=active(1);keys_.left=active(2);keys_.right=active(3);
+    keys_.walk=active(4);keys_.rightWalk=false;keys_.scoreboard=active(7);
+    const bool jab=active(5),hook=active(6),debug=active(8);
+    edges_.jabPressed|=jab && !keys_.jab;edges_.jabReleased|=!jab && keys_.jab;
+    edges_.hookPressed|=hook && !keys_.hook;edges_.hookReleased|=!hook && keys_.hook;
+    if((jab && !keys_.jab) || (hook && !keys_.hook))attackMousePosition_=sf::Mouse::getPosition(window_);
+    keys_.jab=jab;keys_.hook=hook;
+    if(debug && !debugKeyHeld_)collisionDebugEnabled_=!collisionDebugEnabled_;
+    debugKeyHeld_=debug;
 }

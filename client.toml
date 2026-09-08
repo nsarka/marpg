@@ -6,3 +6,17 @@ port = 54000
 team = 3
 # Show white damage numbers for combat between other players/bots.
 show_other_damage_numbers = true
+
+# Key names are case-insensitive. Use a string or an array of alternatives.
+# Use empty brackets e.g. walk = [] or move_up = [] to disable an action.
+# Changes apply when the client restarts.
+[bindings]
+move_up = "W"
+move_down = "S"
+move_left = "A"
+move_right = "D"
+walk = ["LShift", "RShift"]
+jab = "Mouse_Left"
+hook = "Mouse_Right"
+scoreboard = "Tab"
+debug = "F1"

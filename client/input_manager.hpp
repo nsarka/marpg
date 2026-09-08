@@ -1,6 +1,8 @@
 #pragma once
 
 #include "common/common.hpp"
+#include "common/keybindings.hpp"
+#include <set>
 #include "common/sequence_buffer.hpp"
 
 #include <SFML/Graphics/RenderWindow.hpp>
@@ -19,6 +21,8 @@ public:
         bool left = false;
         bool right = false;
 
+        bool scoreboard = false; // Tab, held while the scoreboard is visible
+
         bool walk = false; // left shift
         bool rightWalk = false; // right shift
 
@@ -35,7 +39,7 @@ public:
     };
 
 public:
-    explicit InputManager(sf::RenderWindow& window);
+    explicit InputManager(sf::RenderWindow& window, const common::KeyBindings& bindings = {});
     ~InputManager() = default;
 
     InputManager(const InputManager&) = delete;
@@ -53,6 +57,9 @@ public:
     bool collisionDebugEnabled() const { return collisionDebugEnabled_; }
 
 private:
+    void setBinding(int code, bool pressed);
+    common::KeyBindings bindings_;
+    std::set<int> held_;
     void setKey(sf::Keyboard::Key key, bool pressed);
     void setMouseButton(sf::Mouse::Button button, bool pressed);
 

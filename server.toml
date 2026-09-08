@@ -1,4 +1,5 @@
 [server]
+name = "Rick's Funhaus"
 # Bind all interfaces. Use a specific local IP to restrict the interface.
 ip = "0.0.0.0"
 port = 54000
@@ -13,7 +14,7 @@ honor_team_requests = true
 
 [damage]
 trigger = 2
-trigger_bpm = 120
+trigger_bpm = 240
 out_of_bounds = 2
 out_of_bounds_bpm = 120
 jab = 20
