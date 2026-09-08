@@ -6,8 +6,10 @@ port = 54000
 # Total capacity (1-32). Human player slots = slots - bots.
 # With these defaults: 20 total slots - 10 bots = 10 human players.
 slots = 20
-teams = 4
+teams = 3
 bots = 12
+# Set false to keep bots idle. They can still take damage and respawn.
+bot_ai = true
 friendly_fire = false
 # Honor valid client team requests even when they unbalance the teams.
 honor_team_requests = true
@@ -19,3 +21,24 @@ out_of_bounds = 2
 out_of_bounds_bpm = 120
 jab = 20
 hook = 35
+
+# Damage values are positive health loss, randomly rolled per target/hit.
+[spell]
+damage_min = 5
+damage_max = 30
+radius = 120.0
+range = 500.0
+windup_seconds = 0.375
+# Recovery after the explosion, before another attack can start.
+cooldown_seconds = 1.625
+
+[lightning]
+damage_min = 1
+damage_max = 4
+radius = 45.0
+range = 500.0
+windup_seconds = 0.25
+# Lightning strikes the chosen location for this duration.
+duration_seconds = 3.0
+damage_interval_seconds = 0.3333333333333333
+cooldown_seconds = 1.0

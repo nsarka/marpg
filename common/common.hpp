@@ -39,7 +39,8 @@ enum class AttackKind : std::uint8_t {
     None = 0,
     Jab,
     Hook,
-    Uppercut
+    Uppercut,
+    Lightning
 };
 
 struct AttackDesc {
@@ -79,6 +80,9 @@ struct InputCommand {
     bool jabPressed = false;
     bool jabReleased = false;
 
+    AttackKind spellKind = AttackKind::Uppercut;
+    bool spellPressed = false;
+    sf::Vector2f spellTarget{};
     bool hookHeld = false;
     bool hookPressed = false;
     bool hookReleased = false;
@@ -99,7 +103,7 @@ struct DamageEvent {
     sf::Vector2f contact{};
 };
 inline constexpr std::size_t DamageHistorySize = 8;
-enum class KillCause : std::uint8_t { Hit, Jab, Hook, Floor, Bounds };
+enum class KillCause : std::uint8_t { Hit, Jab, Hook, Floor, Bounds, Spell, Lightning };
 struct KillEvent {
     std::uint32_t sequence=0;
     std::int32_t killer=-1;
@@ -120,6 +124,9 @@ struct PlayerState {
     int health = 100;
     int score = 0;
     std::uint32_t kills = 0, deaths = 0;
+    std::uint32_t spellSequence = 0;
+    sf::Vector2f spellPosition{};
+    AttackKind spellEffect = AttackKind::Uppercut;
     // Retain the last event so a dropped snapshot does not lose the animation.
     AttackKind lastAttack = AttackKind::None;
     std::uint32_t attackSequence = 0;

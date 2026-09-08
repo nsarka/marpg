@@ -126,5 +126,68 @@ int main(){
           "Five jabs should defeat a full-health player");
     check((100+common::attackDescription(common::AttackKind::Hook).damage-1)/common::attackDescription(common::AttackKind::Hook).damage==3,
           "Three hooks should defeat a full-health player");
+    {
+        common::activeSettings.spell.damageMin=common::activeSettings.spell.damageMax=30;
+        common::PlayerState caster,a,b,friendPlayer,outside;
+        caster.connected=a.connected=b.connected=friendPlayer.connected=outside.connected=true;
+        caster.pos={0,0};caster.team=friendPlayer.team=0;a.team=b.team=outside.team=1;
+        a.pos={200,0};b.pos={300,0};friendPlayer.pos={210,0};outside.pos={321,0};
+        common::CombatState cast;common::CollisionWorld empty;
+        std::vector<common::PlayerState*> targets{&caster,&a,&b,&friendPlayer,&outside};
+        check(!common::startAttack(caster,cast,common::AttackKind::Uppercut,{501,0}),"Spell range must be enforced");
+        check(common::startAttack(caster,cast,common::AttackKind::Uppercut,{200,0}),"Spell did not start");
+        for(int i=0;i<23;++i)common::updateAttack(caster,cast,targets,empty);
+        check(a.health==100,"Spell hit before windup");
+        common::updateAttack(caster,cast,targets,empty);
+        check(a.health==70 && b.health==70 && friendPlayer.health==100 && outside.health==100,"AoE radius or teams incorrect");
+        check(caster.spellSequence==1 && caster.spellPosition==sf::Vector2f(200,0) && a.damageEvents.back().source==0,"Spell effect or hurt attribution missing");
+        check(!common::startAttack(caster,cast,common::AttackKind::Uppercut,{200,0}),"Spell cooldown bypassed");
+        for(int i=24;i<129;++i)common::updateAttack(caster,cast,targets,empty);
+        check(cast.attack==common::AttackKind::None && a.health==70,"Spell repeated or cooldown never ended");
+        caster.pos={200,0};
+        check(common::startAttack(caster,cast,common::AttackKind::Uppercut,{200,0}),"Self-area cast failed");
+        for(int i=0;i<24;++i)common::updateAttack(caster,cast,targets,empty);
+        check(caster.health==70 && a.health==40 && friendPlayer.health==100,"Spell must hurt caster and enemies but spare teammates");
+        check(caster.damageEvents.back().source==0,"Self damage attribution lost");
+        cast={};common::activeSettings.friendlyFire=true;
+        common::startAttack(caster,cast,common::AttackKind::Uppercut,{200,0});
+        for(int i=0;i<24;++i)common::updateAttack(caster,cast,targets,empty);
+        check(caster.health==40 && friendPlayer.health==70,"Friendly fire should allow teammate damage without disabling self damage");
+        common::activeSettings.friendlyFire=false;
+        std::vector<common::PlayerState> states(common::MAX_PLAYERS);states[0]=caster;
+        sf::Packet packet;common::writeWorldPacket(packet,states);std::string type;packet>>type;
+        std::vector<common::PlayerState> result;
+        check(common::readWorldPacket(packet,result) && result[0].spellSequence==3 && result[0].spellPosition==caster.spellPosition,"Spell snapshot did not roundtrip");
+    }
+    common::applySettings(common::ServerSettings{});
+    {
+        common::PlayerState caster,victim,ally;caster.connected=victim.connected=ally.connected=true;
+        caster.pos={0,0};victim.pos=ally.pos={200,0};caster.team=ally.team=0;victim.team=1;
+        common::CombatState cast;common::CollisionWorld empty;
+        std::vector<common::PlayerState*> targets{&caster,&victim,&ally};
+        check(common::requestAttack(caster,cast,{0,common::AttackKind::Lightning,{200,0},0}),"Lightning request rejected");
+        for(int i=0;i<15;++i)common::updateAttack(caster,cast,targets,empty);
+        check(victim.health==100,"Lightning hit before windup");
+        common::updateAttack(caster,cast,targets,empty);
+        check(victim.health>=96 && victim.health<=99 && caster.spellSequence==1,"First lightning tick missing");
+        for(int i=0;i<21;++i)common::updateAttack(caster,cast,targets,empty);
+        check(caster.spellSequence==1,"Lightning hit before one third second");
+        common::updateAttack(caster,cast,targets,empty);check(caster.spellSequence==2,"Lightning repeat missing");
+        for(int i=38;i<272;++i)common::updateAttack(caster,cast,targets,empty);
+        check(caster.spellSequence==9 && cast.attack==common::AttackKind::None,"Lightning duration/cooldown incorrect");
+        check(ally.health==100 && victim.health>=64 && victim.health<=91,"Lightning damage bounds or team filter wrong");
+        for(const auto& hit:victim.damageEvents)check(hit.amount>=1 && hit.amount<=4,"Lightning damage outside configured range");
+        check(caster.spellEffect==common::AttackKind::Lightning,"Lightning visual not tagged");
+        common::activeSettings.spell.radius=25;common::activeSettings.spell.range=250;
+        common::activeSettings.spell.damageMin=5;common::activeSettings.spell.damageMax=30;
+        caster.pos={0,0};victim.pos={200,0};
+        for(int trial=0;trial<32;++trial) {
+            victim.health=100;victim.alive=true;cast={};
+            common::startAttack(caster,cast,common::AttackKind::Uppercut,{200,0});
+            for(int i=0;i<24;++i)common::updateAttack(caster,cast,targets,empty);
+            check(victim.health>=70 && victim.health<=95,"Explosion damage outside configured range");
+        }
+    }
+    common::applySettings(common::ServerSettings{});
     std::cout<<"PASS: jab/hook damage, windup, cooldown, range, facing, walls, death and respawn\n";
 }

@@ -13,6 +13,7 @@
 #include "damage_numbers.hpp"
 #include "kill_feed.hpp"
 #include "scoreboard.hpp"
+#include "spell_effects.hpp"
 #include "sound_system.hpp"
 #include "common/team_spawns.hpp"
 
@@ -247,6 +248,7 @@ int main(int argc, char**) {
     SoundSystem sounds("../assets/sound/Retro_Combat_FX");
     sf::Clock frameClock;
     float accumulator = 0.f;
+    SpellEffects spellEffects("../assets/sprites/Free Pixel Art Explosions/PNG/Explosion");
     DamageNumbers damageNumbers;
     KillFeed killFeed;
     std::optional<sf::Clock> shutdownDisplay;
@@ -288,6 +290,8 @@ int main(int argc, char**) {
         }
         damageNumbers.observe(newStates, myId, options.showOtherDamageNumbers);
         if(client_conn.hasWorldSnapshot())killFeed.observe(client_conn.killEvents(),myId);
+        spellEffects.observe(newStates,renderDt);
+        if(!newStates[myId].alive)input.clearAll();
         sounds.observe(newStates, players[myId].renderPosition());
         while(joined_players.size() > 0) {
             const common::PlayerId p = joined_players.back();
@@ -444,6 +448,16 @@ int main(int argc, char**) {
             }
         }
 
+        spellEffects.draw(window);
+        if(input.spellReady()) {
+            const auto position=window.mapPixelToCoords(sf::Mouse::getPosition(window));
+            const auto& spellRules=input.selectedSpell()==common::AttackKind::Lightning?common::activeSettings.lightning:common::activeSettings.spell;
+            const float radius=spellRules.radius;
+            sf::CircleShape area(radius);area.setOrigin({radius,radius});area.setPosition(position);
+            const bool valid=(position-newStates[myId].pos).length()<=spellRules.range;
+            area.setFillColor(valid?sf::Color(120,90,255,35):sf::Color(255,60,60,35));
+            area.setOutlineColor(valid?sf::Color(180,140,255):sf::Color(255,60,60));area.setOutlineThickness(2.f);window.draw(area);
+        }
         damageNumbers.draw(window, resources.getFont("ui"));
 
         // Draw debug rectangles in world space

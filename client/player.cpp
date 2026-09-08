@@ -261,6 +261,8 @@ void Player::applySnapshot(const common::PlayerState& snapshot)
         setFacingFromVector(m_state.combatDebug.direction);
         switch (m_state.lastAttack) {
             case common::AttackKind::Jab: playOneShot(Anim::LeftJab); break;
+            case common::AttackKind::Lightning: setAnimation(Anim::Carrying,true); break;
+            case common::AttackKind::Uppercut: playOneShot(Anim::Uppercut); break;
             case common::AttackKind::Hook: playOneShot(Anim::RightHook); break;
             default: break;
         }
@@ -324,14 +326,17 @@ void Player::update(float dtSeconds)
     updateNameTextPosition();
 
     const bool attacking = m_lockedAnim &&
-        (*m_lockedAnim == Anim::LeftJab || *m_lockedAnim == Anim::RightHook);
+        (*m_lockedAnim == Anim::LeftJab || *m_lockedAnim == Anim::RightHook || *m_lockedAnim == Anim::Uppercut);
     if (attacking) {
         setFacingFromVector(m_state.combatDebug.direction);
     } else if (lengthSquared(m_state.vel) > 0.0001f) {
         m_facing = vectorToFacing8(m_state.vel);
     }
 
-    if (!m_lockedAnim.has_value()) {
+    const bool channeling=m_state.alive && m_state.combatDebug.attack==common::AttackKind::Lightning &&
+        m_state.combatDebug.age<common::attackDescription(common::AttackKind::Lightning).startupTicks+common::attackDescription(common::AttackKind::Lightning).activeTicks;
+    if(channeling && !m_lockedAnim) {setAnimation(Anim::Carrying,false);setFacingFromVector(m_state.combatDebug.direction);}
+    if (!m_lockedAnim.has_value() && !channeling) {
         const float speed2 = lengthSquared(m_state.vel);
 
         if (!m_state.alive) {

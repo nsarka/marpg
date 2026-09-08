@@ -25,7 +25,7 @@ public:
             if(damage.source>=0 && std::size_t(damage.source)<players.size()) {
                 const auto& killer=*players[damage.source];
                 event.killerName=killer.name;event.killerTeam=killer.team;
-                event.cause=killer.lastAttack==AttackKind::Jab?KillCause::Jab:
+                event.cause=killer.lastAttack==AttackKind::Lightning?KillCause::Lightning:killer.lastAttack==AttackKind::Uppercut?KillCause::Spell:killer.lastAttack==AttackKind::Jab?KillCause::Jab:
                             killer.lastAttack==AttackKind::Hook?KillCause::Hook:KillCause::Hit;
             }else{
                 event.killer=-1;event.killerName="WORLD";

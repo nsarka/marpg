@@ -15,11 +15,11 @@ int main(int argc,char** argv){
     check(nav.path(start,{128,-100}).empty(),"AI must not path off the floor");
     common::PlayerState bot,enemy,ally;
     bot.connected=enemy.connected=ally.connected=true;bot.team=ally.team=0;enemy.team=1;
-    bot.pos=start;enemy.pos=goal;enemy.health=1000;ally.pos={-250,650};
+    bot.pos=start;enemy.pos=goal;enemy.health=10000;bot.health=10000;ally.pos={-250,650};
     common::CombatState combat;common::BotAI ai(nav,walls,123);
     std::vector<common::PlayerState*> players{&bot,&enemy,&ally};
     std::set<common::AttackKind> attacks;
-    for(int tick=0;tick<20*common::TICK_RATE;++tick){
+    for(int tick=0;tick<90*common::TICK_RATE;++tick){
         if(tick==128)enemy.pos={300,700}; // Replan for a moving target.
         auto old=bot.pos;
         ai.update(0,bot,combat,players);
@@ -27,11 +27,15 @@ int main(int argc,char** argv){
         check(nav.safePoint(bot.pos),"AI entered a wall or hazard");
         check(ai.target(0)==1,"Bot targeted its teammate");
         if(combat.attack!=common::AttackKind::None)attacks.insert(combat.attack);
+        if((combat.attack==common::AttackKind::Uppercut || combat.attack==common::AttackKind::Lightning) && combat.age==0) {
+            check(combat.spellTarget==enemy.pos,"Bot spell did not target enemy world position");
+            check(bot.vel.length()==0,"Bot should stand still while casting");
+        }
         common::updateAttack(bot,combat,players,walls);
     }
-    check(enemy.health<1000,"Bot never reached/attacked enemy behind wall");
+    check(enemy.health<10000,"Bot never reached/attacked enemy behind wall");
     check(ally.health==100,"Bot damaged its teammate");
-    check(attacks.count(common::AttackKind::Hook) && attacks.count(common::AttackKind::Jab),"Combo did not mix hooks and jabs");
+    check(attacks.size()==4,"Bot did not use all four attack types");
     enemy.connected=false;ally.team=1;
     ai.update(0,bot,combat,players);check(ai.target(0)==2,"Bot did not replace disconnected target");
     ally.alive=false;ai.update(0,bot,combat,players);check(ai.target(0)==-1 && bot.vel.length()==0,"Bot must idle without living enemies");

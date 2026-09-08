@@ -31,6 +31,14 @@ void ServerSettings::validate() const {
         throw std::runtime_error("Server name must be 1-128 bytes and a single line");
     if (ip.empty() || ip.size()>255 || !port || slots<1 || slots>MAX_PLAYERS || teams<1 || teams>20 || teams>slots || bots>slots)
         throw std::runtime_error("Server requires a valid address/port, 1-32 slots, 1-20 teams (no more than slots), and bots <= slots");
+    for(const auto& spell:{this->spell,lightning}) {
+        if(spell.damageMin<0 || spell.damageMax<spell.damageMin || spell.damageMax>10000)
+            throw std::runtime_error("Spell damage range must satisfy 0 <= min <= max <= 10000");
+        for(double v:{spell.radius,spell.range,spell.windup,spell.cooldown,spell.duration,spell.interval})
+            if(!std::isfinite(v) || v<0 || v>10000)throw std::runtime_error("Invalid spell size or timing");
+        if(spell.radius<=0 || spell.range<=0 || spell.interval<1.0/TICK_RATE || spell.duration>60 || spell.windup>60 || spell.cooldown>600)
+            throw std::runtime_error("Spell radius/range must be positive; interval >= 1 tick; duration/windup <= 60s; cooldown <= 600s");
+    }
     for (auto damage:{triggerDamage,boundsDamage,jabDamage,hookDamage})
         if (damage<0 || damage>10000) throw std::runtime_error("Damage must be between 0 and 10000");
     for (auto rate:{triggerBpm,boundsBpm})
@@ -38,8 +46,8 @@ void ServerSettings::validate() const {
 }
 ServerSettings loadServerSettings(const std::string& path) {
     auto t=toml::parse_file(path); ServerSettings s;
-    for (const auto& [key,value]:t) if(key!="server" && key!="damage") throw std::runtime_error("Unknown server configuration table: "+std::string(key.str()));
-    keys(t,"server",{"name","ip","port","slots","teams","bots","friendly_fire","honor_team_requests"});
+    for (const auto& [key,value]:t) if(key!="server" && key!="damage" && key!="spell" && key!="lightning") throw std::runtime_error("Unknown server configuration table: "+std::string(key.str()));
+    keys(t,"server",{"name","ip","port","slots","teams","bots","bot_ai","friendly_fire","honor_team_requests"});
     keys(t,"damage",{"trigger","trigger_bpm","out_of_bounds","out_of_bounds_bpm","jab","hook"});
     s.name=get<std::string>(t,"server","name",s.name);
     s.ip=get<std::string>(t,"server","ip",s.ip);
@@ -47,6 +55,7 @@ ServerSettings loadServerSettings(const std::string& path) {
     s.slots=integer(t,"server","slots",s.slots,MAX_PLAYERS);
     s.teams=integer(t,"server","teams",s.teams,20);
     s.bots=integer(t,"server","bots",s.bots,MAX_PLAYERS);
+    s.botAI=get<bool>(t,"server","bot_ai",s.botAI);
     s.honorTeamRequests=get<bool>(t,"server","honor_team_requests",s.honorTeamRequests);
     s.friendlyFire=get<bool>(t,"server","friendly_fire",s.friendlyFire);
     s.triggerDamage=integer(t,"damage","trigger",s.triggerDamage,10000);
@@ -55,15 +64,23 @@ ServerSettings loadServerSettings(const std::string& path) {
     s.hookDamage=integer(t,"damage","hook",s.hookDamage,10000);
     s.triggerBpm=get<double>(t,"damage","trigger_bpm",s.triggerBpm);
     s.boundsBpm=get<double>(t,"damage","out_of_bounds_bpm",s.boundsBpm);
+    for(const auto& section:{"spell","lightning"}) {
+        keys(t,section,{"damage_min","damage_max","radius","range","windup_seconds","cooldown_seconds","duration_seconds","damage_interval_seconds"});
+        auto& v=std::string(section)=="spell"?s.spell:s.lightning;
+        v.damageMin=integer(t,section,"damage_min",v.damageMin,10000);v.damageMax=integer(t,section,"damage_max",v.damageMax,10000);
+        v.radius=get<double>(t,section,"radius",v.radius);v.range=get<double>(t,section,"range",v.range);
+        v.windup=get<double>(t,section,"windup_seconds",v.windup);v.cooldown=get<double>(t,section,"cooldown_seconds",v.cooldown);
+        v.duration=get<double>(t,section,"duration_seconds",v.duration);v.interval=get<double>(t,section,"damage_interval_seconds",v.interval);
+    }
     s.validate();return s;
 }
 ClientSettings loadClientSettings(const std::string& path) {
     auto t=toml::parse_file(path);ClientSettings s;
     for (const auto& [key,value]:t) if(key!="client" && key!="bindings") throw std::runtime_error("Unknown client configuration table: "+std::string(key.str()));
     keys(t,"client",{"name","ip","port","team","show_other_damage_numbers"});
-    keys(t,"bindings",{"move_up","move_down","move_left","move_right","walk","jab","hook","scoreboard","debug"});
+    keys(t,"bindings",{"move_up","move_down","move_left","move_right","walk","jab","hook","scoreboard","debug","spell","lightning"});
     for(std::size_t i=0;i<s.bindings.actions.size();++i) {
-        const std::string action=i<BindingNames.size()?BindingNames[i]:"debug";
+        const std::string action=i<BindingNames.size()?BindingNames[i]:(i==8?"debug":i==9?"spell":"lightning");
         const auto node=t["bindings"][action];
         if(!node)continue;
         auto& inputs=s.bindings.actions[i];inputs.clear();
@@ -86,13 +103,17 @@ ClientSettings loadClientSettings(const std::string& path) {
 void applySettings(const ServerSettings& s) {s.validate();activeSettings=s;setAttackDamage(s.jabDamage,s.hookDamage);}
 void writeSettings(sf::Packet& p,const ServerSettings& s) {
     p<<s.ip<<s.port<<s.slots<<s.teams<<s.bots<<s.friendlyFire
-     <<s.triggerDamage<<s.triggerBpm<<s.boundsDamage<<s.boundsBpm<<s.jabDamage<<s.hookDamage<<s.honorTeamRequests<<s.name;
+     <<s.triggerDamage<<s.triggerBpm<<s.boundsDamage<<s.boundsBpm<<s.jabDamage<<s.hookDamage<<s.honorTeamRequests<<s.name<<s.botAI;
+    for(const auto& v:{s.spell,s.lightning})p<<v.damageMin<<v.damageMax<<v.radius<<v.range<<v.windup<<v.cooldown<<v.duration<<v.interval;
 }
 bool readSettings(sf::Packet& p,ServerSettings& s) {
     ServerSettings value;
     if (!(p>>value.ip>>value.port>>value.slots>>value.teams>>value.bots>>value.friendlyFire
           >>value.triggerDamage>>value.triggerBpm>>value.boundsDamage>>value.boundsBpm>>value.jabDamage>>value.hookDamage>>value.honorTeamRequests)) return false;
     if(!p.endOfPacket() && !(p>>value.name))return false;
+    if(!p.endOfPacket() && !(p>>value.botAI))return false;
+    if(!p.endOfPacket())for(auto* v:{&value.spell,&value.lightning})
+        if(!(p>>v->damageMin>>v->damageMax>>v->radius>>v->range>>v->windup>>v->cooldown>>v->duration>>v->interval))return false;
     try {value.validate();}catch(const std::exception&){return false;}
     s=value;return true;
 }

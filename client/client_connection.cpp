@@ -190,6 +190,7 @@ void ClientConnection::pumpNetwork(std::vector<common::PlayerState>& newStates, 
 void ClientConnection::sendInput(common::PlayerId &id, common::InputCommand &cmd) {
     if(shuttingDown())return;
     const auto nowMs=static_cast<std::uint32_t>(attackClock_.getElapsedTime().asMilliseconds());
+    if(cmd.spellPressed)attackOutbox_.enqueue(cmd.spellKind,cmd.spellTarget,nowMs);
     if (cmd.jabPressed || cmd.hookPressed)
         attackOutbox_.enqueue(cmd.jabPressed ? common::AttackKind::Jab : common::AttackKind::Hook,cmd.aim,nowMs);
     for (const auto& request : attackOutbox_.requests(nowMs)) {

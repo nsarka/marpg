@@ -1,5 +1,6 @@
 #include "client/kill_feed.hpp"
 #include "client/scoreboard.hpp"
+#include "client/spell_effects.hpp"
 #include "common/kill_history.hpp"
 #include "common/damage.hpp"
 #include "common/world_transport.hpp"
@@ -50,5 +51,8 @@ int main(int argc,char** argv){
     check(target.getTexture().copyToImage().saveToFile(std::filesystem::temp_directory_path()/"marpg-kill-feed.png"),"Preview save failed");
     sf::RenderTexture board({1000,720});board.clear();drawScoreboard(board,font,players,0);board.display();
     check(board.getTexture().copyToImage().saveToFile(std::filesystem::temp_directory_path()/"marpg-scoreboard.png"),"Scoreboard preview save failed");
+    SpellEffects spell(root/"assets/sprites/Free Pixel Art Explosions/PNG/Explosion");
+    spell.observe(players,0);++players[0].spellSequence;players[0].spellPosition={320,120};spell.observe(players,.2f);spell.draw(target);
+    ++players[0].spellSequence;players[0].spellEffect=common::AttackKind::Lightning;spell.observe(players,.05f);spell.draw(target);
     std::cout<<"PASS: kill attribution, stable names, environment deaths, network history, deduplication, burst cap, fade, and rendering\n";
 }

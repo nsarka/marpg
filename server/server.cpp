@@ -113,11 +113,13 @@ int main(int argc,char**) {
     const auto disconnect=[&](common::PlayerId id) {
         auto& player=players[id];
         logger.log_info("Player disconnected: ",id," (",player.state.name,")");
+        const auto spellSequence=player.state.spellSequence;
         const auto attackSequence=player.state.attackSequence;
         const auto damageSequence=player.state.damageSequence;
         player.state=common::PlayerState{};
         // Keep event counters monotonic when a slot is reused between snapshots.
         player.state.attackSequence=attackSequence;
+        player.state.spellSequence=spellSequence;
         player.state.damageSequence=damageSequence;
         player.combat={}; player.attackInbox={}; player.lastInputSequence.reset();
         player.requestedVelocity={};
@@ -313,7 +315,7 @@ int main(int argc,char**) {
                     player.state.vel = (player.state.pos - oldPosition) / common::TICK_DT;
                 }
 
-                if (i<static_cast<int>(settings.bots)) {
+                if (i<static_cast<int>(settings.bots) && settings.botAI) {
                     std::vector<common::PlayerState*> opponents;
                     for(auto& other:players)opponents.push_back(&other.state);
                     botAI.update(i,player.state,player.combat,opponents);

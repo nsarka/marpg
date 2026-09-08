@@ -20,3 +20,7 @@ jab = "Mouse_Left"
 hook = "Mouse_Right"
 scoreboard = "Tab"
 debug = "F1"
+# Press to ready the spell, then left-click a target. Press again to cancel.
+spell = "E"
+# Ready lightning, then left-click a location; press again to cancel.
+lightning = "Q"

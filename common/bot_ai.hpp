@@ -31,20 +31,26 @@ public:
         }
         if(distance>0.001f)combat.facing=delta/distance;
         if(brain.pause) --brain.pause;
-        const bool inReach=distance<=58 && attackPathClear(bot.pos,victim.pos,walls_);
-        if(inReach && combat.attack==AttackKind::None && !brain.pause) {
-            if(brain.combo.empty()) {
-                int count=std::uniform_int_distribution<int>(2,4)(random_);
-                for(int i=0;i<count;++i)brain.combo.push_back(std::uniform_int_distribution<int>(0,1)(random_)?AttackKind::Hook:AttackKind::Jab);
-                if(std::all_of(brain.combo.begin(),brain.combo.end(),[&](auto attack){return attack==brain.combo.front();}))
-                    brain.combo.back()=brain.combo.front()==AttackKind::Jab?AttackKind::Hook:AttackKind::Jab;
-            }
-            if(startAttack(bot,combat,brain.combo.front(),delta)) {
+        const bool clear=attackPathClear(bot.pos,victim.pos,walls_);
+        if(brain.combo.empty() && combat.attack==AttackKind::None && !brain.pause) {
+            const int count=std::uniform_int_distribution<int>(2,4)(random_);
+            constexpr std::array<AttackKind,4> choices{AttackKind::Jab,AttackKind::Hook,AttackKind::Uppercut,AttackKind::Lightning};
+            for(int i=0;i<count;++i)brain.combo.push_back(choices[std::uniform_int_distribution<int>(0,3)(random_)]);
+        }
+        if(!brain.combo.empty() && combat.attack==AttackKind::None && !brain.pause && clear) {
+            const auto kind=brain.combo.front();
+            const bool spell=kind==AttackKind::Uppercut || kind==AttackKind::Lightning;
+            const float range=kind==AttackKind::Uppercut?activeSettings.spell.range:
+                kind==AttackKind::Lightning?activeSettings.lightning.range:58.f;
+            if(distance<=range && startAttack(bot,combat,kind,spell?victim.pos:delta)) {
                 brain.combo.pop_front();
                 if(brain.combo.empty())brain.pause=TICK_RATE+std::uniform_int_distribution<int>(8,24)(random_);
             }
         }
-        if(inReach && distance<=50){bot.vel={};brain.stuck=0;return;}
+        // Stay at the casting position through windup/channeling and recovery.
+        if(combat.attack==AttackKind::Uppercut || combat.attack==AttackKind::Lightning || (clear && distance<=50)) {
+            bot.vel={};brain.stuck=0;return;
+        }
         if(brain.repath)--brain.repath;
         if(!brain.repath) {
             brain.path=navigation_.path(bot.pos,victim.pos,traffic);brain.waypoint=0;

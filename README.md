@@ -189,3 +189,11 @@ Hold **Tab** to view the scoreboard, grouped by team with kills and deaths for e
 Set `name = "Rick's Funhaus"` under `[server]` in `server.toml` to customize the server name shown in the scoreboard. The server sends this name to clients on connection.
 
 Client controls are configurable in `[bindings]` in `client.toml`: `move_up`, `move_down`, `move_left`, `move_right`, `walk`, `jab`, `hook`, `scoreboard`, and `debug`. Values accept a key name (e.g. `"Space"`), an array of alternatives (e.g. `["LShift", "RShift"]`), or `[]` to disable an action. Names are case-insensitive. Supported inputs include A-Z, 0-9, F1-F15, arrows, Tab, Space, Enter, Escape, left/right Shift/Control/Alt/System, navigation and punctuation keys, Numpad0-Numpad9, and Mouse_Left/Right/Middle/X1/X2. Omitted actions retain the original defaults. Restart the client to apply changes.
+
+Press **E**, then **left-click** to cast an explosion using the uppercut animation. Press E again to cancel targeting. Configure E with `[bindings] spell = "E"`. The default explosion has 500-unit cast range, 120-unit radius and random 5–30 damage per target. The spell respects friendly fire and walls, and uses the normal hurt, damage-number and kill systems.
+
+Set `[server] bot_ai = false` in `server.toml` to keep bots idle. It defaults to `true`. Idle bots remain on their teams, can take damage, and respawn normally. Restart the server to apply this setting.
+
+Press **Q**, then **left-click** to place lightning. Configure Q with `[bindings] lightning = "Q"`. Lightning uses the carry animation and strikes its fixed target for three seconds, rolling 1–4 damage every third of a second. It follows the same self-damage, teammate and wall rules as the explosion.
+
+`[spell]` and `[lightning]` in `server.toml` configure `damage_min`, `damage_max` (positive health loss), `radius`, `range`, `windup_seconds` and `cooldown_seconds` (recovery after the effect). Lightning additionally uses `duration_seconds` and `damage_interval_seconds`. The server sends these settings to clients on connect. Restart the server and clients after editing.

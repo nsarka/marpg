@@ -54,6 +54,8 @@ public:
     const KeyState& keys() const;
 
     void clearAll();
+    common::AttackKind selectedSpell() const {return selectedSpell_;}
+    bool spellReady() const {return spellReady_;}
     bool collisionDebugEnabled() const { return collisionDebugEnabled_; }
 
 private:
@@ -68,6 +70,10 @@ private:
 
     bool collisionDebugEnabled_ = false;
     bool debugKeyHeld_ = false;
+    bool spellKeyHeld_ = false, spellReady_ = false, spellClicked_ = false;
+    common::AttackKind selectedSpell_=common::AttackKind::Uppercut, clickedSpell_=common::AttackKind::Uppercut;
+    bool lightningKeyHeld_=false;
+    std::optional<sf::Vector2i> spellClick_;
     std::optional<sf::Vector2i> attackMousePosition_;
     KeyState keys_;
     EdgeState edges_;

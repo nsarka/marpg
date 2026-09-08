@@ -1,6 +1,7 @@
 #include "common/common.hpp"
 
 #include <algorithm>
+#include "settings.hpp"
 
 namespace common {
 
@@ -20,15 +21,25 @@ static std::unordered_map<AttackKind, AttackDesc> kAttackTable{
         .damage = 35
     }},
     {AttackKind::Uppercut, {
-        .startupTicks = 6,
-        .activeTicks = 3,
-        .recoveryTicks = 14,
-        .range = 75.f,
-        .damage = 20
+        .startupTicks = 24,
+        .activeTicks = 1,
+        .recoveryTicks = 103,
+        .range = 120.f,
+        .damage = 30
     }}
 };
 
-const AttackDesc& attackDescription(AttackKind kind) { return kAttackTable.at(kind); }
+const AttackDesc& attackDescription(AttackKind kind) {
+    if(kind==AttackKind::Uppercut || kind==AttackKind::Lightning) {
+        const auto& s=kind==AttackKind::Lightning?activeSettings.lightning:activeSettings.spell;
+        auto& desc=kAttackTable[kind];
+        desc.startupTicks=std::max(1u,static_cast<Tick>(std::llround(s.windup*TICK_RATE)));
+        desc.activeTicks=kind==AttackKind::Lightning?std::max(1u,static_cast<Tick>(std::llround(s.duration*TICK_RATE))):1;
+        desc.recoveryTicks=std::max(1u,static_cast<Tick>(std::llround(s.cooldown*TICK_RATE)));
+        desc.range=s.radius;desc.damage=s.damageMax;return desc;
+    }
+    return kAttackTable.at(kind);
+}
 
 void setAttackDamage(int jab,int hook) { kAttackTable.at(AttackKind::Jab).damage=jab;kAttackTable.at(AttackKind::Hook).damage=hook; }
 
@@ -97,8 +108,8 @@ bool readPlayerState(sf::Packet& packet, PlayerState& player) {
         return false;
     }
 
-    if (attack > static_cast<std::uint8_t>(AttackKind::Uppercut) ||
-        debugAttack > static_cast<std::uint8_t>(AttackKind::Uppercut)) {
+    if (attack > static_cast<std::uint8_t>(AttackKind::Lightning) ||
+        debugAttack > static_cast<std::uint8_t>(AttackKind::Lightning)) {
         return false;
     }
     std::uint8_t damageCount=0;
@@ -133,6 +144,8 @@ void writeWorldPacket(sf::Packet& packet,
     }
     // Full totals survive lost snapshots and joining after the kill history expires.
     for(int i=0;i<MAX_PLAYERS;++i)packet << players[i].kills << players[i].deaths;
+    for(int i=0;i<MAX_PLAYERS;++i)packet << players[i].spellSequence << players[i].spellPosition.x << players[i].spellPosition.y;
+    for(int i=0;i<MAX_PLAYERS;++i)packet << static_cast<std::uint8_t>(players[i].spellEffect);
 }
 
 bool readWorldPacket(sf::Packet& packet,
@@ -152,7 +165,7 @@ bool readWorldPacket(sf::Packet& packet,
         for(unsigned i=0;i<count;++i) {
             KillEvent event;std::uint8_t cause;
             if(!(packet >> event.sequence >> event.killer >> event.victim >> event.killerTeam >> event.victimTeam
-                 >> event.killerName >> event.victimName >> cause) || cause>static_cast<std::uint8_t>(KillCause::Bounds) ||
+                 >> event.killerName >> event.victimName >> cause) || cause>static_cast<std::uint8_t>(KillCause::Lightning) ||
                  event.victim>=MAX_PLAYERS || event.killer<-1 || event.killer>=MAX_PLAYERS ||
                  event.killerName.size()>64 || event.victimName.size()>64)return false;
             event.cause=static_cast<KillCause>(cause);history.push_back(std::move(event));
@@ -160,6 +173,13 @@ bool readWorldPacket(sf::Packet& packet,
     }
     if(!packet.endOfPacket()) {
         for(auto& player:snapshot)if(!(packet >> player.kills >> player.deaths))return false;
+    }
+    if(!packet.endOfPacket()) {
+        for(auto& player:snapshot)if(!(packet >> player.spellSequence >> player.spellPosition.x >> player.spellPosition.y) ||
+            !std::isfinite(player.spellPosition.x) || !std::isfinite(player.spellPosition.y))return false;
+    }
+    if(!packet.endOfPacket())for(auto& player:snapshot) {
+        std::uint8_t kind;if(!(packet>>kind) || (kind!=3 && kind!=4))return false;player.spellEffect=static_cast<AttackKind>(kind);
     }
     if(kills)*kills=std::move(history);
     players=std::move(snapshot);

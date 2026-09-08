@@ -26,12 +26,23 @@ int main(int argc,char** argv){
     {std::ofstream file(temp);file<<"[server]\nname=\"Custom Arena\"\n";}
     check(common::loadServerSettings(temp.string()).name=="Custom Arena","Server name not loaded");
     std::filesystem::remove(temp);
+    check(settings.botAI,"Bot AI must default to enabled");
+    {std::ofstream file(temp);file<<"[server]\nbot_ai=false\n";}
+    check(!common::loadServerSettings(temp.string()).botAI,"Cannot disable bot AI in TOML");
+    std::filesystem::remove(temp);
+    settings.botAI=false;
+    {std::ofstream file(temp);file<<"[spell]\ndamage_min=9\ndamage_max=17\nradius=80.0\nrange=420.0\ncooldown_seconds=2.5\n[lightning]\ndamage_interval_seconds=0.2\nduration_seconds=4.0\n";}
+    const auto spells=common::loadServerSettings(temp.string());std::filesystem::remove(temp);
+    check(spells.spell.damageMin==9 && spells.spell.radius==80 && spells.lightning.interval==.2,"Spell config not loaded");
+    settings.spell=spells.spell;settings.lightning=spells.lightning;
+    auto invalidSpell=settings;invalidSpell.spell.damageMin=100;
+    bool badRange=false;try{invalidSpell.validate();}catch(...){badRange=true;}check(badRange,"Inverted damage range accepted");
     settings.name="Custom Arena";
     settings.port=55001;settings.slots=12;settings.teams=3;settings.triggerDamage=7;settings.triggerBpm=60;
     settings.boundsDamage=9;settings.boundsBpm=240;settings.jabDamage=27;settings.hookDamage=40;
     settings.honorTeamRequests=true;
     sf::Packet packet;common::writeSettings(packet,settings);common::ServerSettings received;
-    check(common::readSettings(packet,received) && received.name=="Custom Arena" && received.port==55001 && received.teams==3 && received.boundsBpm==240 && received.honorTeamRequests,"Settings wire roundtrip failed");
+    check(common::readSettings(packet,received) && received.spell.damageMax==17 && received.lightning.interval==.2 && !received.botAI && received.name=="Custom Arena" && received.port==55001 && received.teams==3 && received.boundsBpm==240 && received.honorTeamRequests,"Settings wire roundtrip failed");
     common::applySettings(settings);
     check(common::attackDescription(common::AttackKind::Jab).damage==27 && common::attackDescription(common::AttackKind::Hook).damage==40,"Combat ignores config");
     common::TriggerSystem triggers;triggers.load((root/"assets/tiled/Demo.tmx").string());

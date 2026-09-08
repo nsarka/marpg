@@ -9,6 +9,7 @@ int main(int argc,char** argv) {
     const std::array<std::size_t,5> counts{8,10,4,10,4};
     for (std::size_t i=0;i<counts.size();++i)
         check(sounds.variantCount(static_cast<SoundEffect>(i))==counts[i],"All applicable WAV variants must decode");
+    check(sounds.variantCount(SoundEffect::Cast)>0 && sounds.variantCount(SoundEffect::Blast)>0,"Spell audio assets missing");
     SoundEvents events;
     std::vector<common::PlayerState> players(2);
     auto& player=players[0]; player.connected=true;
@@ -34,6 +35,11 @@ int main(int argc,char** argv) {
     player.alive=true;player.health=100;
     cues=events.observe(players);
     check(cues.size()==1 && cues[0].effect==SoundEffect::Respawn,"Respawn cue missing");
+    player.lastAttack=common::AttackKind::Uppercut;++player.attackSequence;
+    cues=events.observe(players);check(cues.size()==1 && cues[0].effect==SoundEffect::Cast,"Cast sound missing");
+    ++player.spellSequence;player.spellPosition={40,50};
+    cues=events.observe(players);check(cues.size()==1 && cues[0].effect==SoundEffect::Blast && cues[0].position==player.spellPosition,"AoE sound missing");
+    check(events.observe(players).empty(),"Spell audio replayed");
     player.connected=false; events.observe(players); player.connected=true;
     check(events.observe(players).empty(),"Reconnect must reset baseline");
     std::cout<<"PASS: 36 sound assets decoded; attack, damage, death, respawn and snapshot deduplication\n";

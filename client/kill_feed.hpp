@@ -29,7 +29,7 @@ public:
     }
     const std::vector<Entry>& entries()const{return entries_;}
     static const char* cause(common::KillCause cause) {
-        switch(cause){case common::KillCause::Jab:return "JAB";case common::KillCause::Hook:return "HOOK";
+        switch(cause){case common::KillCause::Lightning:return "LIGHTNING";case common::KillCause::Spell:return "SPELL";case common::KillCause::Jab:return "JAB";case common::KillCause::Hook:return "HOOK";
             case common::KillCause::Floor:return "FLOOR";case common::KillCause::Bounds:return "VOID";default:return "HIT";}
     }
     static float opacity(const Entry& entry){return std::clamp(Lifetime-entry.age,0.f,1.f);}

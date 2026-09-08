@@ -6,10 +6,12 @@
 #include <string>
 
 // Keep snapshot deduplication independent of playback and audio hardware.
-enum class SoundEffect { Swing, Punch, SmallDamage, Death, Respawn, Count };
+enum class SoundEffect { Swing, Punch, SmallDamage, Death, Respawn, Cast, Blast, Count };
 struct SoundCue { SoundEffect effect; sf::Vector2f position; };
 inline std::optional<SoundEffect> soundCategory(const std::string& name) {
     const auto starts=[&](const char* prefix){return name.rfind(prefix,0)==0;};
+    if (starts("Charge_") && name.find("Up")!=std::string::npos)return SoundEffect::Cast;
+    if (starts("Impact_Near_"))return SoundEffect::Blast;
     if (starts("SwordSwing_")) return SoundEffect::Swing;
     if (starts("Punch_")) return SoundEffect::Punch;
     if (starts("Damage_Short_")) return SoundEffect::SmallDamage;
@@ -26,13 +28,16 @@ public:
             if (!player.connected) {seen={};continue;}
             // Joining a game establishes a baseline, never replays old combat history.
             if (!seen.initialized) {
-                seen={true,player.alive,player.attackSequence,player.damageSequence};
+                seen={true,player.alive,player.attackSequence,player.damageSequence,player.spellSequence};
                 continue;
             }
             if (common::sequenceNewer(player.attackSequence,seen.attack)) {
                 seen.attack=player.attackSequence;
                 if (player.lastAttack!=common::AttackKind::None)
-                    cues.push_back({SoundEffect::Swing,player.pos});
+                    cues.push_back({(player.lastAttack==common::AttackKind::Uppercut || player.lastAttack==common::AttackKind::Lightning)?SoundEffect::Cast:SoundEffect::Swing,player.pos});
+            }
+            if(common::sequenceNewer(player.spellSequence,seen.spell)) {
+                seen.spell=player.spellSequence;cues.push_back({SoundEffect::Blast,player.spellPosition});
             }
             for (const auto& event:player.damageEvents) {
                 if (!common::sequenceNewer(event.sequence,seen.damage)) continue;
@@ -51,6 +56,6 @@ public:
         return cues;
     }
 private:
-    struct Seen {bool initialized=false,alive=false;std::uint32_t attack=0,damage=0;};
+    struct Seen {bool initialized=false,alive=false;std::uint32_t attack=0,damage=0,spell=0;};
     std::array<Seen,common::MAX_PLAYERS> seen_{};
 };

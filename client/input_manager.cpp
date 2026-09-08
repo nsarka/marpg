@@ -29,6 +29,9 @@ void InputManager::handleEvents() {
             setKey(key->code, false);
         }
         else if (const auto* mouse = event->getIf<sf::Event::MouseButtonPressed>()) {
+            if(spellReady_ && mouse->button==sf::Mouse::Button::Left) {
+                clickedSpell_=selectedSpell_;spellClick_=mouse->position;spellClicked_=true;spellReady_=false;continue;
+            }
             setMouseButton(mouse->button, true);
             if (edges_.jabPressed || edges_.hookPressed)attackMousePosition_ = mouse->position;
         }
@@ -44,6 +47,10 @@ void InputManager::handleEvents() {
 common::InputCommand InputManager::buildCommand(sf::Vector2f playerPosition, const sf::View& worldView) {
     common::InputCommand cmd;
     cmd.sequence = nextSequence_;
+    cmd.spellKind=clickedSpell_;
+    cmd.spellPressed=spellClicked_;
+    if(spellClick_)cmd.spellTarget=window_.mapPixelToCoords(*spellClick_,worldView);
+    spellClicked_=false;spellClick_.reset();
 
     if (keys_.left)   cmd.move.x -= 1.f;
     if (keys_.right)  cmd.move.x += 1.f;
@@ -79,6 +86,8 @@ const InputManager::KeyState& InputManager::keys() const {
 }
 
 void InputManager::clearAll() {
+    lightningKeyHeld_=false;
+    spellReady_=spellKeyHeld_=spellClicked_=false;spellClick_.reset();
     held_.clear();
     keys_ = {};
     debugKeyHeld_ = false;
@@ -107,4 +116,10 @@ void InputManager::setBinding(int code, bool pressed) {
     keys_.jab=jab;keys_.hook=hook;
     if(debug && !debugKeyHeld_)collisionDebugEnabled_=!collisionDebugEnabled_;
     debugKeyHeld_=debug;
+    const bool spell=active(9);
+    if(spell && !spellKeyHeld_) {spellReady_=!spellReady_ || selectedSpell_!=common::AttackKind::Uppercut;selectedSpell_=common::AttackKind::Uppercut;}
+    const bool lightning=active(10);
+    if(lightning && !lightningKeyHeld_) {spellReady_=!spellReady_ || selectedSpell_!=common::AttackKind::Lightning;selectedSpell_=common::AttackKind::Lightning;}
+    lightningKeyHeld_=lightning;
+    spellKeyHeld_=spell;
 }

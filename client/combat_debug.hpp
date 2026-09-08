@@ -14,6 +14,28 @@ inline void drawCombatDebug(sf::RenderTarget& target, std::vector<Player>& playe
         const char* phase=debug.hit ? "HIT" : debug.age<attack.startupTicks ? "WINDUP" : active ? "ACTIVE" : "RECOVERY";
         sf::Color color=debug.hit ? sf::Color(60,255,130) : debug.age<attack.startupTicks ? sf::Color(255,200,60)
                                     : active ? sf::Color(255,70,90) : sf::Color(150,160,180);
+        if((debug.attack==common::AttackKind::Uppercut || debug.attack==common::AttackKind::Lightning)) {
+            const auto center=state.spellPosition;
+            sf::CircleShape area(attack.range);area.setOrigin({attack.range,attack.range});area.setPosition(center);
+            area.setFillColor(sf::Color(color.r,color.g,color.b,35));area.setOutlineColor(color);area.setOutlineThickness(1.f);target.draw(area);
+            const bool castClear=common::attackPathClear(state.pos,center,walls);
+            const auto castColor=castClear?color:sf::Color(255,70,90);
+            sf::Vertex castLine[]={{state.pos,castColor},{center,castColor}};target.draw(castLine,2,sf::PrimitiveType::Lines);
+            for(auto& candidate:players) {
+                const auto& other=candidate.state();
+                if(!other.connected || !other.alive || (other.pos-center).length()>attack.range)continue;
+                if(&other!=&state && !common::activeSettings.friendlyFire && state.team>=0 && state.team==other.team)continue;
+                const bool clear=castClear && common::attackPathClear(center,other.pos,walls);
+                const auto tint=clear?sf::Color(80,220,255):sf::Color(255,70,90);
+                sf::Vertex line[]={{center,tint},{other.pos,tint}};target.draw(line,2,sf::PrimitiveType::Lines);
+                sf::CircleShape mark(4);mark.setOrigin({4,4});mark.setPosition(other.pos);mark.setFillColor(tint);target.draw(mark);
+            }
+            const std::string spellPhase=debug.hit?"DETONATED":phase;
+            sf::Text label(font,std::string(debug.attack==common::AttackKind::Lightning?"LIGHTNING ":"SPELL ")+spellPhase,12);label.setFillColor(color);
+            label.setOutlineColor(sf::Color::Black);label.setOutlineThickness(1.f);
+            label.setPosition(center+sf::Vector2f{-45,16});target.draw(label);
+            continue;
+        }
         const float angle=std::atan2(debug.direction.y,debug.direction.x);
         constexpr unsigned segments=32;
         sf::ConvexShape sector(segments+2);

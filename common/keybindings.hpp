@@ -38,8 +38,8 @@ inline int parseBinding(std::string name) {
     throw std::runtime_error("Unknown keybinding: "+name);
 }
 struct KeyBindings {
-    std::array<std::vector<int>,9> actions{{{parseBinding("w")},{parseBinding("s")},{parseBinding("a")},{parseBinding("d")},
+    std::array<std::vector<int>,11> actions{{{parseBinding("w")},{parseBinding("s")},{parseBinding("a")},{parseBinding("d")},
         {parseBinding("lshift"),parseBinding("rshift")},{parseBinding("mouse_left")},{parseBinding("mouse_right")},
-        {parseBinding("tab")},{parseBinding("f1")}}};
+        {parseBinding("tab")},{parseBinding("f1")},{parseBinding("e")},{parseBinding("q")}}};
 };
 }
