@@ -72,12 +72,26 @@ sf::RectangleShape makeOutlinedRect(const sf::FloatRect& rect,
 
 } // namespace
 
-int main() {
+int main(int argc, char** argv) {
+    const bool help=argc==2 && (std::string(argv[1])=="--help" || std::string(argv[1])=="-h");
+    if (help || argc>3) {
+        auto& output=help ? std::cout : std::cerr;
+        output << "Usage: " << argv[0] << " [player-name] [server-ip]\n"
+               << "Defaults: player-name=Rick, server-ip=127.0.0.1\n";
+        return help ? 0 : 1;
+    }
+    const std::string playerName=argc>1 ? argv[1] : "Rick";
+    const std::string serverAddress=argc>2 ? argv[2] : "127.0.0.1";
+    if (playerName.empty() || serverAddress.empty()) {
+        std::cerr << "Player name and server IP must not be empty.\n";
+        return 1;
+    }
+
     common::Logger logger;
 
     logger.info() << "Client started";
 
-    sf::RenderWindow window(sf::VideoMode({(int)common::WINDOW_WIDTH, (int)common::WINDOW_HEIGHT}), "Networked Player + Camera");
+    sf::RenderWindow window(sf::VideoMode({(int)common::WINDOW_WIDTH, (int)common::WINDOW_HEIGHT}), "MARPG");
     window.setFramerateLimit(144);
 
     const std::filesystem::path assetRoot = "../assets/characters/businessman";
@@ -104,7 +118,7 @@ int main() {
     // Client connection
     // -------------------------------------------------------------------------
     ClientConnection client_conn{logger};
-    common::PlayerId myId = client_conn.connectToServer();
+    common::PlayerId myId = client_conn.connectToServer(serverAddress, playerName);
     if(myId == -1) {
         return 1;
     }
@@ -177,7 +191,7 @@ int main() {
     // -------------------------------------------------------------------------
     Hud hud(resources.getFont("ui"));
     hud.setWindowSize({common::WINDOW_WIDTH, common::WINDOW_HEIGHT});
-    hud.setPlayerName("Rick");
+    hud.setPlayerName(playerName);
     hud.setHealth(100.f, 100.f);
     hud.setStamina(100.f, 100.f);
     hud.setPingMs(0);

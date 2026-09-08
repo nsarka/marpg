@@ -2,7 +2,7 @@
 
 Multiplayer Action RPG
 
-Run `./server.sh` and `./client.sh` in separate terminals after building. The scripts select the correct working directory for assets and can also be invoked by absolute path from anywhere.
+Run `./server.sh` and `./client.sh` in separate terminals after building. Use `./client.sh "Player Name" 192.168.1.100` to choose your name and server IP. Both arguments are optional and default to `Rick` and `127.0.0.1`; `./client.sh --help` shows usage. The scripts select the correct working directory for assets and can also be invoked by absolute path from anywhere.
 ## Wall collision
 
 The server loads collision polygons from the tile object groups in
