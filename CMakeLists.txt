@@ -117,7 +117,7 @@ endif()
 # Portable package keeps the working directory one level below assets/configs.
 if(WIN32)
     install(TARGETS client server RUNTIME DESTINATION bin COMPONENT Game)
-    install(DIRECTORY assets DESTINATION . COMPONENT Game)
+    install(DIRECTORY assets shaders DESTINATION . COMPONENT Game)
     install(FILES client.toml server.toml client.bat server.bat README.md
             DESTINATION . COMPONENT Game)
     install(FILES "${sfml_SOURCE_DIR}/license.md" DESTINATION licenses/SFML COMPONENT Game)

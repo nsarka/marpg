@@ -38,6 +38,11 @@ jobs:
         run: |
           $package = (Resolve-Path dist/MARPG-Windows-x64).Path
           $bin = Join-Path $package bin
+          foreach ($required in @('shaders/sprite_outline.frag', 'shaders/player_occlusion.frag', 'assets/tiled/Demo.tmx', 'assets/fonts/arial.ttf', 'client.toml', 'server.toml')) {
+            if (-not (Test-Path (Join-Path $package $required) -PathType Leaf)) {
+              throw "Package is missing runtime file: $required"
+            }
+          }
           Push-Location $bin
           try {
             $output = & .\client.exe unexpected-argument 2>&1 | Out-String

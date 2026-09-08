@@ -202,7 +202,7 @@ Press **Q**, then **left-click** to place lightning. Configure Q with `[bindings
 
 [Download MARPG for Windows](https://github.com/nsarka/marpg/releases/latest/download/MARPG-Windows-x64.zip) — no GitHub account required.
 
-Extract the entire ZIP, edit `client.toml` for your name and server address, then double-click `client.bat`. To host, edit `server.toml` and run `server.bat`. Keep `bin`, `assets`, and the TOML files together. This is a native Windows x64 release with static runtime libraries; WSL and developer tools are not required.
+Extract the entire ZIP, edit `client.toml` for your name and server address, then double-click `client.bat`. To host, edit `server.toml` and run `server.bat`. Keep `bin`, `assets`, `shaders`, and the TOML files together. This is a native Windows x64 release with static runtime libraries; WSL and developer tools are not required.
 
 Successful Windows builds on `main` automatically publish a GitHub Release with the ZIP. The link above always downloads the latest published build. Previous builds remain available on the Releases page. The workflow also supports manual runs and retains Actions artifacts for 30 days.
 
