@@ -22,7 +22,7 @@ struct ServerSettings {
     bool honorTeamRequests=true;
     void validate() const;
 };
-struct ClientSettings {KeyBindings bindings;std::string name="Rick",ip="127.0.0.1";std::uint16_t port=54000;std::uint32_t team=0;bool showOtherDamageNumbers=true;};
+struct ClientSettings {KeyBindings bindings;std::string name="Rick",ip="147.182.213.239";std::uint16_t port=54000;std::uint32_t team=0;bool showOtherDamageNumbers=true;};
 ServerSettings loadServerSettings(const std::string& path);
 ClientSettings loadClientSettings(const std::string& path);
 inline ServerSettings activeSettings{};

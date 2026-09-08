@@ -1,0 +1,37 @@
+name: Ubuntu server bootstrap
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  clean-ubuntu:
+    runs-on: ubuntu-24.04
+    container: ubuntu:24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install prerequisites in a clean Ubuntu image
+        run: bash bootstrap.sh
+      - name: Configure server
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF
+      - name: Build server
+        run: cmake --build build --target server --parallel 2
+      - name: Verify headless startup and shutdown
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./server.sh > /tmp/marpg-server.log 2>&1 &
+          server_pid=$!
+          trap 'kill -TERM "$server_pid" 2>/dev/null || true' EXIT
+          ready=false
+          for i in {1..100}; do
+            if ! kill -0 "$server_pid" 2>/dev/null; then cat /tmp/marpg-server.log; exit 1; fi
+            if grep -q 'Server listening on port' /tmp/marpg-server.log; then ready=true; break; fi
+            sleep 0.1
+          done
+          if [[ "$ready" != true ]]; then cat /tmp/marpg-server.log; exit 1; fi
+          kill -TERM "$server_pid"
+          wait "$server_pid"
+          trap - EXIT

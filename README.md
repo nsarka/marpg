@@ -203,3 +203,22 @@ Press **Q**, then **left-click** to place lightning. Configure Q with `[bindings
 Open the GitHub repository **Actions > Windows build**, select the latest successful run, and download **MARPG-Windows-x64** under Artifacts. Extract the entire ZIP, edit `client.toml` for your name and server address, then double-click `client.bat`. To host, edit `server.toml` and run `server.bat`. Keep `bin`, `assets`, and the TOML files together. This is a native Windows x64 release with static runtime libraries; WSL and developer tools are not required.
 
 The workflow runs on pushes to `main` or manually using **Run workflow**. Artifacts are retained for 30 days. GitHub requires sign-in and repository access to download private-repository artifacts; you can share the downloaded ZIP with friends.
+
+## Ubuntu 24.04 VPS server
+
+On a fresh Ubuntu 24.04 VPS, run the initial commands as root (or prefix apt commands with sudo):
+
+```bash
+apt-get update
+apt-get install -y git ca-certificates
+git clone https://github.com/nsarka/marpg.git
+cd marpg
+bash bootstrap.sh
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF
+cmake --build build --target server --parallel 1
+./server.sh
+```
+
+`bootstrap.sh` installs the compiler, CMake, Git, and all system development dependencies needed by the current build, including SFML's graphics/audio dependencies. It supports root and sudo accounts and is safe to rerun. CMake downloads the project's pinned library sources during configuration. No desktop environment is needed to run the server. One compilation job limits memory pressure on small VPS instances.
+
+Edit `server.toml` before starting. Allow inbound UDP on its configured port (default 54000) in the VPS/provider firewall. The client defaults to `147.182.213.239:54000`; change `client.toml` for another server.

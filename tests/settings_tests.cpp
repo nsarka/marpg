@@ -21,7 +21,7 @@ int main(int argc,char** argv){
     settings=common::ServerSettings{};client=common::ClientSettings{};
     check(client.showOtherDamageNumbers,"Third-party damage numbers should default to enabled");
     check(settings.honorTeamRequests && client.team==0,"Default team request policy changed");
-    check(settings.teams==2 && settings.slots==20 && client.port==54000,"Default files not loaded");
+    check(settings.teams==2 && settings.slots==20 && client.port==54000 && client.ip=="147.182.213.239","Default files not loaded");
     check(settings.name=="Rick's Funhaus","Default server name changed");
     {std::ofstream file(temp);file<<"[server]\nname=\"Custom Arena\"\n";}
     check(common::loadServerSettings(temp.string()).name=="Custom Arena","Server name not loaded");
