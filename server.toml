@@ -7,7 +7,7 @@ port = 54000
 # With these defaults: 20 total slots - 10 bots = 10 human players.
 slots = 20
 teams = 3
-bots = 12
+bots = 1
 # Set false to keep bots idle. They can still take damage and respawn.
 bot_ai = true
 friendly_fire = false
