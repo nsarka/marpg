@@ -1,0 +1,66 @@
+name: Windows build
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure portable x64 release
+        run: >-
+          cmake -S . -B build -A x64
+          -DBUILD_SHARED_LIBS=OFF
+          -DSFML_USE_STATIC_STD_LIBS=ON
+          -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded
+          -DBUILD_TESTING=ON
+      - name: Build
+        run: cmake --build build --config Release --parallel 4
+      - name: Test game logic
+        run: ctest --test-dir build -C Release --output-on-failure -R "^(combat|settings|bot_ai|world_transport|collision|triggers|damage_numbers)$"
+      - name: Package game
+        run: cmake --install build --config Release --component Game --prefix dist/MARPG-Windows-x64
+      - name: Smoke test packaged executables
+        shell: pwsh
+        run: |
+          $package = (Resolve-Path dist/MARPG-Windows-x64).Path
+          $bin = Join-Path $package bin
+          Push-Location $bin
+          try {
+            $output = & .\client.exe unexpected-argument 2>&1 | Out-String
+            if ($LASTEXITCODE -ne 1 -or $output -notmatch 'does not accept command-line arguments') {
+              throw "Client failed to load: $output"
+            }
+            $global:LASTEXITCODE = 0
+            $server = Start-Process (Join-Path $bin server.exe) -WorkingDirectory $bin -PassThru -NoNewWindow -RedirectStandardOutput server-smoke.log -RedirectStandardError server-smoke.err
+            try {
+              $ready = $false
+              for ($i=0; $i -lt 100; $i++) {
+                if ($server.HasExited) { throw 'Packaged server exited unexpectedly' }
+                if ((Get-Content server-smoke.log -Raw -ErrorAction SilentlyContinue) -match 'Server listening on port') { $ready=$true; break }
+                Start-Sleep -Milliseconds 100
+              }
+              if (-not $ready) { throw 'Packaged server did not become ready' }
+            } finally { if (-not $server.HasExited) { Stop-Process -Id $server.Id; $server.WaitForExit() } }
+          } finally {
+            Remove-Item server-smoke.log,server-smoke.err -ErrorAction SilentlyContinue
+            Pop-Location
+          }
+      - name: Upload Windows ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: MARPG-Windows-x64
+          path: dist/MARPG-Windows-x64/
+          if-no-files-found: error
+          retention-days: 30

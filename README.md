@@ -197,3 +197,9 @@ Set `[server] bot_ai = false` in `server.toml` to keep bots idle. It defaults to
 Press **Q**, then **left-click** to place lightning. Configure Q with `[bindings] lightning = "Q"`. Lightning uses the carry animation and strikes its fixed target for three seconds, rolling 1–4 damage every third of a second. It follows the same self-damage, teammate and wall rules as the explosion.
 
 `[spell]` and `[lightning]` in `server.toml` configure `damage_min`, `damage_max` (positive health loss), `radius`, `range`, `windup_seconds` and `cooldown_seconds` (recovery after the effect). Lightning additionally uses `duration_seconds` and `damage_interval_seconds`. The server sends these settings to clients on connect. Restart the server and clients after editing.
+
+## Windows downloads
+
+Open the GitHub repository **Actions > Windows build**, select the latest successful run, and download **MARPG-Windows-x64** under Artifacts. Extract the entire ZIP, edit `client.toml` for your name and server address, then double-click `client.bat`. To host, edit `server.toml` and run `server.bat`. Keep `bin`, `assets`, and the TOML files together. This is a native Windows x64 release with static runtime libraries; WSL and developer tools are not required.
+
+The workflow runs on pushes to `main` or manually using **Run workflow**. Artifacts are retained for 30 days. GitHub requires sign-in and repository access to download private-repository artifacts; you can share the downloaded ZIP with friends.

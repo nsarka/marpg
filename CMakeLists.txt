@@ -4,6 +4,10 @@ project(marpg LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+if(MSVC)
+    add_compile_options(/utf-8)
+endif()
+
 include(FetchContent)
 
 FetchContent_Declare(SFML
@@ -108,4 +112,17 @@ if(BUILD_TESTING)
     target_link_libraries(demo_level_tests PRIVATE common)
     add_test(NAME demo_level COMMAND demo_level_tests ${CMAKE_CURRENT_SOURCE_DIR}/assets/tiled/Demo.tmx)
     add_test(NAME collision COMMAND collision_tests ${CMAKE_CURRENT_SOURCE_DIR}/assets/tiled/Sample.tmx)
+endif()
+
+# Portable package keeps the working directory one level below assets/configs.
+if(WIN32)
+    install(TARGETS client server RUNTIME DESTINATION bin COMPONENT Game)
+    install(DIRECTORY assets DESTINATION . COMPONENT Game)
+    install(FILES client.toml server.toml client.bat server.bat README.md
+            DESTINATION . COMPONENT Game)
+    install(FILES "${sfml_SOURCE_DIR}/license.md" DESTINATION licenses/SFML COMPONENT Game)
+    install(FILES "${tmxlite_SOURCE_DIR}/LICENSE" DESTINATION licenses/tmxlite COMPONENT Game)
+    install(FILES "${json_SOURCE_DIR}/LICENSE.MIT" DESTINATION licenses/json COMPONENT Game)
+    install(DIRECTORY third_party/tomlplusplus/ DESTINATION licenses/tomlplusplus
+            COMPONENT Game FILES_MATCHING PATTERN "LICENSE*")
 endif()

@@ -7,25 +7,25 @@ namespace common {
 
 static std::unordered_map<AttackKind, AttackDesc> kAttackTable{
     {AttackKind::Jab, {
-        .startupTicks = 16,
-        .activeTicks = 8,
-        .recoveryTicks = 40,
-        .range = 70.f,
-        .damage = 20
+        16,
+        8,
+        40,
+        70.f,
+        20
     }},
     {AttackKind::Hook, {
-        .startupTicks = 24,
-        .activeTicks = 8,
-        .recoveryTicks = 32,
-        .range = 80.f,
-        .damage = 35
+        24,
+        8,
+        32,
+        80.f,
+        35
     }},
     {AttackKind::Uppercut, {
-        .startupTicks = 24,
-        .activeTicks = 1,
-        .recoveryTicks = 103,
-        .range = 120.f,
-        .damage = 30
+        24,
+        1,
+        103,
+        120.f,
+        30
     }}
 };
 
