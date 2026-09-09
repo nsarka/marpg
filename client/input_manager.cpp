@@ -122,9 +122,9 @@ void InputManager::setBinding(int code, bool pressed) {
     if(debug && !debugKeyHeld_)collisionDebugEnabled_=!collisionDebugEnabled_;
     debugKeyHeld_=debug;
     const bool spell=active(9);
-    if(spell && !spellKeyHeld_) {spellReady_=!spellReady_ || selectedSpell_!=common::AttackKind::Uppercut;selectedSpell_=common::AttackKind::Uppercut;}
+    if(spell && !spellKeyHeld_ && explosionAvailable_) {spellReady_=!spellReady_ || selectedSpell_!=common::AttackKind::Uppercut;selectedSpell_=common::AttackKind::Uppercut;}
     const bool lightning=active(10);
-    if(lightning && !lightningKeyHeld_) {spellReady_=!spellReady_ || selectedSpell_!=common::AttackKind::Lightning;selectedSpell_=common::AttackKind::Lightning;}
+    if(lightning && !lightningKeyHeld_ && lightningAvailable_) {spellReady_=!spellReady_ || selectedSpell_!=common::AttackKind::Lightning;selectedSpell_=common::AttackKind::Lightning;}
     lightningKeyHeld_=lightning;
     spellKeyHeld_=spell;
 }

@@ -13,7 +13,7 @@ slots = 20
 teams = 2
 bots = 1
 # Set false to keep bots idle. They can still take damage and respawn.
-bot_ai = true
+bot_ai = false
 friendly_fire = false
 # Honor valid client team requests even when they unbalance the teams.
 honor_team_requests = true
@@ -42,7 +42,7 @@ windup_seconds = 0.75
 
 # Damage values are positive health loss, randomly rolled per target/hit.
 [spell]
-damage_min = 5
+damage_min = 20
 damage_max = 30
 radius = 120.0
 range = 500.0
@@ -51,8 +51,8 @@ windup_seconds = 1.0
 cooldown_seconds = 1.625
 
 [lightning]
-damage_min = 2
-damage_max = 7
+damage_min = 20
+damage_max = 40
 radius = 45.0
 range = 500.0
 windup_seconds = 0.75

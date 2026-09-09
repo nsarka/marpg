@@ -1,6 +1,7 @@
 #pragma once
 #include "common/attack_delivery.hpp"
 #include "common/settings.hpp"
+#include "client/tile_lighting.hpp"
 #include <SFML/Graphics.hpp>
 #include <array>
 #include <filesystem>
@@ -49,6 +50,18 @@ public:
             }
             if(seen_[i] && common::sequenceNewer(p.spellSequence,*seen_[i]))effects_.push_back({p.spellPosition,0,p.spellEffect==common::AttackKind::Lightning});
             seen_[i]=p.spellSequence;
+        }
+    }
+    void addLights(const common::ClientLighting& settings) const {
+        for(const auto& warning:warnings_)if(warning) {
+            const bool lightning=warning->kind==common::AttackKind::Lightning;
+            const float radius=lightning?common::activeSettings.lightning.radius:common::activeSettings.spell.radius;
+            tileLighting.addLight(warning->position,lightning?settings.lightningSpot:settings.explosionWindup,radius);
+        }
+        for(const auto& effect:effects_) {
+            const float radius=effect.lightning?common::activeSettings.lightning.radius:common::activeSettings.spell.radius;
+            const float fade=1.f-effect.age/(effect.lightning?.3f:.8f);
+            tileLighting.addLight(effect.position,effect.lightning?settings.lightningImpact:settings.explosionImpact,radius,fade);
         }
     }
     void drawWindups(sf::RenderTarget& target) const {

@@ -2,7 +2,8 @@
 # Face movement after the mouse stays still this many seconds.
 mouse_idle_seconds = 1.5
 name = "Rick"
-ip = "147.182.213.239"
+# 147.182.213.239
+ip = "127.0.0.1"
 port = 54000
 # 0 = automatic, 1 = red, 2 = blue; further teams use 3-20.
 team = 0
@@ -26,3 +27,84 @@ debug = "F1"
 spell = "E"
 # Ready lightning, then left-click a location; press again to cancel.
 lightning = "Q"
+
+# Local lighting (visual only; does not change spell damage/range).
+# Restart the client after editing. Missing settings use built-in defaults.
+# radius: world pixels (0 disables when radius_multiplier is also 0).
+# intensity: 0-10; height: 1-2000 above the ground.
+# red/green/blue: 0-1. enabled=false turns off that light type.
+# directionality: 0 = even glow, 1 = fully normal-dependent lighting.
+# falloff_exponent: 0.1-8; lower spreads light out, higher concentrates it.
+# Spell radius = max(radius, attack radius * radius_multiplier).
+
+[light_player]
+enabled = true
+radius = 600
+intensity = 0.15
+height = 80
+red = 1
+green = 0.9
+blue = 0.72
+radius_multiplier = 0
+directionality = 0.5
+falloff_exponent = 2.0
+
+[light_bot]
+enabled = false
+radius = 600
+intensity = 0.4
+height = 80
+red = 1
+green = 0.9
+blue = 0.72
+radius_multiplier = 0
+directionality = 0.5
+falloff_exponent = 2.0
+
+[light_explosion_windup]
+enabled = true
+radius = 120
+intensity = 0.55
+height = 80
+red = 1
+green = 0.55
+blue = 0.18
+radius_multiplier = 2
+directionality = 0.5
+falloff_exponent = 1.0
+
+[light_explosion_impact]
+enabled = true
+radius = 180
+intensity = 1.5
+height = 80
+red = 1
+green = 0.55
+blue = 0.18
+radius_multiplier = 2.5
+directionality = 0.5
+falloff_exponent = 1.0
+
+[light_lightning_spot]
+enabled = true
+radius = 120
+intensity = 0.55
+height = 80
+red = 0.55
+green = 0.72
+blue = 1
+radius_multiplier = 2
+directionality = 0.5
+falloff_exponent = 1.0
+
+[light_lightning_impact]
+enabled = true
+radius = 180
+intensity = 1.5
+height = 80
+red = 0.55
+green = 0.72
+blue = 1
+radius_multiplier = 2.5
+directionality = 0.5
+falloff_exponent = 1.0

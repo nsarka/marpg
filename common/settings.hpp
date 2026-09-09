@@ -28,7 +28,20 @@ struct ServerSettings {
     bool honorTeamRequests=true;
     void validate() const;
 };
-struct ClientSettings {double mouseIdleSeconds=3;KeyBindings bindings;std::string name="Rick",ip="147.182.213.239";std::uint16_t port=54000;std::uint32_t team=0;bool showOtherDamageNumbers=true;};
+struct LightSettings {
+    bool enabled=true;
+    double radius=400,intensity=.6,height=80;
+    double red=1,green=.9,blue=.72;
+    double radiusMultiplier=0,directionality=.5,falloffExponent=1;
+};
+struct ClientLighting {
+    LightSettings player{true,600,.4,80,1,.9,.72,0,.5,2},bot{true,600,.4,80,1,.9,.72,0,.5,2};
+    LightSettings explosionWindup{true,120,.55,80,1,.55,.18,2};
+    LightSettings explosionImpact{true,180,1.5,80,1,.55,.18,2.5};
+    LightSettings lightningSpot{true,120,.55,80,.55,.72,1,2};
+    LightSettings lightningImpact{true,180,1.5,80,.55,.72,1,2.5};
+};
+struct ClientSettings {ClientLighting lighting;double mouseIdleSeconds=3;KeyBindings bindings;std::string name="Rick",ip="147.182.213.239";std::uint16_t port=54000;std::uint32_t team=0;bool showOtherDamageNumbers=true;};
 ServerSettings loadServerSettings(const std::string& path);
 ClientSettings loadClientSettings(const std::string& path);
 inline ServerSettings activeSettings{};

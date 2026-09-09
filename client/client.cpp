@@ -262,6 +262,8 @@ int main(int argc, char**) {
     sf::Clock mouseIdleClock;
     auto previousMousePosition=sf::Mouse::getPosition(window);
     float accumulator = 0.f;
+    sf::Texture lightShadows,stairShadows;
+    tileLighting.buildHeightField(lightShadows,stairShadows);
     SpellEffects spellEffects("../assets/sprites/Free Pixel Art Explosions/PNG/Explosion");
     DamageNumbers damageNumbers;
     KillFeed killFeed;
@@ -285,6 +287,7 @@ int main(int argc, char**) {
         // ---------------------------------------------------------------------
         // Events
         // ---------------------------------------------------------------------
+        input.updateSpellAvailability(newStates[myId]);
         input.handleEvents();
         if(!window.isOpen())break;
 
@@ -309,6 +312,7 @@ int main(int argc, char**) {
         const bool movementFacing=mouseIdleClock.getElapsedTime().asSeconds()>=options.mouseIdleSeconds;
         damageNumbers.observe(newStates, myId, options.showOtherDamageNumbers);
         if(client_conn.hasWorldSnapshot())killFeed.observe(client_conn.killEvents(),myId);
+        input.updateSpellAvailability(newStates[myId]);
         spellEffects.observe(newStates,renderDt);
         if(!newStates[myId].alive)input.cancelCombatInput();
         sounds.observe(newStates, players[myId].renderPosition());
@@ -445,6 +449,11 @@ int main(int argc, char**) {
         visibilityShader.setUniform("wallDepth", wallOcclusion.texture());
         visibilityShader.setUniform("renderSize", sf::Glsl::Vec2(window.getSize()));
         window.clear(sf::Color(30, 34, 42));
+
+        tileLighting.lights.clear();
+        for(std::size_t i=0;i<players.size();++i)if(players[i].state().connected && players[i].state().alive)
+            tileLighting.addLight(players[i].renderPosition(),i<common::activeSettings.bots?options.lighting.bot:options.lighting.player);
+        spellEffects.addLights(options.lighting);
 
         window.draw(layerFloor);
         spellEffects.drawWindups(window);

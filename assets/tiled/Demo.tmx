@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<map version="1.10" tiledversion="1.12.2" orientation="isometric" renderorder="right-down" width="12" height="12" tilewidth="256" tileheight="128" infinite="0" nextlayerid="6" nextobjectid="46">
+<map version="1.10" tiledversion="1.12.2" orientation="isometric" renderorder="right-down" width="12" height="12" tilewidth="256" tileheight="128" infinite="0" nextlayerid="7" nextobjectid="47">
  <tileset firstgid="1" source="Demo.tsx"/>
  <objectgroup id="1" name="Labels">
   <object id="1" name="Wall" x="474" y="346"/>
@@ -114,6 +114,16 @@
    <point/>
   </object>
   <object id="45" name="Spawn" type="Spawn" x="733.235" y="160.593">
+   <point/>
+  </object>
+ </objectgroup>
+ <objectgroup color="#ffdd66" id="6" name="Lighting">
+  <object id="46" name="Sun" x="854.657" y="1658.76">
+   <properties>
+    <property name="ambient" type="float" value="0.5"/>
+    <property name="height" type="float" value="800"/>
+    <property name="intensity" type="float" value="0.4"/>
+   </properties>
    <point/>
   </object>
  </objectgroup>

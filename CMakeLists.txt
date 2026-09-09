@@ -136,3 +136,12 @@ if(WIN32)
     install(DIRECTORY third_party/tomlplusplus/ DESTINATION licenses/tomlplusplus
             COMPONENT Game FILES_MATCHING PATTERN "LICENSE*")
 endif()
+
+add_executable(generate_tile_lighting EXCLUDE_FROM_ALL tools/generate_tile_lighting.cpp)
+target_link_libraries(generate_tile_lighting PRIVATE SFML::Graphics)
+
+if(BUILD_TESTING)
+    add_executable(tile_lighting_tests tests/tile_lighting_tests.cpp)
+    target_link_libraries(tile_lighting_tests PRIVATE common)
+    add_test(NAME tile_lighting COMMAND tile_lighting_tests ${CMAKE_CURRENT_SOURCE_DIR})
+endif()

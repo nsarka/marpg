@@ -10,6 +10,18 @@ void check(bool ok,const char* message){if(!ok)throw std::runtime_error(message)
 int main(int argc,char** argv){
     check(argc==2,"Project path required");std::filesystem::path root=argv[1];
     auto temp=std::filesystem::temp_directory_path()/("marpg-settings-"+std::to_string(std::chrono::steady_clock::now().time_since_epoch().count())+".toml");
+    {
+        {std::ofstream file(temp);file<<"[light_player]\nradius=650\nintensity=0.4\nheight=120\nred=0.2\ndirectionality=0.1\nfalloff_exponent=2\n[light_bot]\nenabled=false\n[light_lightning_impact]\nradius_multiplier=3\n";}
+        const auto settings=common::loadClientSettings(temp.string());
+        check(settings.lighting.player.radius==650 && settings.lighting.player.intensity==.4 && settings.lighting.player.height==120 && settings.lighting.player.red==.2 && settings.lighting.player.directionality==.1 && settings.lighting.player.falloffExponent==2,"Light settings not loaded");
+        check(!settings.lighting.bot.enabled && settings.lighting.lightningImpact.radiusMultiplier==3 && settings.lighting.explosionWindup.intensity==.55,"Independent lighting defaults failed");
+        for(const auto& invalid:{"[light_player]\nradius=-1\n","[light_bot]\nheight=nan\n","[light_explosion_impact]\nred=2\n","[light_lightning_spot]\ndirectionality=2\n","[light_player]\nfalloff_exponent=0\n","[light_bot]\nenabled=1\n","[light_player]\nraduis=2\n"}) {
+            {std::ofstream file(temp);file<<invalid;}
+            bool rejected=false;try{common::loadClientSettings(temp.string());}catch(...){rejected=true;}
+            check(rejected,"Invalid light setting accepted");
+        }
+        std::filesystem::remove(temp);
+    }
     for(const auto& text:{"[server]\nrespawn_seconds = -1\n","[server]\nslots = -1\n","[trigger_damage]\ntrigger_interval_seconds = 0\n","[server]\nport = 70000\n","[server]\nteams = \"two\"\n","[server]\nslts = 12\n","[server\n"}) {
         {std::ofstream file(temp);file<<text;}
         bool rejected=false;try{common::loadServerSettings(temp.string());}catch(const std::exception&){rejected=true;}

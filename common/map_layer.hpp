@@ -1,4 +1,6 @@
 #pragma once
+#include "client/tile_lighting.hpp"
+#include <filesystem>
 
 #include <SFML/Graphics/Color.hpp>
 #include <SFML/Graphics/Drawable.hpp>
@@ -31,6 +33,12 @@ class MapLayer final : public sf::Drawable
 public:
     MapLayer(const tmx::Map& map, std::size_t idx)
     {
+        tileLighting.load(map);
+        if(tileLighting.enabled) {
+            m_lightingShader=std::make_shared<sf::Shader>();
+            if(!m_lightingShader->loadFromFile("../shaders/tile_lighting.vert","../shaders/tile_lighting.frag"))
+                throw std::runtime_error("Cannot load tile lighting shaders");
+        }
         const auto& layers = map.getLayers();
 
         if (map.getOrientation() != tmx::Orientation::Isometric)
@@ -165,6 +173,10 @@ private:
     {
         std::string textureKey;
         const sf::Texture* texture = nullptr;
+        const sf::Texture* normal = nullptr;
+        const sf::Texture* height = nullptr;
+        unsigned stair=0;
+        std::shared_ptr<sf::Shader> lightingShader;
         sf::Vector2f texTopLeft{0.f, 0.f};
         sf::Vector2f texSize{0.f, 0.f};
         sf::Vector2f drawSize{0.f, 0.f};
@@ -263,8 +275,8 @@ private:
         public:
             using Ptr = std::unique_ptr<ChunkArray>;
 
-            explicit ChunkArray(const sf::Texture& texture)
-                : m_texture(texture)
+            explicit ChunkArray(const sf::Texture& texture,const sf::Texture* normal,const sf::Texture* height,unsigned stair,std::uint8_t flips,std::shared_ptr<sf::Shader> shader)
+                : m_texture(texture),m_normal(normal),m_height(height),m_stair(stair),m_flips(flips),m_shader(std::move(shader))
             {
             }
 
@@ -288,6 +300,11 @@ private:
 
         private:
             const sf::Texture& m_texture;
+            const sf::Texture* m_normal;
+            const sf::Texture* m_height;
+            unsigned m_stair;
+            std::uint8_t m_flips;
+            std::shared_ptr<sf::Shader> m_shader;
             std::vector<sf::Vertex> m_vertices;
 
             void draw(sf::RenderTarget& rt, sf::RenderStates states) const override
@@ -297,6 +314,44 @@ private:
                     return;
                 }
 
+                if(m_normal && tileLighting.enabled) {
+                    auto& shader=*m_shader;
+                    const auto local=states.transform.getInverse().transformPoint({tileLighting.sun.x,tileLighting.sun.y});
+                    shader.setUniform("texture",sf::Shader::CurrentTexture);
+                    shader.setUniform("normalMap",*m_normal);
+                    shader.setUniform("hasHeight",m_height!=nullptr);
+                    shader.setUniform("receiverStair",int(m_stair));
+                    if(m_height)shader.setUniform("heightMap",*m_height);
+                    shader.setUniform("sunPosition",sf::Glsl::Vec3(local.x,local.y,tileLighting.sun.z));
+                    shader.setUniform("flip",sf::Glsl::Vec3((m_flips&tmx::TileLayer::Horizontal)?1.f:0.f,(m_flips&tmx::TileLayer::Vertical)?1.f:0.f,(m_flips&tmx::TileLayer::Diagonal)?1.f:0.f));
+                    shader.setUniform("ambient",tileLighting.ambient);shader.setUniform("intensity",tileLighting.intensity);
+                    std::array<sf::Glsl::Vec4,TileLighting::MaxLights> lightPositions,lightColors;
+                    std::array<sf::Glsl::Vec2,TileLighting::MaxLights> lightShapes;
+                    for(std::size_t i=0;i<tileLighting.lights.size();++i) {
+                        const auto& light=tileLighting.lights[i];
+                        const auto point=states.transform.getInverse().transformPoint(light.position);
+                        lightPositions[i]={point.x,point.y,light.radius,light.height};
+                        lightShapes[i]={light.directionality,light.falloffExponent};
+                        lightColors[i]={light.color.x,light.color.y,light.color.z,light.strength};
+                    }
+                    shader.setUniform("hasShadows",tileLighting.shadowMap!=nullptr);
+                    shader.setUniform("stairCount",int(tileLighting.stairMap?tileLighting.stairCount:0));
+                    if(tileLighting.stairMap)shader.setUniform("stairMap",*tileLighting.stairMap);
+                    if(tileLighting.shadowMap) {
+                        shader.setUniform("shadowMap",*tileLighting.shadowMap);
+                        const auto origin=states.transform.getInverse().transformPoint(tileLighting.shadowOrigin);
+                        shader.setUniform("shadowOrigin",sf::Glsl::Vec2(origin));
+                        const auto size=tileLighting.shadowMap->getSize();
+                        shader.setUniform("shadowSize",sf::Glsl::Vec2(size.x*4.f,size.y*4.f));
+                    }
+                    shader.setUniform("lightCount",static_cast<int>(tileLighting.lights.size()));
+                    if(!tileLighting.lights.empty()) {
+                        shader.setUniformArray("localLights",lightPositions.data(),tileLighting.lights.size());
+                        shader.setUniformArray("lightColors",lightColors.data(),tileLighting.lights.size());
+                        shader.setUniformArray("lightShapes",lightShapes.data(),tileLighting.lights.size());
+                    }
+                    states.shader=&shader;
+                }
                 states.texture = &m_texture;
                 rt.draw(m_vertices.data(), m_vertices.size(), sf::PrimitiveType::Triangles, states);
             }
@@ -413,17 +468,18 @@ private:
             }
         }
 
-        ChunkArray& getOrCreateChunkArray(const TileVisual& visual)
+        ChunkArray& getOrCreateChunkArray(const TileVisual& visual,std::uint8_t flips)
         {
-            auto found = m_chunkArrays.find(visual.textureKey);
+            const auto key=visual.textureKey+"#"+std::to_string(flips);
+            auto found = m_chunkArrays.find(key);
             if (found != m_chunkArrays.end())
             {
                 return *found->second;
             }
 
-            auto array = std::make_unique<ChunkArray>(*visual.texture);
+            auto array = std::make_unique<ChunkArray>(*visual.texture,visual.normal,visual.height,visual.stair,flips,visual.lightingShader);
             auto* raw = array.get();
-            m_chunkArrays.emplace(visual.textureKey, std::move(array));
+            m_chunkArrays.emplace(key, std::move(array));
             return *raw;
         }
 
@@ -506,6 +562,9 @@ private:
                         isoBase.y + static_cast<float>(m_mapTileSize.y) - visual.drawSize.y
                     };
 
+                    if(registerAnimation && visual.height)
+                        tileLighting.heightTiles.push_back({worldTopLeft+m_layerOffset,visual.height->copyToImage(),tile.flipFlags,visual.stair});
+
                     const sf::Vector2f localTopLeft = worldTopLeft - m_chunkScreenOrigin;
 
                     Tile quad =
@@ -539,7 +598,7 @@ private:
                             &quad[0].texCoords, &quad[1].texCoords, &quad[2].texCoords,
                             &quad[3].texCoords, &quad[4].texCoords, &quad[5].texCoords);
 
-                    getOrCreateChunkArray(visual).addTile(quad);
+                    getOrCreateChunkArray(visual,tile.flipFlags).addTile(quad);
                     ++idx;
                 }
             }
@@ -581,6 +640,7 @@ private:
     sf::Vector2f m_offset{0.f, 0.f};
 
     TextureResource m_textureResource;
+    std::shared_ptr<sf::Shader> m_lightingShader;
     std::map<std::uint32_t, TileVisual> m_tileVisuals;
 
     std::vector<Chunk::Ptr> m_chunks;
@@ -708,6 +768,19 @@ private:
             TileVisual visual;
             visual.textureKey = tile.imagePath;
             visual.texture = &texture;
+            const std::filesystem::path source(tile.imagePath);
+            const auto folder=source.parent_path().parent_path()/"Lighting";
+            const auto stem=source.stem().string();
+            visual.stair=stem=="stairs_E"?1:stem=="stairs_S"?2:stem=="stairsCornerOuter_S"?3:0;
+            const auto albedo=folder/(source.stem().string()+".albedo.png");
+            const auto normal=folder/(source.stem().string()+".normal.png");
+            if(tileLighting.enabled && std::filesystem::exists(albedo) && std::filesystem::exists(normal)) {
+                visual.texture=&loadTextureOrFallback(albedo.string(),nullptr);
+                visual.normal=&loadTextureOrFallback(normal.string(),nullptr);
+                const auto height=folder/(source.stem().string()+".height.png");
+                if(std::filesystem::exists(height))visual.height=&loadTextureOrFallback(height.string(),nullptr);
+                visual.lightingShader=m_lightingShader;
+            }
             visual.texTopLeft = {0.f, 0.f};
             visual.texSize = {
                 static_cast<float>(width),

@@ -103,7 +103,24 @@ ServerSettings loadServerSettings(const std::string& path) {
 }
 ClientSettings loadClientSettings(const std::string& path) {
     auto t=toml::parse_file(path);ClientSettings s;
-    for (const auto& [key,value]:t) if(key!="client" && key!="bindings") throw std::runtime_error("Unknown client configuration table: "+std::string(key.str()));
+    for (const auto& [key,value]:t) if(key!="client" && key!="bindings" && key!="light_player" && key!="light_bot" && key!="light_explosion_windup" && key!="light_explosion_impact" && key!="light_lightning_spot" && key!="light_lightning_impact") throw std::runtime_error("Unknown client configuration table: "+std::string(key.str()));
+    auto light=[&](const std::string& section,LightSettings& value) {
+        keys(t,section,{"enabled","radius","intensity","height","red","green","blue","radius_multiplier","directionality","falloff_exponent"});
+        if(t[section]["enabled"] && !t[section]["enabled"].is_boolean())throw std::runtime_error(section+".enabled must be true or false");
+        value.enabled=get<bool>(t,section,"enabled",value.enabled);
+        auto number=[&](const char* key,double& destination,double minimum,double maximum) {
+            destination=get<double>(t,section,key,destination);
+            if(!std::isfinite(destination) || destination<minimum || destination>maximum)
+                throw std::runtime_error(section+"."+key+" must be between "+std::to_string(minimum)+" and "+std::to_string(maximum));
+        };
+        number("radius",value.radius,0,10000);number("intensity",value.intensity,0,10);
+        number("height",value.height,1,2000);number("radius_multiplier",value.radiusMultiplier,0,20);
+        number("red",value.red,0,1);number("green",value.green,0,1);number("blue",value.blue,0,1);
+        number("directionality",value.directionality,0,1);number("falloff_exponent",value.falloffExponent,.1,8);
+    };
+    light("light_player",s.lighting.player);light("light_bot",s.lighting.bot);
+    light("light_explosion_windup",s.lighting.explosionWindup);light("light_explosion_impact",s.lighting.explosionImpact);
+    light("light_lightning_spot",s.lighting.lightningSpot);light("light_lightning_impact",s.lighting.lightningImpact);
     keys(t,"client",{"name","ip","port","team","show_other_damage_numbers","mouse_idle_seconds"});
     keys(t,"bindings",{"move_up","move_down","move_left","move_right","walk","jab","hook","scoreboard","debug","spell","lightning"});
     for(std::size_t i=0;i<s.bindings.actions.size();++i) {
