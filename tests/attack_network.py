@@ -1,3 +1,4 @@
+from build_identity import join_identity
 """Run against a fresh local server: python3 tests/attack_network.py."""
 import os
 from world_transport import recv_world
@@ -14,7 +15,7 @@ def string(value):
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 sock.settimeout(2)
 server = ('127.0.0.1', int(os.environ.get('MARPG_TEST_PORT','54000')))
-sock.sendto(string('join') + string('Attack test'), server)
+sock.sendto(string('join') + string('Attack test') + join_identity, server)
 while True:
     data = recv_world(sock)
     size = struct.unpack_from('!I', data)[0]

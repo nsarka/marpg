@@ -1,0 +1,13 @@
+execute_process(COMMAND git -C "${SOURCE_DIR}" rev-parse HEAD
+    OUTPUT_VARIABLE COMMIT OUTPUT_STRIP_TRAILING_WHITESPACE RESULT_VARIABLE RESULT)
+if(NOT RESULT EQUAL 0)
+    message(FATAL_ERROR "Cannot determine Git commit for this build. Build from a Git checkout.")
+endif()
+set(CONTENT "#pragma once\nnamespace common { inline constexpr char BuildCommit[] = \"${COMMIT}\"; }\n")
+set(OLD "")
+if(EXISTS "${OUTPUT_FILE}")
+    file(READ "${OUTPUT_FILE}" OLD)
+endif()
+if(NOT OLD STREQUAL CONTENT)
+    file(WRITE "${OUTPUT_FILE}" "${CONTENT}")
+endif()

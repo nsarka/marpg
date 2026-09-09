@@ -45,6 +45,16 @@ add_library(common STATIC
     common/logger.cpp
 )
 
+file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/generated")
+add_custom_target(build_version
+    COMMAND ${CMAKE_COMMAND} "-DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}"
+        "-DOUTPUT_FILE=${CMAKE_CURRENT_BINARY_DIR}/generated/build_version.hpp"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/BuildVersion.cmake"
+    BYPRODUCTS "${CMAKE_CURRENT_BINARY_DIR}/generated/build_version.hpp"
+    VERBATIM)
+add_dependencies(common build_version)
+target_include_directories(common PUBLIC "${CMAKE_CURRENT_BINARY_DIR}/generated")
+
 target_include_directories(common PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
 )

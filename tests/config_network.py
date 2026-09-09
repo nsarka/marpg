@@ -1,3 +1,4 @@
+from build_identity import join_identity
 """Self-contained configured-server integration test; does not stop a running game."""
 import pathlib
 import socket
@@ -63,17 +64,17 @@ damage_max = 41
             subprocess.run([str(root/'build/connection_probe'),str(port)],cwd=root/'build',check=True,timeout=12)
             for i in range(7):
                 s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM);s.settimeout(2);sockets.append(s)
-                s.sendto(string('join')+string(f'Player {i}'),('127.0.0.1',port))
+                s.sendto(string('join')+string(f'Player {i}')+join_identity,('127.0.0.1',port))
                 ack=receive(s,'join_ack');ident=struct.unpack_from('!i',ack)[0]
                 assert ident==(i if i<6 else -1),(i,ident)
-                assert struct.unpack_from('!I',ack,4)[0]==3
+                assert struct.unpack_from('!I',ack,4)[0]==5
                 if i<6:
                     current=states(s)
                     assert current[i][0] and current[i][1]==i%3 and current[i][3]==f'Player {i}',current[i]
             current=states(sockets[5]);assert [sum(p[0] and p[1]==t for p in current) for t in range(3)]==[2,2,2]
             # Reclaim a red slot and ensure the replacement joins the now-smaller red team.
             sockets[0].sendto(string('leave')+struct.pack('!I',0),('127.0.0.1',port));receive(sockets[0],'leave_ack')
-            newcomer=sockets[6];newcomer.sendto(string('join')+string('Replacement'),('127.0.0.1',port))
+            newcomer=sockets[6];newcomer.sendto(string('join')+string('Replacement')+join_identity,('127.0.0.1',port))
             assert struct.unpack_from('!i',receive(newcomer,'join_ack'))[0]==0
             deadline=time.monotonic()+2
             while True:

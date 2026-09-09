@@ -13,7 +13,7 @@
   <object id="9" name="Stairs S" x="1242" y="1114"/>
   <object id="10" name="Floor switch" x="858" y="1370"/>
   <object id="38" x="1214.01" y="1180.63"/>
-  <object id="41" name="Human Pen" x="1528.77" y="1528.89">
+  <object id="41" name="Human Pen" x="1412.72" y="1417.78">
    <point/>
   </object>
  </objectgroup>

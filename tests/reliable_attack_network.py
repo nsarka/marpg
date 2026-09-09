@@ -1,3 +1,4 @@
+from build_identity import join_identity
 """Run against a fresh demo server: python3 tests/reliable_attack_network.py."""
 import os
 from world_transport import recv_world
@@ -7,7 +8,7 @@ def string(value):
     b=value.encode();return struct.pack('!I',len(b))+b
 sock=socket.socket(socket.AF_INET,socket.SOCK_DGRAM);sock.settimeout(2)
 server=('127.0.0.1',int(os.environ.get('MARPG_TEST_PORT','54000')))
-sock.sendto(string('join')+string('Reliable attack test'),server)
+sock.sendto(string('join')+string('Reliable attack test')+join_identity,server)
 while True:
     data=recv_world(sock);n=struct.unpack_from('!I',data)[0]
     if data[4:4+n]==b'join_ack':

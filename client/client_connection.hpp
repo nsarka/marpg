@@ -25,6 +25,7 @@ public:
     [[nodiscard]] common::PlayerId connectToServer(const std::string serverText = "127.0.0.1", const std::string myName = "Rick", unsigned short port=54000, std::uint32_t requestedTeam=0);
     ~ClientConnection();
     void leaveServer();
+    const std::string& connectionError() const {return connectionError_;}
     bool shuttingDown() const {return !shutdownReason_.empty();}
     const std::string& shutdownReason() const {return shutdownReason_;}
     bool hasWorldSnapshot() const {return hasWorld_;}
@@ -35,6 +36,7 @@ public:
     void sendInput(common::PlayerId& id, common::InputCommand &cmd);
 
 private:
+    std::string connectionError_;
     common::Logger& logger;
     sf::UdpSocket udp_socket_;
     common::PlayerId myId_=static_cast<common::PlayerId>(-1);

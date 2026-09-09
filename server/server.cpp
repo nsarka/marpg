@@ -1,3 +1,4 @@
+#include "build_version.hpp"
 #include "common/common.hpp"
 #include "common/world_transport.hpp"
 #include "common/team_spawns.hpp"
@@ -158,6 +159,13 @@ int main(int argc,char**) {
                 if (!(packet >> requestedName)) continue;
                 std::uint32_t requestedTeam=0;
                 if(!packet.endOfPacket() && !(packet >> requestedTeam))continue;
+                std::string clientCommit;
+                if(!packet.endOfPacket() && !(packet>>clientCommit))continue;
+                if(clientCommit!=common::BuildCommit) {
+                    sf::Packet mismatch;mismatch<<std::string("version_mismatch")<<std::string(common::BuildCommit);
+                    sendPacket(socket,mismatch,*senderIp,senderPort,"version mismatch");
+                    continue;
+                }
 
                 if (requestedName.size()>64) {
                     sf::Packet rejected; rejected << std::string(common::MSG_JOIN_ACK) << std::int32_t(-1);
@@ -194,7 +202,7 @@ int main(int argc,char**) {
 
                 if (assignedId>=0) players[assignedId].lastHeard.restart();
                 sf::Packet reply;
-                reply << std::string(common::MSG_JOIN_ACK) << assignedId << common::ProtocolVersion;
+                reply << std::string(common::MSG_JOIN_ACK) << assignedId << common::ProtocolVersion << std::string(common::BuildCommit);
                 common::writeSettings(reply,settings);
 
                 // Only the requester receives its assignment, including full-server rejection.

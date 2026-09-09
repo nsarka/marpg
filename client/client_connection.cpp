@@ -1,3 +1,4 @@
+#include "build_version.hpp"
 #include "client_connection.hpp"
 
 namespace {
@@ -47,7 +48,7 @@ common::PlayerId ClientConnection::connectToServer(const std::string serverText,
     while (myId == -2 && timeout.getElapsedTime()<sf::seconds(10)) {
         if (firstAttempt || retry.getElapsedTime()>=sf::milliseconds(500)) {
             sf::Packet join;
-            join << std::string(common::MSG_JOIN) << myName << requestedTeam;
+            join << std::string(common::MSG_JOIN) << myName << requestedTeam << std::string(common::BuildCommit);
             if (!sendPacket(udp_socket_,join,serverIp_,serverPort_,"join send")) return -1;
             firstAttempt=false;
             retry.restart();
@@ -60,6 +61,13 @@ common::PlayerId ClientConnection::connectToServer(const std::string serverText,
             std::string type;
             int assignedId;
             if(!(packet >> type))continue;
+            if(type=="version_mismatch") {
+                std::string serverCommit;if(!(packet>>serverCommit))continue;
+                connectionError_="Version mismatch. Please redownload MARPG.\nClient: "+std::string(common::BuildCommit).substr(0,7)+
+                    "   Server: "+serverCommit.substr(0,7)+
+                    "\nDownload: github.com/nsarka/marpg/releases/latest\nExtract the new ZIP into a new folder and run client.bat.";
+                logger.log_error(connectionError_);return -1;
+            }
             if(type=="server_shutdown") {
                 logger.log_error("Server is shutting down.");
                 return -1;
@@ -69,7 +77,10 @@ common::PlayerId ClientConnection::connectToServer(const std::string serverText,
                 if(assignedId<0){myId=assignedId;break;}
                 std::uint32_t version=0;
                 common::ServerSettings settings;
-                if(!(packet >> version) || version!=common::ProtocolVersion || !common::readSettings(packet,settings)) {
+                std::string serverCommit;
+                if(!(packet >> version) || version!=common::ProtocolVersion ||
+                   !(packet>>serverCommit) || serverCommit!=common::BuildCommit || !common::readSettings(packet,settings)) {
+                    connectionError_="Client and server versions do not match.\nPlease redownload MARPG from:\ngithub.com/nsarka/marpg/releases/latest";
                     logger.log_error("Incompatible server configuration/protocol. Rebuild server and client together.");
                     return -1;
                 }

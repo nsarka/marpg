@@ -32,7 +32,7 @@ struct ClientSettings {double mouseIdleSeconds=3;KeyBindings bindings;std::strin
 ServerSettings loadServerSettings(const std::string& path);
 ClientSettings loadClientSettings(const std::string& path);
 inline ServerSettings activeSettings{};
-inline constexpr std::uint32_t ProtocolVersion=4;
+inline constexpr std::uint32_t ProtocolVersion=5;
 void applySettings(const ServerSettings& settings);
 void writeSettings(sf::Packet& packet,const ServerSettings& settings);
 bool readSettings(sf::Packet& packet,ServerSettings& settings);

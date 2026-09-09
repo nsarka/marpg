@@ -237,3 +237,5 @@ cmake --build build --target server --parallel 1
 Edit `server.toml` before starting. Allow inbound UDP on its configured port (default 54000) in the VPS/provider firewall. The client defaults to `147.182.213.239:54000`; change `client.toml` for another server.
 
 Player facing follows the mouse. Attack aim and spell targets track the cursor during windup, then lock when the attack becomes active. Spell targeting turns red for out-of-range or wall-blocked locations, and invalid clicks are rejected. Team-color squares appear beside names. The bottom attack HUD shows the server-authoritative shared attack lock and remaining time for jab, hook, explosion and lightning. A damaged bot switches to its attacker if that enemy is not already targeted by another living bot.
+
+Client and server binaries embed the Git commit at build time. Connections require matching commits; a mismatch displays an update message in the client. Download the release matching the server, or rebuild both from the same commit. Build from a Git checkout; the commit is refreshed on every build. Uncommitted edits do not change the embedded commit.

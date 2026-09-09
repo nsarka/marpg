@@ -1,3 +1,4 @@
+from build_identity import join_identity
 """Run against a fresh local server."""
 import os
 from world_transport import recv_world
@@ -25,7 +26,7 @@ def receive(sock, kind, timeout=2):
     raise AssertionError('Missing '+kind)
 
 def join(sock,name):
-    message(sock,'join',string(name))
+    message(sock,'join',string(name)+join_identity)
     return struct.unpack_from('!i',receive(sock,'join_ack'))[0]
 
 def states(sock):

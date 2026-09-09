@@ -2,7 +2,7 @@
 # Face movement after the mouse stays still this many seconds.
 mouse_idle_seconds = 1.5
 name = "Rick"
-ip = "127.0.0.1"
+ip = "147.182.213.239"
 port = 54000
 # 0 = automatic, 1 = red, 2 = blue; further teams use 3-20.
 team = 0

@@ -126,6 +126,17 @@ int main(int argc, char**) {
     ClientConnection client_conn{logger};
     common::PlayerId myId = client_conn.connectToServer(serverAddress, playerName, options.port, options.team);
     if(myId == -1) {
+        if(!client_conn.connectionError().empty()) {
+            sf::Text message(resources.getFont("ui"),client_conn.connectionError()+"\n\nPress Escape or close this window to exit.",22);
+            message.setPosition({30,60});
+            while(window.isOpen() && !quitRequested) {
+                while(auto event=window.pollEvent()) {
+                    if(event->is<sf::Event::Closed>())window.close();
+                    if(const auto* key=event->getIf<sf::Event::KeyPressed>();key && key->code==sf::Keyboard::Key::Escape)window.close();
+                }
+                window.clear(sf::Color(24,28,35));window.draw(message);window.display();
+            }
+        }
         return 1;
     }
     logger.log_info("Assigned player id ", myId);

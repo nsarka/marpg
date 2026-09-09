@@ -1,3 +1,4 @@
+from build_identity import join_identity
 """Run against a fresh demo server: python3 tests/player_collision_network.py."""
 import os
 from world_transport import recv_world
@@ -8,7 +9,7 @@ def string(s):
 
 def connect(name):
     s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM); s.settimeout(2)
-    s.sendto(string('join')+string(name),server)
+    s.sendto(string('join')+string(name)+join_identity,server)
     while True:
         b=recv_world(s); n=struct.unpack_from('!I',b)[0]
         if b[4:4+n]==b'join_ack':
