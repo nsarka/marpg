@@ -20,18 +20,29 @@ bots = 10             # Set 0 for humans only; cannot exceed slots.
 friendly_fire = false
 honor_team_requests = true # Set false to enforce team balancing.
 
-[damage]
+[trigger_damage]
 trigger = 2
-trigger_bpm = 120
+trigger_interval_seconds = 0.5
 out_of_bounds = 2
-out_of_bounds_bpm = 120
-jab = 20
-hook = 35
+out_of_bounds_interval_seconds = 0.5
+[jab]
+cone_degrees = 90.0 # Full cone width in degrees (0 < width <= 360).
+damage_min = 20
+damage_max = 20
+range = 70.0
+windup_seconds = 0.25
+
+[hook]
+cone_degrees = 90.0
+damage_min = 35
+damage_max = 35
+range = 80.0
+windup_seconds = 0.375
 ```
 
 With `slots = 20` and `bots = 10`, up to 10 humans can connect.
 
-Damage values accept 0–10000 (0 disables that damage); rates accept 1–3840 BPM and are rounded to the nearest 64 Hz simulation tick. Entry damage is immediate, with subsequent hits spaced by the configured interval. `ip` must be a local address, not a friend's address. Clients connect to the server computer's reachable LAN/public IP, not `0.0.0.0`.
+Damage values accept 0–10000 (0 disables that damage); intervals accept 0.015625–60 seconds and are rounded to the nearest 64 Hz simulation tick. Entry damage is immediate, with subsequent hits spaced by the configured interval. `ip` must be a local address, not a friend's address. Clients connect to the server computer's reachable LAN/public IP, not `0.0.0.0`.
 
 `client.toml`:
 
@@ -106,7 +117,7 @@ mask orientation, and the actual demo wall/doorway textures.
 
 The floor switch has a non-solid `DamageTrigger` polygon in `Demo.tsx`. Each
 living player loses 2 health immediately on entry, then every 32 server ticks
-(0.5 seconds / 120 BPM) while inside.
+(0.5 seconds) while inside.
 Leaving resets that player's timer; reaching zero health marks the player dead.
 F1 draws trigger regions in amber. A decrease in the local player's replicated
 health produces a red screen flash that fades out over 0.35 seconds. Each
@@ -158,7 +169,7 @@ damage is white; incoming damage remains red. At 100 health, five jabs (20 each)
 or three hooks (35 each) defeat a player. Final-hit numbers show actual health
 lost, capped at the remaining health.
 
-Players standing off the floor (outside the isometric map or on an empty Floor tile) take 2 damage immediately, then every 0.5 seconds at 120 BPM. Returning to a floor tile stops this damage. Missing-floor damage uses the same hurt effects, death, and respawn behavior as the floor switch.
+Players standing off the floor (outside the isometric map or on an empty Floor tile) take 2 damage immediately, then every 0.5 seconds. Returning to a floor tile stops this damage. Missing-floor damage uses the same hurt effects, death, and respawn behavior as the floor switch.
 
 Combat audio loads from `assets/sound/Retro_Combat_FX` using SFML Audio. All 36 applicable variants are used: `SwordSwing_*` for accepted attacks (including misses), `Punch_*` for successful player hits (including lethal hits), `Damage_Short_*` for floor hazards, `Big_Damage_*` for death, and `SpecialFX_Magic_*` for respawn. Each group selects randomly without consecutive repeats. Sounds pan left/right and fade with distance, with up to 32 overlapping voices. Snapshot event tracking prevents duplicate sounds and suppresses old events when joining. Weapon, parry, jump, charge, and monster-specific clips are reserved for those future mechanics.
 
@@ -224,3 +235,5 @@ cmake --build build --target server --parallel 1
 `bootstrap.sh` installs the compiler, CMake, Git, and all system development dependencies needed by the current build, including SFML's graphics/audio dependencies. It supports root and sudo accounts and is safe to rerun. CMake downloads the project's pinned library sources during configuration. No desktop environment is needed to run the server. One compilation job limits memory pressure on small VPS instances.
 
 Edit `server.toml` before starting. Allow inbound UDP on its configured port (default 54000) in the VPS/provider firewall. The client defaults to `147.182.213.239:54000`; change `client.toml` for another server.
+
+Player facing follows the mouse. Attack aim and spell targets track the cursor during windup, then lock when the attack becomes active. Spell targeting turns red for out-of-range or wall-blocked locations, and invalid clicks are rejected. Team-color squares appear beside names. The bottom attack HUD shows the server-authoritative shared attack lock and remaining time for jab, hook, explosion and lightning. A damaged bot switches to its attacker if that enemy is not already targeted by another living bot.

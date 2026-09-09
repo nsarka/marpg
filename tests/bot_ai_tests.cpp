@@ -43,5 +43,21 @@ int main(int argc,char** argv){
     for(int i=0;i<30;++i){ai.reset(0);ai.update(0,bot,combat,players);chosen.insert(ai.target(0));}
     check(chosen.size()==2,"Random target selection did not vary");
     bot.alive=false;ai.update(0,bot,combat,players);check(ai.target(0)==-1,"Death must clear bot target");
+    {
+        common::BotAI retaliation(nav,walls,17);std::vector<common::PlayerState> group(4);
+        for(auto& p:group){p.connected=true;p.pos={-100,650};}
+        group[0].team=group[1].team=0;group[2].team=group[3].team=1;
+        group[1].pos={-250,650};group[2].pos={300,650};group[3].pos={300,700};
+        std::vector<common::PlayerState*> refs;for(auto& p:group)refs.push_back(&p);
+        common::CombatState first,second;
+        retaliation.update(1,group[1],second,refs);
+        const int claimed=retaliation.target(1),available=claimed==2?3:2;
+        common::applyDamage(group[0],1,available,group[0].pos);
+        retaliation.update(0,group[0],first,refs);
+        check(retaliation.target(0)==available,"Hit bot must retaliate against available attacker");
+        common::applyDamage(group[0],1,claimed,group[0].pos);
+        retaliation.update(0,group[0],first,refs);
+        check(retaliation.target(0)==available,"Bot must not steal another bot's target on damage");
+    }
     std::cout<<"PASS: A* wall detours, safe floor, moving targets, mixed combos, teammate filtering, retargeting and death\n";
 }

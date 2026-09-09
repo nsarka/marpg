@@ -1,5 +1,6 @@
 #include "client/kill_feed.hpp"
 #include "client/scoreboard.hpp"
+#include "client/attack_hud.hpp"
 #include "client/spell_effects.hpp"
 #include "common/kill_history.hpp"
 #include "common/damage.hpp"
@@ -51,8 +52,53 @@ int main(int argc,char** argv){
     check(target.getTexture().copyToImage().saveToFile(std::filesystem::temp_directory_path()/"marpg-kill-feed.png"),"Preview save failed");
     sf::RenderTexture board({1000,720});board.clear();drawScoreboard(board,font,players,0);board.display();
     check(board.getTexture().copyToImage().saveToFile(std::filesystem::temp_directory_path()/"marpg-scoreboard.png"),"Scoreboard preview save failed");
+    players[0].combatDebug.attack=common::AttackKind::Hook;players[0].combatDebug.age=32;
+    check(attackSecondsRemaining(players[0])==.5f,"Cooldown remaining time incorrect");
+    drawAttackHud(board,font,players[0]);board.display();
+    check(board.getTexture().copyToImage().saveToFile(std::filesystem::temp_directory_path()/"marpg-combat-hud.png"),"HUD preview save failed");
+    players[0].combatDebug.attack=common::AttackKind::None;players[0].stunTicks=32;
+    check(attackSecondsRemaining(players[0])==.5f,"Idle stun timer must display");
+    drawAttackHud(board,font,players[0]);board.display();
+    players[0].stunTicks=0;
+    players[0].explosionCooldown=64;players[0].lightningCooldown=0;
+    check(attackSecondsRemaining(players[0],common::AttackKind::Uppercut)==1.f &&
+          attackSecondsRemaining(players[0],common::AttackKind::Lightning)==0,"Spell HUD timers must be independent");
+    players[0].explosionCooldown=0;
     SpellEffects spell(root/"assets/sprites/Free Pixel Art Explosions/PNG/Explosion");
     spell.observe(players,0);++players[0].spellSequence;players[0].spellPosition={320,120};spell.observe(players,.2f);spell.draw(target);
     ++players[0].spellSequence;players[0].spellEffect=common::AttackKind::Lightning;spell.observe(players,.05f);spell.draw(target);
+    SpellEffects warnings(root/"assets/sprites/Free Pixel Art Explosions/PNG/Explosion");
+    players[0].alive=players[1].alive=true;
+    players[0].combatDebug.attack=common::AttackKind::None;
+    warnings.predictCast(0,players[0],common::AttackKind::Uppercut,{180,150});
+    sf::RenderTexture telegraph({640,300});
+    const sf::Color background(25,30,40);
+    telegraph.clear(background);warnings.drawWindups(telegraph);telegraph.display();
+    const auto hasEffect=[&](unsigned left,unsigned right) {
+        const auto image=telegraph.getTexture().copyToImage();
+        for(unsigned y=0;y<300;++y)for(unsigned x=left;x<right;++x)
+            if(image.getPixel({x,y})!=background)return true;
+        return false;
+    };
+    check(hasEffect(0,320),"Click must immediately show spell warning");
+    players[0].combatDebug={common::AttackKind::Uppercut,12};++players[0].attackSequence;players[0].spellPosition={180,150};
+    players[1].combatDebug={common::AttackKind::Lightning,8};players[1].spellPosition={470,150};
+    warnings.observe(players,0);
+    telegraph.clear(background);warnings.drawWindups(telegraph);telegraph.display();
+    check(hasEffect(320,640),"Remote lightning windup warning missing");
+    check(telegraph.getTexture().copyToImage().saveToFile(std::filesystem::temp_directory_path()/"marpg-spell-windups.png"),"Warning preview save failed");
+    players[1].combatDebug.age=common::attackDescription(common::AttackKind::Lightning).startupTicks+10;
+    warnings.observe(players,.2f);
+    telegraph.clear(background);warnings.drawWindups(telegraph);telegraph.display();
+    check(hasEffect(320,640),"Lightning spot must persist through active spell");
+    players[1].combatDebug.age=common::attackDescription(common::AttackKind::Lightning).startupTicks+
+        common::attackDescription(common::AttackKind::Lightning).activeTicks;
+    warnings.observe(players,0);
+    telegraph.clear(background);warnings.drawWindups(telegraph);telegraph.display();
+    check(!hasEffect(320,640),"Lightning spot must end before cooldown");
+    players[0].combatDebug.attack=players[1].combatDebug.attack=common::AttackKind::None;
+    warnings.observe(players,0);
+    telegraph.clear(background);warnings.drawWindups(telegraph);telegraph.display();
+    check(!hasEffect(0,640),"Interrupted warnings must disappear");
     std::cout<<"PASS: kill attribution, stable names, environment deaths, network history, deduplication, burst cap, fade, and rendering\n";
 }

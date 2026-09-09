@@ -83,6 +83,9 @@ struct InputCommand {
     AttackKind spellKind = AttackKind::Uppercut;
     bool spellPressed = false;
     sf::Vector2f spellTarget{};
+    sf::Vector2f cursor{};
+    bool hasCursor=false;
+    bool movementFacing=false;
     bool hookHeld = false;
     bool hookPressed = false;
     bool hookReleased = false;
@@ -131,6 +134,10 @@ struct PlayerState {
     AttackKind lastAttack = AttackKind::None;
     std::uint32_t attackSequence = 0;
     CombatDebugState combatDebug;
+    Tick stunTicks = 0;
+    Tick explosionCooldown = 0, lightningCooldown = 0;
+    std::int32_t pingMs = -1;
+    sf::Vector2f facing{1.f, 0.f};
     std::uint32_t damageSequence = 0;
     std::vector<DamageEvent> damageEvents;
 };

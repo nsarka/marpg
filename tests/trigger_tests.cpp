@@ -16,7 +16,7 @@ int main(int argc,char** argv){
     for(int i=0;i<31;++i) triggers.update(1,player);
     check(player.health==98,"Second hit must wait the full 32-tick beat");
     triggers.update(1,player);
-    check(player.health==96,"120 BPM requires a hit every 32 ticks");
+    check(player.health==96,"0.5 seconds requires a hit every 32 ticks");
     for(int i=0;i<32;++i) triggers.update(1,player);
     check(player.health==94,"Damage must repeat every beat");
     player.pos={-140,620};
@@ -51,7 +51,7 @@ int main(int argc,char** argv){
     for(int i=0;i<31;++i) triggers.update(3,falling);
     check(falling.health==98,"Missing floor must wait a full beat");
     triggers.update(3,falling);
-    check(falling.health==96,"Missing floor must damage at 120 BPM");
+    check(falling.health==96,"Missing floor must damage every 0.5 seconds");
     falling.pos={128,64};
     for(int i=0;i<64;++i) triggers.update(3,falling);
     check(falling.health==96,"Returning to floor must stop damage");

@@ -1,3 +1,5 @@
+#include "melee_animation.hpp"
+#include "common/settings.hpp"
 #include "player.hpp"
 #include <SFML/Graphics/RectangleShape.hpp>
 #include <algorithm>
@@ -129,8 +131,13 @@ void Player::stepAnimation(float dtSeconds)
 
     m_frameTime += dtSeconds;
 
-    while (m_frameTime >= clip.frames[m_frameIndex].durationSeconds) {
-        m_frameTime -= clip.frames[m_frameIndex].durationSeconds;
+    const auto frameDuration=[&]() {
+        if(m_currentAnim==Anim::LeftJab || m_currentAnim==Anim::RightHook)
+            return client::meleeFrameDuration(m_currentAnim==Anim::LeftJab?common::AttackKind::Jab:common::AttackKind::Hook,clip.frames,m_frameIndex);
+        return clip.frames[m_frameIndex].durationSeconds;
+    };
+    while (m_frameTime >= frameDuration()) {
+        m_frameTime -= frameDuration();
         ++m_frameIndex;
 
         if (m_frameIndex >= clip.frames.size()) {
@@ -258,7 +265,7 @@ void Player::applySnapshot(const common::PlayerState& snapshot)
         teleportTo(snapshot.pos);
     }
     if (newAttack && m_state.alive) {
-        setFacingFromVector(m_state.combatDebug.direction);
+        setFacingFromVector(m_state.facing);
         switch (m_state.lastAttack) {
             case common::AttackKind::Jab: playOneShot(Anim::LeftJab); break;
             case common::AttackKind::Lightning: setAnimation(Anim::Carrying,true); break;
@@ -325,17 +332,11 @@ void Player::update(float dtSeconds)
     }
     updateNameTextPosition();
 
-    const bool attacking = m_lockedAnim &&
-        (*m_lockedAnim == Anim::LeftJab || *m_lockedAnim == Anim::RightHook || *m_lockedAnim == Anim::Uppercut);
-    if (attacking) {
-        setFacingFromVector(m_state.combatDebug.direction);
-    } else if (lengthSquared(m_state.vel) > 0.0001f) {
-        m_facing = vectorToFacing8(m_state.vel);
-    }
+    setFacingFromVector(m_state.facing);
 
     const bool channeling=m_state.alive && m_state.combatDebug.attack==common::AttackKind::Lightning &&
         m_state.combatDebug.age<common::attackDescription(common::AttackKind::Lightning).startupTicks+common::attackDescription(common::AttackKind::Lightning).activeTicks;
-    if(channeling && !m_lockedAnim) {setAnimation(Anim::Carrying,false);setFacingFromVector(m_state.combatDebug.direction);}
+    if(channeling && !m_lockedAnim) {setAnimation(Anim::Carrying,false);setFacingFromVector(m_state.facing);}
     if (!m_lockedAnim.has_value() && !channeling) {
         const float speed2 = lengthSquared(m_state.vel);
 
@@ -375,10 +376,6 @@ void Player::update(float dtSeconds)
                 setAnimation(Anim::Idle, false);
             }
         }
-    }
-
-    if (!attacking && (m_state.vel.x != 0.f || m_state.vel.y != 0.f)) {
-        setFacingFromVector(m_state.vel);
     }
 
     stepAnimation(dtSeconds);
@@ -479,6 +476,9 @@ void Player::draw(sf::RenderTarget& target, sf::RenderStates states) const
     // Overhead UI stays readable and must not inherit the sprite occlusion shader.
     states.shader = nullptr;
     if (m_nameText) {
+        const auto bounds=m_nameText->getGlobalBounds();
+        sf::RectangleShape teamMark({8,8});teamMark.setPosition({bounds.position.x-13,bounds.position.y+(bounds.size.y-8)*.5f});
+        teamMark.setFillColor(common::teamColor(m_state.team,common::activeSettings.teams));target.draw(teamMark,states);
         target.draw(*m_nameText, states);
     }
     constexpr float barWidth = 48.f;

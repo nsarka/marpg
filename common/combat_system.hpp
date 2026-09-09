@@ -8,12 +8,14 @@
 #include <random>
 
 namespace common {
-inline constexpr float AttackHalfAngle = 0.78539816339f; // 90-degree full cone.
-inline constexpr float AttackArcCosine = 0.70710678118f;
-inline constexpr Tick RespawnDelayTicks = 160; // 2.5 seconds; Die clip is 2.442 seconds.
+inline float attackHalfAngle(AttackKind kind) {
+    return static_cast<float>((kind==AttackKind::Hook?activeSettings.hookConeDegrees:activeSettings.jabConeDegrees)*3.141592653589793/360.0);
+}
+inline Tick respawnDelayTicks() {return static_cast<Tick>(std::llround(activeSettings.respawnSeconds*TICK_RATE));}
 struct CombatState {
     AttackKind attack = AttackKind::None;
     Tick age = 0;
+    std::uint32_t damageSequenceAtStart = 0;
     double nextLightningTick=0;
     bool hit = false;
     std::int32_t hitTarget = -1;
@@ -26,8 +28,10 @@ struct CombatState {
     Tick bufferedTicks = 0;
 };
 inline bool startAttack(PlayerState& player, CombatState& combat, AttackKind kind, sf::Vector2f aim = {}) {
-    if (!player.alive || player.health<=0 || combat.attack!=AttackKind::None ||
+    if (!player.alive || player.health<=0 || player.stunTicks>0 || combat.attack!=AttackKind::None ||
         (kind!=AttackKind::Jab && kind!=AttackKind::Hook && kind!=AttackKind::Uppercut && kind!=AttackKind::Lightning)) return false;
+    if((kind==AttackKind::Uppercut && player.explosionCooldown>0) ||
+       (kind==AttackKind::Lightning && player.lightningCooldown>0))return false;
     if (!std::isfinite(aim.x) || !std::isfinite(aim.y)) return false;
     if(kind==AttackKind::Uppercut || kind==AttackKind::Lightning) {
         if((aim-player.pos).length()>(kind==AttackKind::Lightning?activeSettings.lightning.range:activeSettings.spell.range))return false;
@@ -35,13 +39,15 @@ inline bool startAttack(PlayerState& player, CombatState& combat, AttackKind kin
     }
     const float aimLength=aim.length();
     if (!std::isfinite(aimLength)) return false;
+    combat.damageSequenceAtStart=player.damageSequence;
     combat.attack=kind; combat.age=0;combat.nextLightningTick=0; combat.hit=false; combat.hitTarget=-1;
     combat.attackDirection=aimLength>0.001f ? aim/aimLength : combat.facing;
+    if(kind==AttackKind::Uppercut || kind==AttackKind::Lightning)combat.facing=combat.attackDirection;
     player.lastAttack=kind; ++player.attackSequence;
     return true;
 }
 inline bool requestAttack(PlayerState& player, CombatState& combat, const AttackRequest& request) {
-    if (!player.alive || player.health<=0 || request.ageMs>=AttackBufferMs ||
+    if (!player.alive || player.health<=0 || player.stunTicks>0 || request.ageMs>=AttackBufferMs ||
         (request.kind!=AttackKind::Jab && request.kind!=AttackKind::Hook && request.kind!=AttackKind::Uppercut && request.kind!=AttackKind::Lightning) ||
         !std::isfinite(request.aim.x) || !std::isfinite(request.aim.y) ||
         !std::isfinite(request.aim.length())) return false;
@@ -54,18 +60,61 @@ inline bool requestAttack(PlayerState& player, CombatState& combat, const Attack
     combat.bufferedTicks=(AttackBufferMs-request.ageMs)*TICK_RATE/1000;
     return combat.bufferedTicks>0;
 }
-inline bool inAttackArc(sf::Vector2f delta, sf::Vector2f direction, float range) {
+inline bool inAttackArc(sf::Vector2f delta, sf::Vector2f direction, float range, AttackKind kind=AttackKind::Jab) {
     const float distance=delta.length();
-    return distance<=range && (distance<=0.001f || delta.dot(direction)>=distance*AttackArcCosine);
+    return distance<=range && (distance<=0.001f || delta.dot(direction)>=distance*std::cos(attackHalfAngle(kind)));
 }
 inline bool attackPathClear(sf::Vector2f from, sf::Vector2f to, const CollisionWorld& walls) {
     return (walls.move(from,to-from,0.f)-to).length()<=0.01f;
 }
+inline bool spellTargetValid(const PlayerState& player,AttackKind kind,sf::Vector2f target,const CollisionWorld& walls) {
+    const auto& rules=kind==AttackKind::Lightning?activeSettings.lightning:activeSettings.spell;
+    return std::isfinite(target.x) && std::isfinite(target.y) && (target-player.pos).length()<=rules.range && attackPathClear(player.pos,target,walls);
+}
+inline void updateAim(PlayerState& player,CombatState& combat,sf::Vector2f cursor,const CollisionWorld&) {
+    const bool spellWindup=(combat.attack==AttackKind::Uppercut || combat.attack==AttackKind::Lightning) &&
+        combat.age<attackDescription(combat.attack).startupTicks;
+    const auto delta=(spellWindup?combat.spellTarget:cursor)-player.pos;const float length=delta.length();
+    if(!std::isfinite(length) || length<.001f)return;
+    combat.facing=delta/length;
+    if(combat.attack==AttackKind::None){combat.attackDirection=combat.facing;return;}
+    if(combat.age>=attackDescription(combat.attack).startupTicks)return;
+    // Spell destinations are captured by startAttack from the initial click.
+    if(combat.attack==AttackKind::Uppercut || combat.attack==AttackKind::Lightning)return;
+    combat.attackDirection=combat.facing;
+}
+inline bool interruptWindup(CombatState& combat) {
+    if(combat.attack==AttackKind::None || combat.age>=attackDescription(combat.attack).startupTicks)return false;
+    combat.attack=AttackKind::None;
+    combat.age=0;
+    combat.bufferedAttack=AttackKind::None;
+    combat.bufferedTicks=0;
+    combat.hit=false;
+    combat.hitTarget=-1;
+    return true;
+}
 inline void updateAttack(PlayerState& attacker, CombatState& combat,
-                         const std::vector<PlayerState*>& targets, const CollisionWorld& walls) {
+                         const std::vector<PlayerState*>& targets, const CollisionWorld& walls,
+                         const std::vector<CombatState*>& targetCombats = {}) {
     if (!attacker.alive || attacker.health<=0) { combat.attack=AttackKind::None; combat.bufferedAttack=AttackKind::None; combat.bufferedTicks=0; return; }
+    if(attacker.stunTicks>0)--attacker.stunTicks;
+    if(attacker.explosionCooldown>0)--attacker.explosionCooldown;
+    if(attacker.lightningCooldown>0)--attacker.lightningCooldown;
     if (combat.attack==AttackKind::None) return;
+    // All damage sources share damageSequence, including map hazards.
+    // Check before advancing so a hit on the final windup tick still cancels.
+    if(attacker.damageSequence!=combat.damageSequenceAtStart && interruptWindup(combat))return;
+    // Resolve interruption at the hit, before another player's attack can advance.
+    const auto hitTarget=[&](PlayerState& target,int amount,std::int32_t source,sf::Vector2f contact) {
+        if(applyDamage(target,amount,source,contact)<=0)return;
+        const auto index=static_cast<std::size_t>(std::find(targets.begin(),targets.end(),&target)-targets.begin());
+        if(index<targetCombats.size() && targetCombats[index])interruptWindup(*targetCombats[index]);
+    };
     const auto& desc=attackDescription(combat.attack);
+    if((combat.attack==AttackKind::Uppercut || combat.attack==AttackKind::Lightning) && combat.age<desc.startupTicks) {
+        const auto delta=combat.spellTarget-attacker.pos;
+        if(delta.length()>.001f)combat.facing=delta.normalized();
+    }
     ++combat.age;
     const bool lightning=combat.attack==AttackKind::Lightning;
     if ((!combat.hit || lightning) && combat.age>=desc.startupTicks && combat.age<desc.startupTicks+desc.activeTicks) {
@@ -83,7 +132,7 @@ inline void updateAttack(PlayerState& attacker, CombatState& combat,
                 if((target->pos-combat.spellTarget).length()<=desc.range && attackPathClear(combat.spellTarget,target->pos,walls))
                     {
                     static std::mt19937 random{std::random_device{}()};
-                    applyDamage(*target,std::uniform_int_distribution<int>(rules.damageMin,rules.damageMax)(random),source,target->pos+sf::Vector2f{0,-28});
+                    hitTarget(*target,std::uniform_int_distribution<int>(rules.damageMin,rules.damageMax)(random),source,target->pos+sf::Vector2f{0,-28});
                 }
             }
         } else {
@@ -95,8 +144,8 @@ inline void updateAttack(PlayerState& attacker, CombatState& combat,
             const auto delta=target->pos-attacker.pos;
             const float distance=delta.length();
             if (distance>best) continue;
-            // A 90-degree forward arc, captured when the swing starts.
-            if (!inAttackArc(delta,combat.attackDirection,desc.range)) continue;
+            // Configured cone around the locked attack direction.
+            if (!inAttackArc(delta,combat.attackDirection,desc.range,combat.attack)) continue;
             if (!attackPathClear(attacker.pos,target->pos,walls)) continue;
             closest=target; best=distance;
         }
@@ -105,13 +154,20 @@ inline void updateAttack(PlayerState& attacker, CombatState& combat,
             const auto contact=closest->pos + (towardAttacker.length()>0.001f
                 ? towardAttacker.normalized()*CollisionWorld::PlayerRadius : sf::Vector2f{}) + sf::Vector2f{0,-28};
             const auto source=static_cast<std::int32_t>(std::find(targets.begin(),targets.end(),&attacker)-targets.begin());
-            applyDamage(*closest,desc.damage,source,contact);
+            static std::mt19937 random{std::random_device{}()};
+            const int minimum=combat.attack==AttackKind::Hook?activeSettings.hookDamageMin:activeSettings.jabDamageMin;
+            hitTarget(*closest,std::uniform_int_distribution<int>(minimum,desc.damage)(random),source,contact);
             combat.hit=true;
             combat.hitTarget=static_cast<std::int32_t>(std::find(targets.begin(),targets.end(),closest)-targets.begin());
         }
     }
     }
-    if (combat.age>=desc.startupTicks+desc.activeTicks+desc.recoveryTicks)
+    const bool spell=combat.attack==AttackKind::Uppercut || combat.attack==AttackKind::Lightning;
+    if(spell && combat.age>=desc.startupTicks+desc.activeTicks) {
+        auto& cooldown=combat.attack==AttackKind::Lightning?attacker.lightningCooldown:attacker.explosionCooldown;
+        cooldown=desc.recoveryTicks;
+        combat.attack=AttackKind::None;
+    } else if (!spell && combat.age>=desc.startupTicks+desc.activeTicks+desc.recoveryTicks)
         combat.attack=AttackKind::None;
     if (combat.bufferedAttack!=AttackKind::None) {
         if (combat.bufferedTicks>0 && combat.attack==AttackKind::None) {
@@ -130,11 +186,13 @@ inline bool advanceDeath(PlayerState& player, CombatState& combat) {
     player.health=0; player.alive=false; player.vel={};
     combat.attack=AttackKind::None;
     combat.bufferedAttack=AttackKind::None; combat.bufferedTicks=0;
-    if (combat.deadTicks<RespawnDelayTicks) ++combat.deadTicks;
-    return combat.deadTicks>=RespawnDelayTicks;
+    if (combat.deadTicks<respawnDelayTicks()) ++combat.deadTicks;
+    return combat.deadTicks>=respawnDelayTicks();
 }
 inline void respawn(PlayerState& player, CombatState& combat, sf::Vector2f position) {
     player.pos=position; player.vel={}; player.health=100; player.alive=true;
+    player.stunTicks=0;
+    player.explosionCooldown=player.lightningCooldown=0;
     player.lastAttack=AttackKind::None;
     combat=CombatState{};
 }

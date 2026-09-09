@@ -140,6 +140,14 @@ void ClientConnection::pumpNetwork(std::vector<common::PlayerState>& newStates, 
         if (senderIp!=serverIp_ || senderPort!=serverPort_) continue;
         std::string type;
         packet >> type;
+        if(type=="ping") {
+            common::PlayerId id;std::uint32_t sequence;
+            if(packet>>id>>sequence) {
+                sf::Packet pong;pong<<std::string("pong")<<id<<sequence;
+                sendPacket(udp_socket_,pong,serverIp_,serverPort_,"pong");
+            }
+            continue;
+        }
         if (type=="server_shutdown") {
             sf::Packet ack;ack << std::string("shutdown_ack") << myId_;
             sendPacket(udp_socket_,ack,serverIp_,serverPort_,"shutdown ack");

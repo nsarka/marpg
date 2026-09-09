@@ -38,6 +38,11 @@ const AttackDesc& attackDescription(AttackKind kind) {
         desc.recoveryTicks=std::max(1u,static_cast<Tick>(std::llround(s.cooldown*TICK_RATE)));
         desc.range=s.radius;desc.damage=s.damageMax;return desc;
     }
+    if(kind==AttackKind::Jab || kind==AttackKind::Hook) {
+        kAttackTable.at(kind).range=kind==AttackKind::Jab?activeSettings.jabRange:activeSettings.hookRange;
+        const double windup=kind==AttackKind::Jab?activeSettings.jabWindup:activeSettings.hookWindup;
+        kAttackTable.at(kind).startupTicks=std::max(1u,static_cast<Tick>(std::llround(windup*TICK_RATE)));
+    }
     return kAttackTable.at(kind);
 }
 
@@ -56,7 +61,7 @@ void writeInputCmd(sf::Packet& packet, const common::PlayerId& id, const common:
            << cmd.hookHeld
            << cmd.hookPressed
            << cmd.hookReleased
-           << cmd.aim.x << cmd.aim.y;
+           << cmd.aim.x << cmd.aim.y << cmd.hasCursor << cmd.cursor.x << cmd.cursor.y << cmd.movementFacing;
 }
 
 bool readInputCmd(sf::Packet& packet, common::PlayerId& id, common::InputCommand& cmd) {
@@ -67,6 +72,8 @@ bool readInputCmd(sf::Packet& packet, common::PlayerId& id, common::InputCommand
         return false;
     }
 
+    if(!packet.endOfPacket() && !(packet>>cmd.hasCursor>>cmd.cursor.x>>cmd.cursor.y))return false;
+    if(!packet.endOfPacket() && !(packet>>cmd.movementFacing))return false;
     cmd.move.x = moveX;
     cmd.move.y = moveY;
 
@@ -146,6 +153,10 @@ void writeWorldPacket(sf::Packet& packet,
     for(int i=0;i<MAX_PLAYERS;++i)packet << players[i].kills << players[i].deaths;
     for(int i=0;i<MAX_PLAYERS;++i)packet << players[i].spellSequence << players[i].spellPosition.x << players[i].spellPosition.y;
     for(int i=0;i<MAX_PLAYERS;++i)packet << static_cast<std::uint8_t>(players[i].spellEffect);
+    for(int i=0;i<MAX_PLAYERS;++i)packet << players[i].facing.x << players[i].facing.y;
+    for(int i=0;i<MAX_PLAYERS;++i)packet << players[i].stunTicks;
+    for(int i=0;i<MAX_PLAYERS;++i)packet << players[i].explosionCooldown << players[i].lightningCooldown;
+    for(int i=0;i<MAX_PLAYERS;++i)packet << players[i].pingMs;
 }
 
 bool readWorldPacket(sf::Packet& packet,
@@ -181,6 +192,14 @@ bool readWorldPacket(sf::Packet& packet,
     if(!packet.endOfPacket())for(auto& player:snapshot) {
         std::uint8_t kind;if(!(packet>>kind) || (kind!=3 && kind!=4))return false;player.spellEffect=static_cast<AttackKind>(kind);
     }
+    for(auto& player:snapshot)player.facing=player.combatDebug.direction;
+    if(!packet.endOfPacket())for(auto& player:snapshot) {
+        if(!(packet >> player.facing.x >> player.facing.y) ||
+           !std::isfinite(player.facing.x) || !std::isfinite(player.facing.y))return false;
+    }
+    if(!packet.endOfPacket())for(auto& player:snapshot)if(!(packet>>player.stunTicks))return false;
+    if(!packet.endOfPacket())for(auto& player:snapshot)if(!(packet>>player.explosionCooldown>>player.lightningCooldown))return false;
+    if(!packet.endOfPacket())for(auto& player:snapshot)if(!(packet>>player.pingMs) || player.pingMs < -1)return false;
     if(kills)*kills=std::move(history);
     players=std::move(snapshot);
     return true;

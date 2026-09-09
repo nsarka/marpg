@@ -41,7 +41,7 @@ inline void drawCombatDebug(sf::RenderTarget& target, std::vector<Player>& playe
         sf::ConvexShape sector(segments+2);
         sector.setPoint(0,state.pos);
         for (unsigned i=0;i<=segments;++i) {
-            const float a=angle-common::AttackHalfAngle+(2.f*common::AttackHalfAngle)*float(i)/segments;
+            const float a=angle-common::attackHalfAngle(debug.attack)+(2.f*common::attackHalfAngle(debug.attack))*float(i)/segments;
             sector.setPoint(i+1,state.pos+sf::Vector2f{std::cos(a),std::sin(a)}*attack.range);
         }
         sector.setFillColor(sf::Color(color.r,color.g,color.b,35));
@@ -56,7 +56,7 @@ inline void drawCombatDebug(sf::RenderTarget& target, std::vector<Player>& playe
             const auto delta=other.pos-state.pos;
             if (!confirmed && (!other.alive || delta.length()>attack.range)) continue;
             if (!common::activeSettings.friendlyFire && state.team>=0 && state.team==other.team) continue;
-            const bool inArc=common::inAttackArc(delta,debug.direction,attack.range);
+            const bool inArc=common::inAttackArc(delta,debug.direction,attack.range,debug.attack);
             const bool clear=common::attackPathClear(state.pos,other.pos,walls);
             const auto lineColor=confirmed ? sf::Color(60,255,130) : !inArc ? sf::Color(130,140,160)
                                           : !clear ? sf::Color(255,70,90) : sf::Color(80,220,255);

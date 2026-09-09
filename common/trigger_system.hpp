@@ -15,7 +15,7 @@ namespace common {
 class TriggerSystem {
 public:
     void load(const std::string& mapPath, const ServerSettings& settings=activeSettings) {
-        boundsDamage_=settings.boundsDamage; boundsInterval_=damageInterval(settings.boundsBpm);
+        boundsDamage_=settings.boundsDamage; boundsInterval_=damageInterval(settings.boundsInterval);
         CollisionWorld regions;
         regions.load(mapPath, true);
         tmx::Map map;
@@ -36,7 +36,7 @@ public:
         floorLoaded_=true;
         voidElapsed_.clear();
         zones_.clear();
-        for (auto points : regions.outlines()) addDamageTrigger(std::move(points), settings.triggerDamage, damageInterval(settings.triggerBpm));
+        for (auto points : regions.outlines()) addDamageTrigger(std::move(points), settings.triggerDamage, damageInterval(settings.triggerInterval));
     }
     void addDamageTrigger(std::vector<sf::Vector2f> points, int damage, Tick interval) {
         if (damage < 0 || interval == 0) throw std::invalid_argument("Invalid damage trigger settings");

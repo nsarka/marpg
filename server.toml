@@ -1,4 +1,8 @@
 [server]
+# Time attacks are blocked after each hit; 0 disables the delay.
+damage_stun_seconds = 0.5
+# Delay from death to respawn.
+respawn_seconds = 2.5
 name = "Rick's Funhaus"
 # Bind all interfaces. Use a specific local IP to restrict the interface.
 ip = "0.0.0.0"
@@ -6,7 +10,7 @@ port = 54000
 # Total capacity (1-32). Human player slots = slots - bots.
 # With these defaults: 20 total slots - 10 bots = 10 human players.
 slots = 20
-teams = 3
+teams = 2
 bots = 1
 # Set false to keep bots idle. They can still take damage and respawn.
 bot_ai = true
@@ -14,13 +18,27 @@ friendly_fire = false
 # Honor valid client team requests even when they unbalance the teams.
 honor_team_requests = true
 
-[damage]
-trigger = 2
-trigger_bpm = 240
+[trigger_damage]
+trigger = 5
+trigger_interval_seconds = 0.25
 out_of_bounds = 2
-out_of_bounds_bpm = 120
-jab = 20
-hook = 35
+out_of_bounds_interval_seconds = 0.5
+
+# Windup before a melee hit, in seconds (0-60).
+# Rounded to server ticks, with a minimum of one tick (1/64 second).
+[jab]
+cone_degrees = 90.0 # Full cone width in degrees (0 < width <= 360).
+damage_min = 12
+damage_max = 22
+range = 70.0 # World units.
+windup_seconds = 0.25
+
+[hook]
+cone_degrees = 90.0
+damage_min = 20
+damage_max = 40
+range = 80.0 # World units.
+windup_seconds = 0.75
 
 # Damage values are positive health loss, randomly rolled per target/hit.
 [spell]
@@ -28,16 +46,16 @@ damage_min = 5
 damage_max = 30
 radius = 120.0
 range = 500.0
-windup_seconds = 0.375
+windup_seconds = 1.0
 # Recovery after the explosion, before another attack can start.
 cooldown_seconds = 1.625
 
 [lightning]
-damage_min = 1
-damage_max = 4
+damage_min = 2
+damage_max = 7
 radius = 45.0
 range = 500.0
-windup_seconds = 0.25
+windup_seconds = 0.75
 # Lightning strikes the chosen location for this duration.
 duration_seconds = 3.0
 damage_interval_seconds = 0.3333333333333333

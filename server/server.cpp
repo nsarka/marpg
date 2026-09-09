@@ -29,6 +29,9 @@ struct ServerPlayer {
     sf::Vector2f requestedVelocity{};
     sf::Clock lastInputTime;
     sf::Clock lastHeard;
+    sf::Clock pingClock;
+    std::uint32_t pingSequence=0;
+    bool pingPending=false;
 };
 
 namespace {
@@ -213,6 +216,14 @@ int main(int argc,char**) {
                     logger.info() << "Rejected join from " << senderIp->toString() << ":" << senderPort
                               << " (server full)\n";
                 }
+            } else if (type == "pong") {
+                common::PlayerId id;std::uint32_t sequence;
+                if(!(packet>>id>>sequence) || id>=players.size())continue;
+                auto& player=players[id];
+                if(!player.state.connected || player.ip!=senderIp || player.port!=senderPort ||
+                   !player.pingPending || sequence!=player.pingSequence)continue;
+                player.state.pingMs=player.pingClock.getElapsedTime().asMilliseconds();
+                player.pingPending=false;
             } else if (type == "leave") {
                 common::PlayerId id;
                 if (!(packet >> id) || id>=players.size()) continue;
@@ -234,6 +245,8 @@ int main(int argc,char**) {
                 sf::Packet ack;
                 ack << std::string(common::MSG_ATTACK_ACK) << request.sequence;
                 sendPacket(socket,ack,*senderIp,senderPort,"attack ack");
+                if((request.kind==common::AttackKind::Uppercut || request.kind==common::AttackKind::Lightning) &&
+                   !common::spellTargetValid(player.state,request.kind,request.aim,collision))continue;
                 if (player.attackInbox.accept(request.sequence))
                     common::requestAttack(player.state,player.combat,request);
             } else if (type == common::MSG_STATE) {
@@ -261,6 +274,15 @@ int main(int argc,char**) {
                 if (!std::isfinite(cmd.move.x) || !std::isfinite(cmd.move.y)) continue;
                 const float length = std::hypot(cmd.move.x, cmd.move.y);
                 if (length > 1.f) cmd.move /= length;
+                if(cmd.hasCursor) {
+                    const auto previousFacing=player.combat.facing;
+                    common::updateAim(player.state,player.combat,cmd.cursor,collision);
+                    const auto kind=player.combat.attack;
+                    const bool spellWindup=(kind==common::AttackKind::Uppercut || kind==common::AttackKind::Lightning) &&
+                        player.combat.age<common::attackDescription(kind).startupTicks;
+                    if(cmd.movementFacing && !spellWindup)
+                        player.combat.facing=cmd.move.length()>.001f?cmd.move.normalized():previousFacing;
+                }
                 player.requestedVelocity = cmd.move * speed;
                 player.lastInputTime.restart();
             }
@@ -320,15 +342,18 @@ int main(int argc,char**) {
                     for(auto& other:players)opponents.push_back(&other.state);
                     botAI.update(i,player.state,player.combat,opponents);
                 }
-                if (player.state.vel.lengthSquared()>0.0001f)
-                    player.combat.facing=player.state.vel.normalized();
+
                 triggers.update(i, player.state);
             }
             std::vector<common::PlayerState*> targets;
-            for (auto& player : players) targets.push_back(&player.state);
+            std::vector<common::CombatState*> targetCombats;
+            for (auto& player : players) {
+                targets.push_back(&player.state);
+                targetCombats.push_back(&player.combat);
+            }
             for (auto& player : players) {
                 if (player.state.connected)
-                    common::updateAttack(player.state, player.combat, targets, collision);
+                    common::updateAttack(player.state, player.combat, targets, collision, targetCombats);
             }
             killHistory.observe(targets,triggers);
         }
@@ -340,9 +365,18 @@ int main(int argc,char**) {
         snapshotClock.restart();
         std::vector<common::PlayerState> publicStates(common::MAX_PLAYERS);
         for (int i = 0; i < common::MAX_PLAYERS; i++) {
+            auto& player=players[i];
+            if(player.state.connected && player.ip && player.pingClock.getElapsedTime()>=sf::seconds(1)) {
+                sf::Packet ping;ping<<std::string("ping")<<static_cast<common::PlayerId>(i)<<++player.pingSequence;
+                sendPacket(socket,ping,*player.ip,player.port,"ping");
+                if(player.pingPending)player.state.pingMs=-1;
+                player.pingPending=true;player.pingClock.restart();
+            }
             publicStates[i] = players[i].state;
+            if(!player.ip)publicStates[i].pingMs=0;
             const auto& combat=players[i].combat;
-            publicStates[i].combatDebug={combat.attack,combat.age,combat.attackDirection,combat.hit,combat.hitTarget};
+            publicStates[i].facing=combat.facing;
+            publicStates[i].combatDebug={combat.attack,combat.age,combat.attack==common::AttackKind::None?combat.facing:combat.attackDirection,combat.hit,combat.hitTarget};
         }
 
         auto packets=common::worldPackets(publicStates,++snapshotSequence,killHistory.events());

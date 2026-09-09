@@ -14,6 +14,7 @@
 #include "kill_feed.hpp"
 #include "scoreboard.hpp"
 #include "spell_effects.hpp"
+#include "attack_hud.hpp"
 #include "sound_system.hpp"
 #include "common/team_spawns.hpp"
 
@@ -247,6 +248,8 @@ int main(int argc, char**) {
     // -------------------------------------------------------------------------
     SoundSystem sounds("../assets/sound/Retro_Combat_FX");
     sf::Clock frameClock;
+    sf::Clock mouseIdleClock;
+    auto previousMousePosition=sf::Mouse::getPosition(window);
     float accumulator = 0.f;
     SpellEffects spellEffects("../assets/sprites/Free Pixel Art Explosions/PNG/Explosion");
     DamageNumbers damageNumbers;
@@ -288,10 +291,15 @@ int main(int argc, char**) {
             if(shutdownDisplay->getElapsedTime()>=sf::seconds(2))window.close();
             continue;
         }
+        const auto mousePosition=sf::Mouse::getPosition(window);
+        if(mousePosition!=previousMousePosition) {
+            previousMousePosition=mousePosition;mouseIdleClock.restart();
+        }
+        const bool movementFacing=mouseIdleClock.getElapsedTime().asSeconds()>=options.mouseIdleSeconds;
         damageNumbers.observe(newStates, myId, options.showOtherDamageNumbers);
         if(client_conn.hasWorldSnapshot())killFeed.observe(client_conn.killEvents(),myId);
         spellEffects.observe(newStates,renderDt);
-        if(!newStates[myId].alive)input.clearAll();
+        if(!newStates[myId].alive)input.cancelCombatInput();
         sounds.observe(newStates, players[myId].renderPosition());
         while(joined_players.size() > 0) {
             const common::PlayerId p = joined_players.back();
@@ -307,7 +315,10 @@ int main(int argc, char**) {
             accumulator -= common::TICK_DT;
 
             // Build, send, then simulate the local player's input command
-            common::InputCommand input_cmd = input.buildCommand(players[myId].renderPosition(), camera.view());
+            common::InputCommand input_cmd = input.buildCommand(players[myId].renderPosition(), camera.view(), collision);
+            input_cmd.movementFacing=movementFacing;
+            if(input_cmd.spellPressed)
+                spellEffects.predictCast(myId,newStates[myId],input_cmd.spellKind,input_cmd.spellTarget);
             client_conn.sendInput(myId, input_cmd);
 
             // -----------------------------------------------------------------
@@ -375,6 +386,15 @@ int main(int argc, char**) {
                 }
             }
 
+            if(i==myId && window.hasFocus() && p.isAlive()) {
+                const auto cursor=window.mapPixelToCoords(sf::Mouse::getPosition(window),camera.view());
+                const auto& debug=p.state().combatDebug;
+                const bool spellWindup=(debug.attack==common::AttackKind::Uppercut || debug.attack==common::AttackKind::Lightning) &&
+                    debug.age<common::attackDescription(debug.attack).startupTicks;
+                const auto delta=spellWindup?p.state().spellPosition-p.renderPosition():
+                    movementFacing?p.state().vel:cursor-p.renderPosition();
+                if(delta.length()>.001f)p.state().facing=delta.normalized();
+            }
             p.update(renderDt);
         }
 
@@ -416,6 +436,7 @@ int main(int argc, char**) {
         window.clear(sf::Color(30, 34, 42));
 
         window.draw(layerFloor);
+        spellEffects.drawWindups(window);
         window.draw(layerWalls);
         for (const auto& label : levelLabels) window.draw(label);
         //window.draw(layerTrigger);
@@ -454,7 +475,7 @@ int main(int argc, char**) {
             const auto& spellRules=input.selectedSpell()==common::AttackKind::Lightning?common::activeSettings.lightning:common::activeSettings.spell;
             const float radius=spellRules.radius;
             sf::CircleShape area(radius);area.setOrigin({radius,radius});area.setPosition(position);
-            const bool valid=(position-newStates[myId].pos).length()<=spellRules.range;
+            const bool valid=common::spellTargetValid(newStates[myId],input.selectedSpell(),position,collision);
             area.setFillColor(valid?sf::Color(120,90,255,35):sf::Color(255,60,60,35));
             area.setOutlineColor(valid?sf::Color(180,140,255):sf::Color(255,60,60));area.setOutlineThickness(2.f);window.draw(area);
         }
@@ -484,6 +505,7 @@ int main(int argc, char**) {
             flash.setFillColor(sf::Color(220, 15, 25, static_cast<std::uint8_t>(70.f*fade*fade)));
             window.draw(flash);
         }
+        drawAttackHud(window,resources.getFont("ui"),newStates[myId],options.bindings);
         killFeed.draw(window,resources.getFont("ui"));
         if(input.keys().scoreboard)
             drawScoreboard(window,resources.getFont("ui"),newStates,myId);

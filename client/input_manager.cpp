@@ -44,12 +44,16 @@ void InputManager::handleEvents() {
     }
 }
 
-common::InputCommand InputManager::buildCommand(sf::Vector2f playerPosition, const sf::View& worldView) {
+common::InputCommand InputManager::buildCommand(sf::Vector2f playerPosition, const sf::View& worldView, const common::CollisionWorld& walls) {
     common::InputCommand cmd;
     cmd.sequence = nextSequence_;
     cmd.spellKind=clickedSpell_;
     cmd.spellPressed=spellClicked_;
     if(spellClick_)cmd.spellTarget=window_.mapPixelToCoords(*spellClick_,worldView);
+    if(cmd.spellPressed) {
+        common::PlayerState caster;caster.pos=playerPosition;
+        if(!common::spellTargetValid(caster,cmd.spellKind,cmd.spellTarget,walls)){cmd.spellPressed=false;spellReady_=true;}
+    }
     spellClicked_=false;spellClick_.reset();
 
     if (keys_.left)   cmd.move.x -= 1.f;
@@ -62,6 +66,7 @@ common::InputCommand InputManager::buildCommand(sf::Vector2f playerPosition, con
     const auto cursor = attackMousePosition_.value_or(sf::Mouse::getPosition(window_));
     cmd.aim = window_.mapPixelToCoords(cursor, worldView) - playerPosition;
     normalize2D(cmd.aim.x, cmd.aim.y);
+    cmd.cursor=window_.mapPixelToCoords(sf::Mouse::getPosition(window_),worldView);cmd.hasCursor=window_.hasFocus();
     attackMousePosition_.reset();
 
     cmd.jabHeld = keys_.jab;

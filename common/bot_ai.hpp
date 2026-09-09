@@ -16,6 +16,15 @@ public:
         if(!bot.connected || !bot.alive){reset(id);return;}
         auto enemy=[&](int i){return i>=0 && std::size_t(i)<players.size() && players[i]!=&bot && players[i]->connected &&
             players[i]->alive && players[i]->health>0 && players[i]->team>=0 && players[i]->team!=bot.team;};
+        for(const auto& hit:bot.damageEvents) {
+            if(!sequenceNewer(hit.sequence,seenDamage_[id]))continue;
+            seenDamage_[id]=hit.sequence;
+            if(hit.amount<=0 || !enemy(hit.source))continue;
+            bool claimed=false;
+            for(std::size_t other=0;other<players.size() && other<activeSettings.bots;++other)
+                if(other!=id && players[other]->connected && players[other]->alive && brains_[other].target==hit.source){claimed=true;break;}
+            if(!claimed){brain=Brain{};brain.target=hit.source;}
+        }
         if(!enemy(brain.target) || ++brain.targetAge>=12*TICK_RATE) {
             std::vector<int> enemies;
             for(std::size_t i=0;i<players.size();++i)if(enemy(i))enemies.push_back(i);
@@ -29,7 +38,7 @@ public:
         for(auto* p:players)if(p!=&bot && p->connected && p->alive) {
             blockers.push_back(p->pos);if(p!=&victim)traffic.push_back(p->pos);
         }
-        if(distance>0.001f)combat.facing=delta/distance;
+        updateAim(bot,combat,victim.pos,walls_);
         if(brain.pause) --brain.pause;
         const bool clear=attackPathClear(bot.pos,victim.pos,walls_);
         if(brain.combo.empty() && combat.attack==AttackKind::None && !brain.pause) {
@@ -41,7 +50,7 @@ public:
             const auto kind=brain.combo.front();
             const bool spell=kind==AttackKind::Uppercut || kind==AttackKind::Lightning;
             const float range=kind==AttackKind::Uppercut?activeSettings.spell.range:
-                kind==AttackKind::Lightning?activeSettings.lightning.range:58.f;
+                kind==AttackKind::Lightning?activeSettings.lightning.range:std::min(58.f,attackDescription(kind).range);
             if(distance<=range && startAttack(bot,combat,kind,spell?victim.pos:delta)) {
                 brain.combo.pop_front();
                 if(brain.combo.empty())brain.pause=TICK_RATE+std::uniform_int_distribution<int>(8,24)(random_);
@@ -96,5 +105,6 @@ private:
         std::vector<sf::Vector2f> path;std::size_t waypoint=0;std::deque<AttackKind> combo;};
     const Navigation& navigation_;const CollisionWorld& walls_;std::mt19937 random_;
     std::array<Brain,MAX_PLAYERS> brains_;
+    std::array<std::uint32_t,MAX_PLAYERS> seenDamage_{};
 };
 }

@@ -10,15 +10,54 @@ void check(bool ok,const char* message){if(!ok)throw std::runtime_error(message)
 int main(int argc,char** argv){
     check(argc==2,"Project path required");std::filesystem::path root=argv[1];
     auto temp=std::filesystem::temp_directory_path()/("marpg-settings-"+std::to_string(std::chrono::steady_clock::now().time_since_epoch().count())+".toml");
-    for(const auto& text:{"[server]\nslots = -1\n","[damage]\ntrigger_bpm = 0\n","[server]\nport = 70000\n","[server]\nteams = \"two\"\n","[server]\nslts = 12\n","[server\n"}) {
+    for(const auto& text:{"[server]\nrespawn_seconds = -1\n","[server]\nslots = -1\n","[trigger_damage]\ntrigger_interval_seconds = 0\n","[server]\nport = 70000\n","[server]\nteams = \"two\"\n","[server]\nslts = 12\n","[server\n"}) {
         {std::ofstream file(temp);file<<text;}
         bool rejected=false;try{common::loadServerSettings(temp.string());}catch(const std::exception&){rejected=true;}
         std::filesystem::remove(temp);check(rejected,"Invalid TOML setting was silently accepted");
     }
+    {
+        {std::ofstream file(temp);file<<"[jab]\nwindup_seconds=0.5\ndamage_min=23\ndamage_max=23\nrange=25.0\ncone_degrees=45.0\n[hook]\ndamage_min=37\ndamage_max=37\nrange=95.0\nwindup_seconds=0.75\n";}
+        auto timing=common::loadServerSettings(temp.string());
+        check(timing.jabWindup==.5 && timing.hookWindup==.75,"Melee windups not loaded");
+        sf::Packet wire;common::writeSettings(wire,timing);common::ServerSettings copy;
+        check(common::readSettings(wire,copy) && copy.jabWindup==.5 && copy.hookWindup==.75,"Melee windups not synchronized");
+        check(copy.jabDamage==23 && copy.hookDamage==37 && copy.jabDamageMin==23 && copy.hookDamageMin==37 && copy.jabConeDegrees==45 && copy.jabRange==25 && copy.hookRange==95,"Melee damage/range not loaded and synchronized");
+        common::applySettings(copy);
+        check(common::attackDescription(common::AttackKind::Jab).startupTicks==32 &&
+              common::attackDescription(common::AttackKind::Hook).startupTicks==48,"Configured windup ticks incorrect");
+        common::PlayerState a,b;a.connected=b.connected=true;a.pos={0,0};b.pos={30,0};
+        common::CombatState combat;common::CollisionWorld walls;
+        common::startAttack(a,combat,common::AttackKind::Jab,{1,0});
+        for(int i=0;i<31;++i)common::updateAttack(a,combat,{&a,&b},walls);
+        check(b.health==100,"Configured jab hit before windup");
+        common::updateAttack(a,combat,{&a,&b},walls);
+        check(b.health==100,"Jab hit beyond configured range");
+        b.pos={24,0};common::updateAttack(a,combat,{&a,&b},walls);
+        check(b.health==77,"Configured jab range/damage not applied");
+        for(const auto& text:{"[jab]\ncone_degrees=0\n","[hook]\ncone_degrees=361\n","[jab]\ndamage_min=50\ndamage_max=10\n","[jab]\nrange=0\n","[hook]\nrange=inf\n","[hook]\ndamage_min=-1\n","[jab]\nwindup_seconds=-1\n","[hook]\nwindup_seconds=61\n","[jab]\nwindup_seconds=nan\n"}) {
+            {std::ofstream file(temp);file<<text;}
+            bool rejected=false;try{common::loadServerSettings(temp.string());}catch(...){rejected=true;}
+            check(rejected,"Invalid melee windup accepted");
+        }
+        common::applySettings(common::ServerSettings{});
+        check(common::attackDescription(common::AttackKind::Jab).startupTicks==16 &&
+              common::attackDescription(common::AttackKind::Hook).startupTicks==24,"Default windups changed");
+        std::filesystem::remove(temp);
+    }
+    {std::ofstream file(temp);file<<"[trigger_damage]\ntrigger_interval_seconds=0.25\nout_of_bounds_interval_seconds=1.5\n[server]\nrespawn_seconds=4.0\n";}
+    const auto intervals=common::loadServerSettings(temp.string());
+    check(intervals.respawnSeconds==4.0 && intervals.triggerInterval==.25 && intervals.boundsInterval==1.5 &&
+          common::damageInterval(intervals.triggerInterval)==16 && common::damageInterval(intervals.boundsInterval)==96,
+          "Seconds-based damage intervals not parsed or converted correctly");
+    std::filesystem::remove(temp);
     auto settings=common::loadServerSettings((root/"server.toml").string());
     auto client=common::loadClientSettings((root/"client.toml").string());
     // User-editable TOML files may intentionally override the built-in defaults.
     settings=common::ServerSettings{};client=common::ClientSettings{};
+    check(client.mouseIdleSeconds==3,"Mouse idle timeout default changed");
+    {std::ofstream file(temp);file<<"[client]\nmouse_idle_seconds=1.5\n";}
+    check(common::loadClientSettings(temp.string()).mouseIdleSeconds==1.5,"Mouse idle timeout not loaded");
+    std::filesystem::remove(temp);
     check(client.showOtherDamageNumbers,"Third-party damage numbers should default to enabled");
     check(settings.honorTeamRequests && client.team==0,"Default team request policy changed");
     check(settings.teams==2 && settings.slots==20 && client.port==54000 && client.ip=="147.182.213.239","Default files not loaded");
@@ -38,20 +77,20 @@ int main(int argc,char** argv){
     auto invalidSpell=settings;invalidSpell.spell.damageMin=100;
     bool badRange=false;try{invalidSpell.validate();}catch(...){badRange=true;}check(badRange,"Inverted damage range accepted");
     settings.name="Custom Arena";
-    settings.port=55001;settings.slots=12;settings.teams=3;settings.triggerDamage=7;settings.triggerBpm=60;
-    settings.boundsDamage=9;settings.boundsBpm=240;settings.jabDamage=27;settings.hookDamage=40;
+    settings.port=55001;settings.slots=12;settings.teams=3;settings.triggerDamage=7;settings.triggerInterval=1.0;
+    settings.boundsDamage=9;settings.boundsInterval=.25;settings.jabDamageMin=settings.jabDamage=27;settings.hookDamageMin=settings.hookDamage=40;
     settings.honorTeamRequests=true;
     sf::Packet packet;common::writeSettings(packet,settings);common::ServerSettings received;
-    check(common::readSettings(packet,received) && received.spell.damageMax==17 && received.lightning.interval==.2 && !received.botAI && received.name=="Custom Arena" && received.port==55001 && received.teams==3 && received.boundsBpm==240 && received.honorTeamRequests,"Settings wire roundtrip failed");
+    check(common::readSettings(packet,received) && received.spell.damageMax==17 && received.lightning.interval==.2 && !received.botAI && received.name=="Custom Arena" && received.port==55001 && received.teams==3 && received.boundsInterval==.25 && received.honorTeamRequests,"Settings wire roundtrip failed");
     common::applySettings(settings);
     check(common::attackDescription(common::AttackKind::Jab).damage==27 && common::attackDescription(common::AttackKind::Hook).damage==40,"Combat ignores config");
     common::TriggerSystem triggers;triggers.load((root/"assets/tiled/Demo.tmx").string());
     common::PlayerState player;player.connected=true;player.pos={-512,1024};
     triggers.update(0,player);check(player.health==93,"Configured trigger entry damage");
     for(int i=0;i<63;++i)triggers.update(0,player);check(player.health==93,"Trigger beat too early");
-    triggers.update(0,player);check(player.health==86,"Configured trigger BPM");
+    triggers.update(0,player);check(player.health==86,"Configured trigger interval");
     player.pos={128,-1};triggers.update(0,player);check(player.health==77,"Configured bounds entry damage");
-    for(int i=0;i<16;++i)triggers.update(0,player);check(player.health==68,"Configured bounds BPM");
+    for(int i=0;i<16;++i)triggers.update(0,player);check(player.health==68,"Configured bounds interval");
     common::CollisionWorld walls;walls.load((root/"assets/tiled/Demo.tmx").string());
     for(unsigned teams=1;teams<=20;++teams){
         common::TeamSpawns spawns;spawns.load((root/"assets/tiled/Demo.tmx").string(),teams,walls,triggers);
@@ -109,5 +148,5 @@ int main(int argc,char** argv){
         std::filesystem::remove(clientPath);check(rejected,"Invalid client team accepted");
     }
     common::applySettings(common::ServerSettings{});
-    std::cout<<"PASS: TOML, settings sync, damage/BPM, teams, friendly fire, 20 safe spawns for every team count\n";
+    std::cout<<"PASS: TOML, settings sync, damage/intervals, teams, friendly fire, 20 safe spawns for every team count\n";
 }

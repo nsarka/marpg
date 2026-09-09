@@ -33,10 +33,9 @@ inline void drawScoreboard(sf::RenderTarget& target,const sf::Font& font,
         }
         label.setPosition({x,y});target.draw(label);
     };
-    box(0,0,view.getSize().x,view.getSize().y,sf::Color(0,0,0,100));
     box(left,top,900,height,sf::Color(18,23,31,240));
     const auto& serverName=common::activeSettings.name;
-    text(sf::String("SCOREBOARD - ")+sf::String::fromUtf8(serverName.begin(),serverName.end()),
+    text(sf::String::fromUtf8(serverName.begin(),serverName.end()),
          left+24,top+18,24,sf::Color::White,852);
     std::array<float,2> y{top+68,top+68};
     for(std::size_t t=0;t<teams.size();++t) {
@@ -45,14 +44,16 @@ inline void drawScoreboard(sf::RenderTarget& target,const sf::Font& font,
         box(x,y[col],408,2,color);
         y[col]+=8;
         text("PLAYER",x,y[col],13,sf::Color(165,175,190));
-        text("KILLS",x+290,y[col],13,sf::Color(165,175,190));
-        text("DEATHS",x+350,y[col],13,sf::Color(165,175,190));y[col]+=24;
+        text("KILLS",x+240,y[col],13,sf::Color(165,175,190));
+        text("DEATHS",x+295,y[col],13,sf::Color(165,175,190));
+        text("PING",x+365,y[col],13,sf::Color(165,175,190));y[col]+=24;
         for(auto id:teams[t]) {
             const auto& p=players[id];
             if(id==local)box(x-6,y[col]-1,420,26,sf::Color(255,255,255,25));
-            text(sf::String::fromUtf8(p.name.begin(),p.name.end()),x,y[col],17,color,274);
-            text(std::to_string(p.kills),x+302,y[col],17,sf::Color::White);
-            text(std::to_string(p.deaths),x+368,y[col],17,sf::Color::White);y[col]+=26;
+            text(sf::String::fromUtf8(p.name.begin(),p.name.end())+(p.alive?"":" *DEAD*"),x,y[col],17,color,226);
+            text(std::to_string(p.kills),x+252,y[col],17,sf::Color::White);
+            text(std::to_string(p.deaths),x+313,y[col],17,sf::Color::White);
+            text(p.pingMs<0?"—":std::to_string(p.pingMs)+" ms",x+360,y[col],13,sf::Color(185,195,205),48);y[col]+=26;
         }
         y[col]+=22;
     }

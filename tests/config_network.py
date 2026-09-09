@@ -43,13 +43,17 @@ port = {port}
 slots = 6
 teams = 3
 bots = 0
-[damage]
+[trigger_damage]
 trigger = 7
-trigger_bpm = 60
+trigger_interval_seconds = 1.0
 out_of_bounds = 9
-out_of_bounds_bpm = 240
-jab = 27
-hook = 41
+out_of_bounds_interval_seconds = 0.25
+[jab]
+damage_min = 27
+damage_max = 27
+[hook]
+damage_min = 41
+damage_max = 41
 ''')
     sockets=[]
     with open(pathlib.Path(tmp)/'server.log','w') as log:

@@ -2,6 +2,7 @@
 
 #include "common/common.hpp"
 #include "common/keybindings.hpp"
+#include "common/combat_system.hpp"
 #include <set>
 #include "common/sequence_buffer.hpp"
 
@@ -49,11 +50,15 @@ public:
     void handleEvents();
 
     // Produce one command for this tick
-    common::InputCommand buildCommand(sf::Vector2f playerPosition, const sf::View& worldView);
+    common::InputCommand buildCommand(sf::Vector2f playerPosition, const sf::View& worldView, const common::CollisionWorld& walls);
 
     const KeyState& keys() const;
 
     void clearAll();
+    void cancelCombatInput() {
+        keys_.jab=keys_.hook=false;edges_={};
+        spellReady_=spellClicked_=false;spellClick_.reset();attackMousePosition_.reset();
+    }
     common::AttackKind selectedSpell() const {return selectedSpell_;}
     bool spellReady() const {return spellReady_;}
     bool collisionDebugEnabled() const { return collisionDebugEnabled_; }

@@ -1,9 +1,103 @@
+#include "client/melee_animation.hpp"
 #include "common/combat_system.hpp"
 #include <iostream>
 #include <stdexcept>
 #include <limits>
 void check(bool ok,const char* message){if(!ok)throw std::runtime_error(message);}
+common::ServerSettings unstunnedRules() {
+    common::ServerSettings rules;rules.damageStunSeconds=0;return rules;
+}
 int main(){
+    common::applySettings(unstunnedRules());
+    {
+        common::CollisionWorld empty;
+        for(auto kind:{common::AttackKind::Jab,common::AttackKind::Hook,common::AttackKind::Uppercut,common::AttackKind::Lightning}) {
+            common::PlayerState hitter,victim;
+            hitter.connected=victim.connected=true;hitter.pos={0,0};victim.pos={30,0};
+            common::CombatState hit,windup;
+            common::startAttack(hitter,hit,common::AttackKind::Jab,{1,0});
+            common::startAttack(victim,windup,kind,{0,0});
+            windup.bufferedAttack=common::AttackKind::Hook;windup.bufferedTicks=10;
+            hit.age=common::attackDescription(hit.attack).startupTicks-1;
+            common::updateAttack(hitter,hit,{&hitter,&victim},empty,{&hit,&windup});
+            check(victim.health==80 && windup.attack==common::AttackKind::None,"Hit must cancel any victim windup");
+            check(windup.bufferedAttack==common::AttackKind::None,"Interrupted attack must clear queued swing");
+            common::updateAttack(victim,windup,{&hitter,&victim},empty,{&hit,&windup});
+            check(hitter.health==100 && victim.spellSequence==0,"Canceled windup must not deal damage or emit spell");
+            common::startAttack(victim,windup,kind,{0,0});
+            windup.age=common::attackDescription(kind).startupTicks;
+            check(!common::interruptWindup(windup) && windup.attack==kind,"Active attacks must not be interrupted");
+            windup.age+=common::attackDescription(kind).activeTicks;
+            check(!common::interruptWindup(windup),"Recovery must not be interrupted");
+        }
+        // Spell damage goes through the same interruption path.
+        common::PlayerState caster,victim;caster.connected=victim.connected=true;
+        caster.pos={0,0};victim.pos={200,0};
+        common::CombatState cast,windup;
+        common::startAttack(caster,cast,common::AttackKind::Uppercut,victim.pos);
+        common::startAttack(victim,windup,common::AttackKind::Hook,{-1,0});
+        cast.age=common::attackDescription(cast.attack).startupTicks-1;
+        common::updateAttack(caster,cast,{&caster,&victim},empty,{&cast,&windup});
+        check(victim.health<100 && windup.attack==common::AttackKind::None,"Spell hits must interrupt windup");
+    }
+    {
+        auto rules=unstunnedRules();
+        rules.jabDamageMin=3;rules.jabDamage=9;rules.jabConeDegrees=30;rules.hookConeDegrees=180;
+        common::applySettings(rules);
+        check(!common::inAttackArc({30,20},{1,0},70,common::AttackKind::Jab),"Narrow jab cone ignored");
+        check(common::inAttackArc({30,20},{1,0},80,common::AttackKind::Hook),"Wide hook cone ignored");
+        common::CollisionWorld open;
+        bool varied=false;int previous=-1;
+        for(int i=0;i<100;++i) {
+            common::PlayerState a,b;a.connected=b.connected=true;a.pos={0,0};b.pos={30,0};
+            common::CombatState c;common::startAttack(a,c,common::AttackKind::Jab,{1,0});c.age=15;
+            common::updateAttack(a,c,{&a,&b},open);
+            const int damage=100-b.health;
+            check(damage>=3 && damage<=9,"Melee damage outside configured range");
+            if(previous>=0 && previous!=damage)varied=true;previous=damage;
+        }
+        check(varied,"Melee damage did not vary");
+        common::applySettings(unstunnedRules());
+    }
+    {
+        struct Frame {float durationSeconds=.083f;};
+        std::vector<Frame> frames(12);
+        for(double seconds:{0.0,.25,1.0,3.0}) {
+            auto rules=unstunnedRules();rules.jabWindup=rules.hookWindup=seconds;common::applySettings(rules);
+            for(auto kind:{common::AttackKind::Jab,common::AttackKind::Hook}) {
+                float sum=0;
+                for(std::size_t i=0;i<client::meleeImpactFrame(kind);++i) {
+                    const float duration=client::meleeFrameDuration(kind,frames,i);
+                    check(duration>0,"Melee frame timing must stay positive");sum+=duration;
+                }
+                check(std::abs(sum-common::attackDescription(kind).startupTicks*common::TICK_DT)<.00001f,"Punch pose must land at configured windup");
+                check(client::meleeFrameDuration(kind,frames,9)==.083f,"Recovery frame timing must stay unchanged");
+                if(seconds>=1)check(client::meleeFrameDuration(kind,frames,2)>.083f,"Middle windup frames must stretch");
+            }
+        }
+        common::applySettings(unstunnedRules());
+    }
+    {
+        common::CollisionWorld empty;
+        for(auto kind:{common::AttackKind::Jab,common::AttackKind::Hook,common::AttackKind::Uppercut,common::AttackKind::Lightning}) {
+            common::PlayerState p;p.connected=true;p.pos={0,0};
+            common::CombatState c;
+            common::applyDamage(p,2,-1,p.pos);
+            common::startAttack(p,c,kind,{100,0});
+            common::updateAttack(p,c,{&p},empty);
+            check(c.attack==kind,"Damage before attack must not cancel new windup");
+            c.age=common::attackDescription(kind).startupTicks-1;
+            c.bufferedAttack=common::AttackKind::Jab;c.bufferedTicks=10;
+            common::applyDamage(p,2,-1,p.pos);
+            common::updateAttack(p,c,{&p},empty);
+            check(c.attack==common::AttackKind::None && c.bufferedAttack==common::AttackKind::None &&
+                  p.spellSequence==0,"Environmental damage must cancel windup before activation");
+            common::startAttack(p,c,kind,{100,0});
+            common::applyDamage(p,0,-1,p.pos);
+            common::updateAttack(p,c,{&p},empty);
+            check(c.attack==kind,"Zero damage must not interrupt");
+        }
+    }
     common::CollisionWorld walls;
     common::PlayerState attacker,target,other;
     attacker.connected=target.connected=other.connected=true;
@@ -36,7 +130,7 @@ int main(){
     check(target.health==0 && !target.alive,"Lethal damage kills and clamps health");
     common::CombatState victim;
     check(!common::startAttack(target,victim,common::AttackKind::Jab),"Dead players cannot attack");
-    for(unsigned i=0;i<common::RespawnDelayTicks-1;++i)
+    for(unsigned i=0;i<common::respawnDelayTicks()-1;++i)
         check(!common::advanceDeath(target,victim),"Death animation must finish before respawn");
     check(common::advanceDeath(target,victim),"Respawn must become ready after 2.5 seconds");
     auto name=target.name;
@@ -155,11 +249,13 @@ int main(){
         check(caster.health==40 && friendPlayer.health==70,"Friendly fire should allow teammate damage without disabling self damage");
         common::activeSettings.friendlyFire=false;
         std::vector<common::PlayerState> states(common::MAX_PLAYERS);states[0]=caster;
+        states[0].facing={0.f,-1.f};
         sf::Packet packet;common::writeWorldPacket(packet,states);std::string type;packet>>type;
         std::vector<common::PlayerState> result;
         check(common::readWorldPacket(packet,result) && result[0].spellSequence==3 && result[0].spellPosition==caster.spellPosition,"Spell snapshot did not roundtrip");
+        check(result[0].facing==sf::Vector2f(0.f,-1.f),"Visual facing did not roundtrip independently of attack direction");
     }
-    common::applySettings(common::ServerSettings{});
+    common::applySettings(unstunnedRules());
     {
         common::PlayerState caster,victim,ally;caster.connected=victim.connected=ally.connected=true;
         caster.pos={0,0};victim.pos=ally.pos={200,0};caster.team=ally.team=0;victim.team=1;
@@ -188,6 +284,84 @@ int main(){
             check(victim.health>=70 && victim.health<=95,"Explosion damage outside configured range");
         }
     }
-    common::applySettings(common::ServerSettings{});
+    common::applySettings(unstunnedRules());
+    {
+        common::PlayerState p;p.connected=true;p.pos={0,0};common::CombatState c;common::CollisionWorld walls;
+        common::updateAim(p,c,{0,100},walls);check(c.facing==sf::Vector2f(0,1),"Idle facing must follow cursor");
+        common::startAttack(p,c,common::AttackKind::Jab,{1,0});
+        common::updateAim(p,c,{0,100},walls);check(c.attackDirection==sf::Vector2f(0,1),"Windup aim frozen too early");
+        c.age=common::attackDescription(c.attack).startupTicks;
+        common::updateAim(p,c,{-100,0},walls);check(c.attackDirection==sf::Vector2f(0,1),"Active swing aim must lock");
+        for(auto kind:{common::AttackKind::Uppercut,common::AttackKind::Lightning}) {
+            c={};common::startAttack(p,c,kind,{100,0});
+            common::updateAim(p,c,{0,100},walls);
+            check(c.spellTarget==sf::Vector2f(100,0) && p.spellPosition==sf::Vector2f(100,0),"Spell windup must retain initial click");
+            check(c.facing==sf::Vector2f(1,0),"Spell windup must face the fixed target");
+            p.pos={100,-100};
+            common::updateAim(p,c,{-200,0},walls);
+            check(c.facing==sf::Vector2f(0,1),"Moving caster must keep facing spell target");
+            p.pos={0,0};
+            c.age=common::attackDescription(c.attack).startupTicks;
+            common::updateAim(p,c,{0,200},walls);
+            check(c.spellTarget==sf::Vector2f(100,0),"Active spell target must stay locked");
+            check(c.facing==sf::Vector2f(0,1),"Cursor facing must resume after spell windup");
+        }
+        walls.addPolygon({{40,-20},{60,-20},{60,20},{40,20}});
+        check(!common::spellTargetValid(p,common::AttackKind::Uppercut,{100,0},walls),"Wall-blocked cast accepted");
+        common::InputCommand cmd;cmd.hasCursor=true;cmd.movementFacing=true;cmd.cursor={42,100};sf::Packet wire;
+        common::writeInputCmd(wire,0,cmd);std::string type;wire>>type;common::PlayerId id;common::InputCommand received;
+        check(common::readInputCmd(wire,id,received) && received.hasCursor && received.movementFacing && received.cursor==cmd.cursor,"Cursor must survive network transport");
+    }
+    {
+        common::ServerSettings rules;common::applySettings(rules);
+        common::PlayerState p;p.connected=true;
+        common::CombatState c;common::CollisionWorld empty;
+        common::applyDamage(p,2,-1,p.pos);
+        check(p.stunTicks==32,"Default damage stun must last half a second");
+        for(int i=0;i<10;++i)common::updateAttack(p,c,{&p},empty);
+        common::applyDamage(p,2,-1,p.pos);
+        check(p.stunTicks==32,"Repeated damage must reset stun");
+        for(int i=0;i<32;++i) {
+            check(!common::startAttack(p,c,common::AttackKind::Jab,{1,0}),"Attacks must be blocked during stun");
+            common::updateAttack(p,c,{&p},empty);
+        }
+        check(common::startAttack(p,c,common::AttackKind::Jab,{1,0}),"Attacks must resume when stun ends");
+        rules.damageStunSeconds=.25;common::applySettings(rules);
+        common::applyDamage(p,1,-1,p.pos);check(p.stunTicks==16,"Custom damage stun ignored");
+        sf::Packet config;common::writeSettings(config,rules);common::ServerSettings received;
+        check(common::readSettings(config,received) && received.damageStunSeconds==.25,"Stun setting failed network roundtrip");
+        std::vector<common::PlayerState> states(common::MAX_PLAYERS);states[0]=p;
+        sf::Packet world;common::writeWorldPacket(world,states);std::string type;world>>type;
+        std::vector<common::PlayerState> snapshot;
+        check(common::readWorldPacket(world,snapshot) && snapshot[0].stunTicks==16,"Stun countdown failed network roundtrip");
+        common::respawn(p,c,{0,0});check(p.stunTicks==0,"Respawn must clear stun");
+        common::applySettings(unstunnedRules());
+    }
+    {
+        auto rules=unstunnedRules();rules.respawnSeconds=.25;common::applySettings(rules);
+        common::PlayerState p;p.alive=false;p.health=0;common::CombatState c;
+        for(int i=0;i<15;++i)check(!common::advanceDeath(p,c),"Custom respawn fired too early");
+        check(common::advanceDeath(p,c),"Custom respawn delay ignored");
+        sf::Packet wire;common::writeSettings(wire,rules);common::ServerSettings decoded;
+        check(common::readSettings(wire,decoded) && decoded.respawnSeconds==.25,"Respawn setting not synchronized");
+        common::applySettings(unstunnedRules());
+    }
+    {
+        common::applySettings(unstunnedRules());
+        common::PlayerState p;p.connected=true;p.pos={0,0};common::CombatState c;common::CollisionWorld empty;
+        check(common::startAttack(p,c,common::AttackKind::Uppercut,{200,0}),"Explosion starts");
+        for(int i=0;i<25;++i)common::updateAttack(p,c,{&p},empty);
+        check(c.attack==common::AttackKind::None && p.explosionCooldown>0,"Explosion must enter its own cooldown");
+        check(!common::startAttack(p,c,common::AttackKind::Uppercut,{200,0}),"Explosion cooldown must block explosion");
+        check(common::startAttack(p,c,common::AttackKind::Lightning,{200,0}),"Explosion cooldown must allow lightning");
+        const auto before=p.explosionCooldown;
+        common::updateAttack(p,c,{&p},empty);
+        check(p.explosionCooldown==before-1,"Explosion cooldown must tick during lightning");
+        std::vector<common::PlayerState> states(common::MAX_PLAYERS);states[0]=p;states[0].pingMs=42;
+        sf::Packet wire;common::writeWorldPacket(wire,states);std::string type;wire>>type;
+        std::vector<common::PlayerState> received;
+        check(common::readWorldPacket(wire,received) && received[0].pingMs==42 &&
+              received[0].explosionCooldown==p.explosionCooldown,"Cooldown and ping snapshot roundtrip");
+    }
     std::cout<<"PASS: jab/hook damage, windup, cooldown, range, facing, walls, death and respawn\n";
 }
