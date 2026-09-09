@@ -57,8 +57,7 @@ void CollisionWorld::load(const std::string& mapPath, bool triggersOnly) {
                 if (set.hasTile(tiles[i].ID)) { tile = set.getTile(tiles[i].ID); break; }
             }
             if (!tile || tile->objectGroup.getObjects().empty()) continue;
-            // Match the renderer; unsupported transforms must not silently misalign walls.
-            if (tiles[i].flipFlags) throw std::runtime_error("Flipped collision tiles are not supported");
+
             const float x = static_cast<float>(i % width), y = static_cast<float>(i / width);
             sf::Vector2f origin{
                 (x-y)*tileSize.x*0.5f + (float(tileSize.x)-tile->imageSize.x)*0.5f + offset.x,
@@ -78,8 +77,16 @@ void CollisionWorld::load(const std::string& mapPath, bool triggersOnly) {
                 float angle = object.getRotation()*3.14159265359f/180.f;
                 auto position = object.getPosition();
                 for (auto& p : points) {
-                    p = origin + sf::Vector2f{position.x + p.x*std::cos(angle)-p.y*std::sin(angle),
-                                             position.y + p.x*std::sin(angle)+p.y*std::cos(angle)};
+                    p = sf::Vector2f{position.x + p.x*std::cos(angle)-p.y*std::sin(angle),
+                                     position.y + p.x*std::sin(angle)+p.y*std::cos(angle)};
+                    // Match MapLayer's UV transforms, including rectangular images:
+                    // transpose normalized coordinates first, then reflect X/Y.
+                    const float width=tile->imageSize.x,height=tile->imageSize.y;
+                    if(tiles[i].flipFlags & tmx::TileLayer::Diagonal)
+                        p={p.y/height*width,p.x/width*height};
+                    if(tiles[i].flipFlags & tmx::TileLayer::Horizontal)p.x=width-p.x;
+                    if(tiles[i].flipFlags & tmx::TileLayer::Vertical)p.y=height-p.y;
+                    p+=origin;
                 }
                 loaded.addPolygon(std::move(points));
             }

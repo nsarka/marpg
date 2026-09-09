@@ -20,7 +20,8 @@ public:
                 points.push_back(world);
             }
         }
-        if(points.size()!=20 || teams<1 || teams>points.size())throw std::runtime_error("Demo requires 20 safe spawn points and 1-20 teams");
+        if(teams<1 || teams>20)throw std::runtime_error("Spawns require 1-20 teams");
+        if(points.size()<teams)throw std::runtime_error("Spawns layer requires at least one safe spawn point per team: found "+std::to_string(points.size())+" for "+std::to_string(teams)+" teams");
         groups_.assign(teams,{}); cursors_.assign(teams,0);
         partition(std::move(points),0,teams);
     }

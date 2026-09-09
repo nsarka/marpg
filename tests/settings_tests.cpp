@@ -91,19 +91,38 @@ int main(int argc,char** argv){
     triggers.update(0,player);check(player.health==86,"Configured trigger interval");
     player.pos={128,-1};triggers.update(0,player);check(player.health==77,"Configured bounds entry damage");
     for(int i=0;i<16;++i)triggers.update(0,player);check(player.health==68,"Configured bounds interval");
-    common::CollisionWorld walls;walls.load((root/"assets/tiled/Demo.tmx").string());
-    for(unsigned teams=1;teams<=20;++teams){
-        common::TeamSpawns spawns;spawns.load((root/"assets/tiled/Demo.tmx").string(),teams,walls,triggers);
-        unsigned count=0;std::set<std::uint32_t> colors;
-        std::vector<common::PlayerState> occupants;
-        for(unsigned team=0;team<teams;++team){
-            check(!spawns.groups()[team].empty(),"Team without spawns");count+=spawns.groups()[team].size();
-            colors.insert(common::teamColor(team,teams).toInteger());
-            auto p=spawns.choose(team,occupants,walls,triggers);check(p.has_value(),"No safe team spawn");
-            common::PlayerState occupant;occupant.connected=true;occupant.team=team;occupant.pos=*p;occupants.push_back(occupant);
+    // Use an isolated map so editing the demo does not change spawn-loader tests.
+    const auto spawnMap=temp.string()+".tmx";
+    common::CollisionWorld walls;common::TriggerSystem safeFloor;
+    for(unsigned pointCount:{1u,2u,7u,20u,35u}) {
+        {
+            std::ofstream file(spawnMap);
+            file<<"<map version='1.10' orientation='isometric' width='100' height='100' tilewidth='256' tileheight='128'><objectgroup name='Spawns'>";
+            for(unsigned i=0;i<pointCount;++i)
+                file<<"<object id='"<<i+1<<"' x='"<<i*256<<"' y='128'><point/></object>";
+            file<<"</objectgroup></map>";
         }
-        check(count==20 && colors.size()==teams,"Spawns/colors not unique or complete");
+        for(unsigned teams=1;teams<=std::min(20u,pointCount);++teams) {
+            common::TeamSpawns spawns;spawns.load(spawnMap,teams,walls,safeFloor);
+            unsigned count=0;std::set<std::uint32_t> colors;
+            std::vector<common::PlayerState> occupants;
+            for(unsigned team=0;team<teams;++team) {
+                check(!spawns.groups()[team].empty(),"Team without spawns");count+=spawns.groups()[team].size();
+                colors.insert(common::teamColor(team,teams).toInteger());
+                auto position=spawns.choose(team,occupants,walls,safeFloor);check(position.has_value(),"No safe team spawn");
+                common::PlayerState occupant;occupant.connected=true;occupant.team=team;occupant.pos=*position;occupants.push_back(occupant);
+            }
+            check(count==pointCount && colors.size()==teams,"Spawns/colors not unique or complete");
+        }
+        if(pointCount<20) {
+            bool rejected=false;try {common::TeamSpawns spawns;spawns.load(spawnMap,pointCount+1,walls,safeFloor);}catch(...) {rejected=true;}
+            check(rejected,"Too few spawns for teams must be rejected");
+        }
     }
+    {std::ofstream file(spawnMap);file<<"<map version='1.10' orientation='isometric' width='1' height='1' tilewidth='256' tileheight='128'><objectgroup name='Spawns'/></map>";}
+    bool noSpawns=false;try {common::TeamSpawns spawns;spawns.load(spawnMap,1,walls,safeFloor);}catch(...) {noSpawns=true;}
+    check(noSpawns,"Empty spawn layer must be rejected");
+    std::filesystem::remove(spawnMap);
     check(common::teamColor(0,2)==sf::Color(255,70,70,220),"Red changed");
     check(common::teamColor(1,2)==sf::Color(70,70,255,220),"Blue wrong");
     common::PlayerState attacker,target;attacker.connected=target.connected=true;attacker.team=target.team=0;
@@ -148,5 +167,5 @@ int main(int argc,char** argv){
         std::filesystem::remove(clientPath);check(rejected,"Invalid client team accepted");
     }
     common::applySettings(common::ServerSettings{});
-    std::cout<<"PASS: TOML, settings sync, damage/intervals, teams, friendly fire, 20 safe spawns for every team count\n";
+    std::cout<<"PASS: TOML, settings sync, damage/intervals, teams, friendly fire, variable spawn counts\n";
 }

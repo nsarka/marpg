@@ -1,3 +1,6 @@
+#include <filesystem>
+#include <fstream>
+#include <chrono>
 #include "common/collision_world.hpp"
 #include <cmath>
 #include <iostream>
@@ -7,6 +10,33 @@ void check(bool value, const char* message) {
     if (!value) throw std::runtime_error(message);
 }
 int main(int argc, char** argv) {
+    {
+        const auto file=std::filesystem::temp_directory_path()/("marpg-flips-"+std::to_string(std::chrono::steady_clock::now().time_since_epoch().count())+".tmx");
+        for(unsigned flags=0;flags<8;++flags) {
+            const std::uint32_t gid=1u | ((flags&1)?0x80000000u:0) | ((flags&2)?0x40000000u:0) | ((flags&4)?0x20000000u:0);
+            std::ofstream out(file);
+            out<<"<map version='1.10' orientation='isometric' width='1' height='1' tilewidth='256' tileheight='128' infinite='0'>"
+                  "<tileset firstgid='1' name='Flip test' tilewidth='100' tileheight='200' tilecount='1' columns='0'>"
+                  "<tile id='0'><image source='unused.png' width='100' height='200'/><objectgroup>"
+                  "<object id='1' x='20' y='60' width='20' height='40'/>"
+                  "<object id='2' class='DamageTrigger' x='20' y='60'><polygon points='0,0 20,0 20,40 0,40'/></object>"
+                  "</objectgroup></tile></tileset><layer name='Walls' width='1' height='1'><data encoding='csv'>"
+               <<gid<<"</data></layer></map>";
+            out.close();
+            // Center (30,80) becomes (40,60) under diagonal transposition.
+            float x=(flags&4)?40.f:30.f,y=(flags&4)?60.f:80.f;
+            if(flags&1)x=100-x;if(flags&2)y=200-y;
+            const sf::Vector2f center{x+78,y-72};
+            for(bool triggers:{false,true}) {
+                common::CollisionWorld flipped;flipped.load(file.string(),triggers);
+                check(flipped.size()==1 && flipped.overlaps(center,0),"Flipped polygon not at rendered tile position");
+                check(!flipped.overlaps(center+sf::Vector2f{90,0},0),"Flipped polygon bounds incorrect");
+                auto stopped=flipped.move(center+sf::Vector2f{-100,0},{200,0},0);
+                check(stopped.x<center.x,"Flipped polygon did not block swept movement");
+            }
+        }
+        std::filesystem::remove(file);
+    }
     common::CollisionWorld world;
     world.addPolygon({{0,-100}, {10,-100}, {10,100}, {0,100}});
     auto free = world.move({-50,0}, {10,20});

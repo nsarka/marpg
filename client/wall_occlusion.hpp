@@ -29,10 +29,24 @@ public:
                     return object.getClass() != "DamageTrigger";
                 });
             if (!hasSolid) continue;
-            if (tiles[i].flipFlags) throw std::runtime_error("Flipped wall masks are not supported");
             sf::Image image;
             if (!image.loadFromFile(tile->imagePath)) throw std::runtime_error("Cannot load wall mask image");
             auto size=image.getSize();
+            if(tiles[i].flipFlags) {
+                // Inverse of the renderer's diagonal-then-horizontal/vertical transform.
+                // Sample in normalized image space so non-square tiles stay aligned.
+                sf::Image transformed(size,sf::Color::Transparent);
+                for(unsigned row=0;row<size.y;++row)for(unsigned col=0;col<size.x;++col) {
+                    float u=(col+.5f)/size.x,v=(row+.5f)/size.y;
+                    if(tiles[i].flipFlags & tmx::TileLayer::Horizontal)u=1-u;
+                    if(tiles[i].flipFlags & tmx::TileLayer::Vertical)v=1-v;
+                    if(tiles[i].flipFlags & tmx::TileLayer::Diagonal)std::swap(u,v);
+                    const unsigned sx=std::min(size.x-1,static_cast<unsigned>(u*size.x));
+                    const unsigned sy=std::min(size.y-1,static_cast<unsigned>(v*size.y));
+                    transformed.setPixel({col,row},image.getPixel({sx,sy}));
+                }
+                image=std::move(transformed);
+            }
             const float x=float(i%width), y=float(i/width);
             sf::Vector2f origin{(x-y)*tileSize.x*.5f+(float(tileSize.x)-size.x)*.5f+offset.x,
                                 (x+y)*tileSize.y*.5f+float(tileSize.y)-size.y+offset.y};
