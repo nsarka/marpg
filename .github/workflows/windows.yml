@@ -38,7 +38,7 @@ jobs:
         run: |
           $package = (Resolve-Path dist/MARPG-Windows-x64).Path
           $bin = Join-Path $package bin
-          foreach ($required in @('shaders/sprite_outline.frag', 'shaders/player_occlusion.frag', 'shaders/tile_lighting.vert', 'shaders/tile_lighting.frag', 'assets/tiled/Demo.tmx', 'assets/fonts/arial.ttf', 'client.toml', 'server.toml')) {
+          foreach ($required in @('shaders/sprite_outline.frag', 'shaders/player_occlusion.frag', 'shaders/tile_lighting.vert', 'shaders/tile_lighting.frag', 'assets/tiled/demo.tmx', 'assets/tiled/pack_gallery.tsx', 'assets/tiled/gallery_floor.tsx', 'assets/tiled/legacy_demo.tmx', 'assets/tiled/arena.tmx', 'assets/tiled/arena.tsx', 'assets/Fantasy tileset - 2D Isometric/Characters/Player/Idle.png', 'assets/Fantasy tileset - 2D Isometric/Characters/Player/Special1.png', 'assets/Fantasy tileset - 2D Isometric/Characters/Player/Attack4.png', 'assets/Fantasy tileset - 2D Isometric/Characters/Player/Attack1.png', 'assets/fonts/arial.ttf', 'client.toml', 'server.toml')) {
             if (-not (Test-Path (Join-Path $package $required) -PathType Leaf)) {
               throw "Package is missing runtime file: $required"
             }

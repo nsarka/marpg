@@ -9,11 +9,12 @@ struct SpellSettings {
     double radius=120,range=500,windup=.375,cooldown=1.625,duration=0,interval=1.0/3.0;
 };
 struct ServerSettings {
+    std::string map="demo";
     int jabDamageMin=20, hookDamageMin=35;
-    double jabConeDegrees=90, hookConeDegrees=90;
+    double jabConeDegrees=120, hookConeDegrees=20;
     double damageStunSeconds=.5;
     double respawnSeconds=2.5;
-    double jabRange=70, hookRange=80;
+    double jabRange=140, hookRange=160;
     double jabWindup=.25, hookWindup=.375;
     SpellSettings spell;
     SpellSettings lightning{1,4,45,500,.25,1,3,1.0/3.0};
@@ -45,7 +46,8 @@ struct ClientSettings {ClientLighting lighting;double mouseIdleSeconds=3;KeyBind
 ServerSettings loadServerSettings(const std::string& path);
 ClientSettings loadClientSettings(const std::string& path);
 inline ServerSettings activeSettings{};
-inline constexpr std::uint32_t ProtocolVersion=5;
+inline std::string mapPath(const ServerSettings& settings=activeSettings) {return "../assets/tiled/"+settings.map+".tmx";}
+inline constexpr std::uint32_t ProtocolVersion=6;
 void applySettings(const ServerSettings& settings);
 void writeSettings(sf::Packet& packet,const ServerSettings& settings);
 bool readSettings(sf::Packet& packet,ServerSettings& settings);

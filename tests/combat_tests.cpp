@@ -5,9 +5,15 @@
 #include <limits>
 void check(bool ok,const char* message){if(!ok)throw std::runtime_error(message);}
 common::ServerSettings unstunnedRules() {
-    common::ServerSettings rules;rules.damageStunSeconds=0;return rules;
+    common::ServerSettings rules;rules.damageStunSeconds=0;rules.jabConeDegrees=rules.hookConeDegrees=90;rules.jabRange=70;rules.hookRange=80;return rules;
 }
 int main(){
+    common::applySettings(common::ServerSettings{});
+    check(common::inAttackArc({60,90},{1,0},140,common::AttackKind::Jab),"120-degree jab should include a 56-degree target");
+    check(!common::inAttackArc({60,110},{1,0},140,common::AttackKind::Jab),"Jab should exclude targets beyond 60 degrees");
+    check(common::inAttackArc({150,20},{1,0},160,common::AttackKind::Hook),"Extended narrow hook should hit");
+    check(!common::inAttackArc({150,30},{1,0},160,common::AttackKind::Hook),"Hook should exclude targets beyond 10 degrees");
+
     common::applySettings(unstunnedRules());
     {
         common::CollisionWorld empty;

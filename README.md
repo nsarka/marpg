@@ -86,7 +86,7 @@ Build and test with `cmake --build build` and
 
 ## Tileset demo level
 
-`assets/tiled/Demo.tmx` is the default level, selected by `common::LEVEL_PATH`.
+The default level is `assets/tiled/demo.tmx`, selected by `[server].map`.
 It uses a separate `Demo.tsx` so the original Sample level stays available.
 The gallery has labeled stations for every sample item: wall, doorway, window,
 fence, crate, curved wall, three stairs, floor switch, and the floor throughout.
@@ -239,3 +239,11 @@ Edit `server.toml` before starting. Allow inbound UDP on its configured port (de
 Player facing follows the mouse. Attack aim and spell targets track the cursor during windup, then lock when the attack becomes active. Spell targeting turns red for out-of-range or wall-blocked locations, and invalid clicks are rejected. Team-color squares appear beside names. The bottom attack HUD shows the server-authoritative shared attack lock and remaining time for jab, hook, explosion and lightning. A damaged bot switches to its attacker if that enemy is not already targeted by another living bot.
 
 Client and server binaries embed the Git commit at build time. Connections require matching commits; a mismatch displays an update message in the client. Download the release matching the server, or rebuild both from the same commit. Build from a Git checkout; the commit is refreshed on every build. Uncommitted edits do not change the embedded commit.
+
+### Maps
+
+Set `map = "demo"` under `[server]` in `server.toml`. The value names a `.tmx` file in `assets/tiled` without its extension; use `map = "legacy_demo"` for the previous level. The server sends the map name at connection time, and clients must have the same map and referenced assets installed. Restart the server and reconnect after changing maps.
+
+`arena.tmx` is a 24×24 grass arena with crossing paths, ruined walls, trees, chests, and 20 safe spawn points in two clusters. Open it directly in Tiled. The tileset uses padded 256×256 artwork on a 128×64 isometric grid with a 12-pixel drawing offset; collision and wall masks use the same offset.
+
+The default `demo` is a walk-through asset gallery: 2,108 labeled exhibits, every fantasy environment image, animated props/effects/destructibles, and all 168 character animations cycling their eight directions. Exhibits are nonblocking so every item can be inspected. Twenty safe spawn points are near the entrance. Use `map = "arena"` for the playable fantasy combat arena, or `map = "legacy_demo"` for the original sample tiles. Regenerate the gallery with `python3 tools/generate_fantasy_demo.py`; its complete inventory is `assets/tiled/gallery/manifest.json`.

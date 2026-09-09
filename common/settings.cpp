@@ -27,6 +27,8 @@ std::uint32_t integer(const toml::table& t,const char* section,const char* key,s
 }
 }
 void ServerSettings::validate() const {
+    if(map.empty() || map.size()>64 || map.find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-")!=std::string::npos)
+        throw std::runtime_error("map must be a map name in assets/tiled without a path or .tmx extension");
     if (name.empty() || name.size()>128 || name.find_first_of("\r\n\t")!=std::string::npos)
         throw std::runtime_error("Server name must be 1-128 bytes and a single line");
     if (ip.empty() || ip.size()>255 || !port || slots<1 || slots>MAX_PLAYERS || teams<1 || teams>20 || teams>slots || bots>slots)
@@ -62,7 +64,7 @@ void ServerSettings::validate() const {
 ServerSettings loadServerSettings(const std::string& path) {
     auto t=toml::parse_file(path); ServerSettings s;
     for (const auto& [key,value]:t) if(key!="server" && key!="trigger_damage" && key!="spell" && key!="lightning" && key!="jab" && key!="hook") throw std::runtime_error("Unknown server configuration table: "+std::string(key.str()));
-    keys(t,"server",{"name","ip","port","slots","teams","bots","bot_ai","friendly_fire","honor_team_requests","damage_stun_seconds","respawn_seconds"});
+    keys(t,"server",{"map","name","ip","port","slots","teams","bots","bot_ai","friendly_fire","honor_team_requests","damage_stun_seconds","respawn_seconds"});
     keys(t,"trigger_damage",{"trigger","trigger_interval_seconds","out_of_bounds","out_of_bounds_interval_seconds"});
     keys(t,"jab",{"windup_seconds","damage_min","damage_max","range","cone_degrees"});
     keys(t,"hook",{"windup_seconds","damage_min","damage_max","range","cone_degrees"});
@@ -76,6 +78,7 @@ ServerSettings loadServerSettings(const std::string& path) {
     s.hookWindup=get<double>(t,"hook","windup_seconds",s.hookWindup);
     s.respawnSeconds=get<double>(t,"server","respawn_seconds",s.respawnSeconds);
     s.damageStunSeconds=get<double>(t,"server","damage_stun_seconds",s.damageStunSeconds);
+    s.map=get<std::string>(t,"server","map",s.map);
     s.name=get<std::string>(t,"server","name",s.name);
     s.ip=get<std::string>(t,"server","ip",s.ip);
     s.port=integer(t,"server","port",s.port,65535);
@@ -155,7 +158,7 @@ void writeSettings(sf::Packet& p,const ServerSettings& s) {
     p<<s.jabRange<<s.hookRange;
     p<<s.jabDamageMin<<s.hookDamageMin<<s.jabConeDegrees<<s.hookConeDegrees;
     p<<s.damageStunSeconds;
-    p<<s.respawnSeconds;
+    p<<s.respawnSeconds<<s.map;
 }
 bool readSettings(sf::Packet& p,ServerSettings& s) {
     ServerSettings value;
@@ -171,6 +174,7 @@ bool readSettings(sf::Packet& p,ServerSettings& s) {
     if(!p.endOfPacket() && !(p>>value.jabDamageMin>>value.hookDamageMin>>value.jabConeDegrees>>value.hookConeDegrees))return false;
     if(!p.endOfPacket() && !(p>>value.damageStunSeconds))return false;
     if(!p.endOfPacket() && !(p>>value.respawnSeconds))return false;
+    if(!(p>>value.map))return false;
     try {value.validate();}catch(const std::exception&){return false;}
     s=value;return true;
 }

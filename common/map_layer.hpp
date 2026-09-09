@@ -132,6 +132,7 @@ public:
                 as.currentTime += elapsed;
 
                 tmx::TileLayer::Tile tile;
+                tile.ID=as.animTile.animation.frames.front().tileID;
                 std::int32_t animTime = 0;
                 auto frameIt = as.animTile.animation.frames.begin();
 
@@ -150,6 +151,7 @@ public:
                 }
 
                 tile.flipFlags = as.flipFlags;
+                if(getTile(static_cast<std::int32_t>(as.tileCoords.x),static_cast<std::int32_t>(as.tileCoords.y)).ID!=tile.ID)
                 setTile(static_cast<std::int32_t>(as.tileCoords.x),
                         static_cast<std::int32_t>(as.tileCoords.y),
                         tile);
@@ -176,6 +178,7 @@ private:
         const sf::Texture* normal = nullptr;
         const sf::Texture* height = nullptr;
         unsigned stair=0;
+        sf::Vector2f offset{};
         std::shared_ptr<sf::Shader> lightingShader;
         sf::Vector2f texTopLeft{0.f, 0.f};
         sf::Vector2f texSize{0.f, 0.f};
@@ -558,8 +561,8 @@ private:
 
                     // Anchor tiles by bottom-center onto the isometric tile base.
                     const sf::Vector2f worldTopLeft{
-                        isoBase.x + (static_cast<float>(m_mapTileSize.x) - visual.drawSize.x) * 0.5f,
-                        isoBase.y + static_cast<float>(m_mapTileSize.y) - visual.drawSize.y
+                        isoBase.x + (static_cast<float>(m_mapTileSize.x) - visual.drawSize.x) * 0.5f + visual.offset.x,
+                        isoBase.y + static_cast<float>(m_mapTileSize.y) - visual.drawSize.y + visual.offset.y
                     };
 
                     if(registerAnimation && visual.height)
@@ -732,6 +735,7 @@ private:
             const std::uint32_t row = localID / columns;
 
             TileVisual visual;
+            visual.offset={float(tileset.getTileOffset().x),float(tileset.getTileOffset().y)};
             visual.textureKey = atlasPath;
             visual.texture = &texture;
             visual.texTopLeft = {
@@ -766,6 +770,7 @@ private:
             const std::uint32_t height = (tile.imageSize.y != 0) ? tile.imageSize.y : textureSize.y;
 
             TileVisual visual;
+            visual.offset={float(tileset.getTileOffset().x),float(tileset.getTileOffset().y)};
             visual.textureKey = tile.imagePath;
             visual.texture = &texture;
             const std::filesystem::path source(tile.imagePath);
@@ -842,15 +847,6 @@ private:
         for (const auto* tileset : usedTileSets)
         {
             registerTilesetVisuals(*tileset);
-        }
-
-        for (const auto& [gid, _] : map.getAnimatedTiles())
-        {
-            const auto* tileset = findTilesetForGID(tileSets, gid);
-            if (tileset)
-            {
-                registerTilesetVisuals(*tileset);
-            }
         }
 
         const auto bounds = map.getBounds();

@@ -53,15 +53,16 @@ void CollisionWorld::load(const std::string& mapPath, bool triggersOnly) {
         for (std::size_t i = 0; i < tiles.size(); ++i) {
             if (!tiles[i].ID) continue;
             const tmx::Tileset::Tile* tile = nullptr;
+            sf::Vector2f tileOffset{};
             for (const auto& set : map.getTilesets()) {
-                if (set.hasTile(tiles[i].ID)) { tile = set.getTile(tiles[i].ID); break; }
+                if (set.hasTile(tiles[i].ID)) { tile = set.getTile(tiles[i].ID); tileOffset={float(set.getTileOffset().x),float(set.getTileOffset().y)}; break; }
             }
             if (!tile || tile->objectGroup.getObjects().empty()) continue;
 
             const float x = static_cast<float>(i % width), y = static_cast<float>(i / width);
             sf::Vector2f origin{
-                (x-y)*tileSize.x*0.5f + (float(tileSize.x)-tile->imageSize.x)*0.5f + offset.x,
-                (x+y)*tileSize.y*0.5f + float(tileSize.y)-tile->imageSize.y + offset.y};
+                (x-y)*tileSize.x*0.5f + (float(tileSize.x)-tile->imageSize.x)*0.5f + offset.x + tileOffset.x,
+                (x+y)*tileSize.y*0.5f + float(tileSize.y)-tile->imageSize.y + offset.y + tileOffset.y};
             for (const auto& object : tile->objectGroup.getObjects()) {
                 const bool isTrigger = object.getClass() == "DamageTrigger";
                 if (isTrigger != triggersOnly) continue;

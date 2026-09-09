@@ -1,3 +1,4 @@
+#include "loading_connection.hpp"
 #include "common/common.hpp"
 #include "common/collision_world.hpp"
 #include "common/trigger_system.hpp"
@@ -100,7 +101,7 @@ int main(int argc, char**) {
     sf::RenderWindow window(sf::VideoMode({(int)common::WINDOW_WIDTH, (int)common::WINDOW_HEIGHT}), "MARPG");
     window.setFramerateLimit(144);
 
-    const std::filesystem::path assetRoot = "../assets/characters/businessman";
+    const std::filesystem::path assetRoot = "../assets/Fantasy tileset - 2D Isometric/Characters/Player";
     const std::filesystem::path fontPath  = "../assets/fonts/arial.ttf";
     const std::filesystem::path fragPath  = "../shaders/sprite_outline.frag";
 
@@ -116,7 +117,7 @@ int main(int argc, char**) {
 
     if (!resources.loadFragmentShader("player_occlusion", "../shaders/player_occlusion.frag")) return 1;
 
-    if (!resources.loadBusinessmanCharacter("businessman", assetRoot)) {
+    if (!resources.loadFantasyCharacter("fantasy_player", assetRoot)) {
         return 1;
     }
 
@@ -140,17 +141,18 @@ int main(int argc, char**) {
         return 1;
     }
     logger.log_info("Assigned player id ", myId);
+    LoadingConnection loadingConnection(client_conn);
 
     // -------------------------------------------------------------------------
     // Level setup
     // -------------------------------------------------------------------------
     tmx::Map map;
-    if (!map.load(common::LEVEL_PATH)) {
-        logger.log_error("Failed to load level: ", common::LEVEL_PATH);
+    if (!map.load(common::mapPath())) {
+        logger.log_error("Failed to load level: ", common::mapPath());
         return 1;
     }
     common::CollisionWorld collision;
-    collision.load(common::LEVEL_PATH);
+    collision.load(common::mapPath());
     std::vector<sf::ConvexShape> collisionDebugShapes;
     for (const auto& points : collision.outlines()) {
         sf::ConvexShape shape(points.size());
@@ -161,7 +163,7 @@ int main(int argc, char**) {
         collisionDebugShapes.push_back(std::move(shape));
     }
     common::TriggerSystem triggers;
-    triggers.load(common::LEVEL_PATH);
+    triggers.load(common::mapPath());
     for (const auto& points : triggers.outlines()) {
         sf::ConvexShape shape(points.size());
         for (std::size_t i=0; i<points.size(); ++i) shape.setPoint(i, points[i]);
@@ -171,7 +173,7 @@ int main(int argc, char**) {
         collisionDebugShapes.push_back(std::move(shape));
     }
     common::TeamSpawns teamSpawns;
-    teamSpawns.load(common::LEVEL_PATH,common::activeSettings.teams,collision,triggers);
+    teamSpawns.load(common::mapPath(),common::activeSettings.teams,collision,triggers);
     std::vector<sf::Text> levelLabels;
     for (const auto& mapLayer : map.getLayers()) {
         if (mapLayer->getType() != tmx::Layer::Type::Object || mapLayer->getName() != "Labels") continue;
@@ -232,15 +234,16 @@ int main(int argc, char**) {
 
     // Initialize world based on what the server tells us the state is the first time
     std::vector<common::PlayerState> newStates(common::MAX_PLAYERS);
+    loadingConnection.finish(newStates,joined_players);
     client_conn.pumpNetwork(newStates, joined_players);
     for (int i = 0; i < common::MAX_PLAYERS; i++) {
         Player& p = players[i];
 
         p.state() = newStates[i];
 
-        p.setCharacterAnimations(resources.getCharacterAnimations("businessman"));
+        p.setCharacterAnimations(resources.getCharacterAnimations("fantasy_player"));
         p.setFont(resources.getFont("ui"));
-        p.setSpriteScale({1.10f, 1.10f});
+        p.setSpriteScale({2.f, 2.f});
         p.setOriginToFeet();
         p.setOcclusionShader(&resources.getShader("player_occlusion"));
         p.setInterpolationSharpness(14.f);
@@ -251,7 +254,7 @@ int main(int argc, char**) {
         p.setOutlineEnabled(true);
         p.setOutlineShader(&resources.getShader("sprite_outline"));
         p.setOutlineColor(common::teamColor(p.state().team,common::activeSettings.teams));
-        p.setOutlineThickness(1.f);
+        p.setOutlineThickness(.5f);
     }
 
     // -------------------------------------------------------------------------

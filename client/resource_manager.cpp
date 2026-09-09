@@ -1,8 +1,6 @@
 #include "resource_manager.hpp"
 
-#include <nlohmann/json.hpp>
 
-#include <fstream>
 #include <stdexcept>
 #include <utility>
 
@@ -61,115 +59,39 @@ bool ResourceManager::loadFragmentShader(const std::string& id,
     return true;
 }
 
-void ResourceManager::parseFramesFromJson(const std::filesystem::path& jsonPath,
-                                          std::vector<Frame>& outFrames)
-{
-    std::ifstream ifs(jsonPath);
-    if (!ifs) {
-        throw std::runtime_error("Failed to open JSON file: " + jsonPath.string());
-    }
-
-    nlohmann::json j;
-    ifs >> j;
-
-    if (!j.contains("frames") || !j["frames"].is_array()) {
-        throw std::runtime_error("JSON missing frames array: " + jsonPath.string());
-    }
-
-    outFrames.clear();
-
-    for (const auto& item : j["frames"]) {
-        const auto& fr = item.at("frame");
-
-        const int x = fr.at("x").get<int>();
-        const int y = fr.at("y").get<int>();
-        const int w = fr.at("w").get<int>();
-        const int h = fr.at("h").get<int>();
-
-        const float durationSeconds =
-            item.value("duration", 100.0f) / 1000.0f;
-
-        outFrames.push_back(Frame{
-            sf::IntRect({x, y}, {w, h}),
-            durationSeconds
-        });
-    }
-
-    if (outFrames.empty()) {
-        throw std::runtime_error("No frames parsed from JSON: " + jsonPath.string());
-    }
-}
-
-void ResourceManager::loadAnimationSet(CharacterAnimations& outAnimations,
-                                       std::size_t animIndex,
-                                       const std::filesystem::path& root,
-                                       const std::string& baseName,
-                                       bool looping)
-{
-    AnimSet set{};
-
-    for (int dir = 1; dir <= 8; ++dir) {
-        const auto folder = root / baseName;
-
-        const auto pngPath =
-            folder / ("Businessman_" + baseName + "_dir" + std::to_string(dir) + ".png");
-        const auto jsonPath =
-            folder / ("Businessman_" + baseName + "_dir" + std::to_string(dir) + ".json");
-
-        Clip clip;
-        clip.looping = looping;
-        clip.texture = std::make_shared<sf::Texture>();
-
-        if (!clip.texture->loadFromFile(pngPath)) {
-            throw std::runtime_error("Failed to load texture: " + pngPath.string());
-        }
-
-        parseFramesFromJson(jsonPath, clip.frames);
-        set.byFacing[static_cast<std::size_t>(dir - 1)] = std::move(clip);
-    }
-
-    set.loaded = true;
-    outAnimations.anims[animIndex] = std::move(set);
-}
-
-bool ResourceManager::loadBusinessmanCharacter(const std::string& id,
-                                               const std::filesystem::path& assetRoot)
+bool ResourceManager::loadFantasyCharacter(const std::string& id,const std::filesystem::path& assetRoot)
 {
     try {
         CharacterAnimations animations{};
-
-        loadAnimationSet(animations, kIdle,        assetRoot, "Idle",        true);
-        loadAnimationSet(animations, kWalk,        assetRoot, "Walk",        true);
-        loadAnimationSet(animations, kRunning,     assetRoot, "Running",     true);
-        loadAnimationSet(animations, kJump,        assetRoot, "Jump",        false);
-        loadAnimationSet(animations, kRunningJump, assetRoot, "RunningJump", false);
-        loadAnimationSet(animations, kRunningRoll, assetRoot, "RunningRoll", false);
-        loadAnimationSet(animations, kFightIdle,   assetRoot, "FightIdle",   true);
-        loadAnimationSet(animations, kBlock,       assetRoot, "Block",       true);
-        loadAnimationSet(animations, kLeftJab,     assetRoot, "LeftJab",     false);
-        loadAnimationSet(animations, kRightHook,   assetRoot, "RightHook",   false);
-        loadAnimationSet(animations, kUppercut,    assetRoot, "Uppercut",    false);
-        loadAnimationSet(animations, kCombo,       assetRoot, "Combo",       false);
-        loadAnimationSet(animations, kDamaged,     assetRoot, "Damaged",     false);
-        loadAnimationSet(animations, kDie,         assetRoot, "Die",         false);
-        loadAnimationSet(animations, kPickUp,      assetRoot, "PickUp",      false);
-        loadAnimationSet(animations, kPickUpLow,   assetRoot, "PickUpLow",   false);
-        loadAnimationSet(animations, kCarrying,    assetRoot, "Carrying",    true);
-        loadAnimationSet(animations, kPull,        assetRoot, "Pull",        false);
-        loadAnimationSet(animations, kPush,        assetRoot, "Push",        false);
-        loadAnimationSet(animations, kTalking,     assetRoot, "Talking",     true);
-
-        m_characterAnimations[id] = std::move(animations);
+        std::unordered_map<std::string,std::shared_ptr<sf::Texture>> textures;
+        const auto load=[&](std::size_t slot,const std::string& name,bool looping,float frameTime=.05f) {
+            auto& texture=textures[name];
+            if(!texture) {
+                texture=std::make_shared<sf::Texture>();
+                if(!texture->loadFromFile(assetRoot/(name+".png")))throw std::runtime_error("Cannot load "+name);
+                if(texture->getSize()!=sf::Vector2u{1920,1024})throw std::runtime_error("Expected 15 by 8 grid of 128-pixel frames: "+name);
+            }
+            auto& set=animations.anims[slot];
+            // Engine: SW,W,NW,N,NE,E,SE,S. Asset rows: E,SE,S,SW,W,NW,N,NE.
+            constexpr int rows[8]={3,4,5,6,7,0,1,2};
+            for(std::size_t facing=0;facing<8;++facing) {
+                auto& clip=set.byFacing[facing];clip.texture=texture;clip.looping=looping;
+                for(int frame=0;frame<15;++frame)clip.frames.push_back({{{frame*128,rows[facing]*128},{128,128}},frameTime});
+            }
+            set.loaded=true;
+        };
+        load(kIdle,"Idle",true);load(kWalk,"Walk",true);load(kRunning,"Run",true);
+        load(kJump,"Special1",false);load(kRunningJump,"Special1",false);load(kRunningRoll,"CrouchRun",false);
+        load(kFightIdle,"Idle2",true);load(kBlock,"CrouchIdle",true);
+        load(kLeftJab,"Attack1",false);load(kRightHook,"Attack4",false);
+        load(kUppercut,"Special1",false);load(kCombo,"Attack3",false);
+        load(kDamaged,"TakeDamage",false,.025f);load(kDie,"Die",false,.065f);
+        load(kPickUp,"Special1",false);load(kPickUpLow,"Special1",false);
+        load(kCarrying,"Special1",true);load(kPull,"Walk",false);load(kPush,"Walk",false);load(kTalking,"Taunt",true);
+        m_characterAnimations[id]=std::move(animations);
         return true;
-    }
-    catch (const std::exception& e) {
-        m_logger.log_error("Failed to load character animations for id '",
-                           id,
-                           "' from ",
-                           assetRoot,
-                           ": ",
-                           e.what());
-        return false;
+    } catch(const std::exception& e) {
+        m_logger.log_error("Failed to load fantasy player: ",e.what());return false;
     }
 }
 

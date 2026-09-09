@@ -1,4 +1,6 @@
 [server]
+# Map filename in assets/tiled, without .tmx (case-sensitive).
+map = "demo"
 # Time attacks are blocked after each hit; 0 disables the delay.
 damage_stun_seconds = 0.5
 # Delay from death to respawn.
@@ -27,17 +29,17 @@ out_of_bounds_interval_seconds = 0.5
 # Windup before a melee hit, in seconds (0-60).
 # Rounded to server ticks, with a minimum of one tick (1/64 second).
 [jab]
-cone_degrees = 90.0 # Full cone width in degrees (0 < width <= 360).
+cone_degrees = 120.0 # Full cone width in degrees (0 < width <= 360).
 damage_min = 12
 damage_max = 22
-range = 70.0 # World units.
+range = 100.0 # World units.
 windup_seconds = 0.25
 
 [hook]
-cone_degrees = 90.0
+cone_degrees = 20.0
 damage_min = 20
 damage_max = 40
-range = 80.0 # World units.
+range = 100.0 # World units.
 windup_seconds = 0.75
 
 # Damage values are positive health loss, randomly rolled per target/hit.

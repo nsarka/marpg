@@ -1,3 +1,4 @@
+#include <memory>
 #include "build_version.hpp"
 #include "common/common.hpp"
 #include "common/world_transport.hpp"
@@ -80,8 +81,8 @@ int main(int argc,char**) {
     common::CollisionWorld collision;
     common::TriggerSystem triggers;
     try {
-        collision.load(common::LEVEL_PATH);
-        triggers.load(common::LEVEL_PATH);
+        collision.load(common::mapPath());
+        triggers.load(common::mapPath());
     } catch (const std::exception& error) {
         logger.log_error(error.what());
         return 1;
@@ -89,10 +90,14 @@ int main(int argc,char**) {
     logger.log_info("Loaded collision polygons: ", collision.size());
 
     common::TeamSpawns spawns;
-    try {spawns.load(common::LEVEL_PATH,settings.teams,collision,triggers);}
+    try {spawns.load(common::mapPath(),settings.teams,collision,triggers);}
     catch(const std::exception& error){logger.log_error(error.what());return 1;}
-    common::Navigation navigation(common::LEVEL_PATH,collision,triggers);
-    common::BotAI botAI(navigation,collision);
+    std::unique_ptr<common::Navigation> navigation;
+    std::unique_ptr<common::BotAI> botAI;
+    if(settings.botAI && settings.bots>0) {
+        navigation=std::make_unique<common::Navigation>(common::mapPath(),collision,triggers);
+        botAI=std::make_unique<common::BotAI>(*navigation,collision);
+    }
     const auto bindIp=sf::IpAddress::resolve(settings.ip);
     if(!bindIp){logger.log_error("Invalid bind IP: ",settings.ip);return 1;}
     sf::UdpSocket socket;
@@ -232,6 +237,7 @@ int main(int argc,char**) {
                    !player.pingPending || sequence!=player.pingSequence)continue;
                 player.state.pingMs=player.pingClock.getElapsedTime().asMilliseconds();
                 player.pingPending=false;
+                player.lastHeard.restart(); // Validated pong also keeps asset-loading clients alive.
             } else if (type == "leave") {
                 common::PlayerId id;
                 if (!(packet >> id) || id>=players.size()) continue;
@@ -322,14 +328,14 @@ int main(int argc,char**) {
                         common::respawn(player.state, player.combat, *spawn);
                         player.requestedVelocity = {};
                         triggers.reset(i);
-                        botAI.reset(i);
+                        if(botAI)botAI->reset(i);
                     }
                     continue;
                 }
                 if (!player.state.alive) {
                     player.requestedVelocity = {};
                     triggers.reset(i);
-                    botAI.reset(i);
+                    if(botAI)botAI->reset(i);
                     continue;
                 }
                 std::vector<sf::Vector2f> blockers;
@@ -348,7 +354,7 @@ int main(int argc,char**) {
                 if (i<static_cast<int>(settings.bots) && settings.botAI) {
                     std::vector<common::PlayerState*> opponents;
                     for(auto& other:players)opponents.push_back(&other.state);
-                    botAI.update(i,player.state,player.combat,opponents);
+                    botAI->update(i,player.state,player.combat,opponents);
                 }
 
                 triggers.update(i, player.state);

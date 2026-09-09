@@ -63,7 +63,7 @@ public:
     void setFont(const sf::Font& font, unsigned int characterSize = 16);
     void setNameColor(sf::Color color);
     void setSpriteScale(sf::Vector2f scale);
-    void setOriginToFeet(float xFraction = 0.5f, float yFraction = 0.5f);
+    void setOriginToFeet(float xFraction = 0.5f, float yFraction = 0.6875f);
     void setInterpolationSharpness(float sharpness);
     void setWalkSpeed(float speed);
     void setRunSpeed(float speed);
@@ -152,8 +152,8 @@ private:
     bool m_inCombatIdle = false;
 
     float m_originXF = 0.5f;
-    // Businessman frames are padded: the ground pivot is (128,128), not the bottom.
-    float m_originYF = 0.5f;
+    // Fantasy sheets use a stable foot pivot at (64,88) in each 128px cell.
+    float m_originYF = 0.6875f;
 
     bool m_outlineEnabled = false;
     sf::Color m_outlineColor = sf::Color(255, 60, 60, 220);

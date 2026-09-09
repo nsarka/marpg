@@ -51,7 +51,8 @@ int main(int argc,char** argv){
             bool rejected=false;try{common::loadServerSettings(temp.string());}catch(...){rejected=true;}
             check(rejected,"Invalid melee windup accepted");
         }
-        common::applySettings(common::ServerSettings{});
+        check(common::ServerSettings{}.map=="demo","Wrong default map");
+    common::applySettings(common::ServerSettings{});
         check(common::attackDescription(common::AttackKind::Jab).startupTicks==16 &&
               common::attackDescription(common::AttackKind::Hook).startupTicks==24,"Default windups changed");
         std::filesystem::remove(temp);
@@ -88,15 +89,15 @@ int main(int argc,char** argv){
     settings.spell=spells.spell;settings.lightning=spells.lightning;
     auto invalidSpell=settings;invalidSpell.spell.damageMin=100;
     bool badRange=false;try{invalidSpell.validate();}catch(...){badRange=true;}check(badRange,"Inverted damage range accepted");
-    settings.name="Custom Arena";
+    settings.name="Custom Arena";settings.map="arena";
     settings.port=55001;settings.slots=12;settings.teams=3;settings.triggerDamage=7;settings.triggerInterval=1.0;
     settings.boundsDamage=9;settings.boundsInterval=.25;settings.jabDamageMin=settings.jabDamage=27;settings.hookDamageMin=settings.hookDamage=40;
     settings.honorTeamRequests=true;
     sf::Packet packet;common::writeSettings(packet,settings);common::ServerSettings received;
-    check(common::readSettings(packet,received) && received.spell.damageMax==17 && received.lightning.interval==.2 && !received.botAI && received.name=="Custom Arena" && received.port==55001 && received.teams==3 && received.boundsInterval==.25 && received.honorTeamRequests,"Settings wire roundtrip failed");
+    check(common::readSettings(packet,received) && received.spell.damageMax==17 && received.lightning.interval==.2 && !received.botAI && received.map=="arena" && received.name=="Custom Arena" && received.port==55001 && received.teams==3 && received.boundsInterval==.25 && received.honorTeamRequests,"Settings wire roundtrip failed");
     common::applySettings(settings);
     check(common::attackDescription(common::AttackKind::Jab).damage==27 && common::attackDescription(common::AttackKind::Hook).damage==40,"Combat ignores config");
-    common::TriggerSystem triggers;triggers.load((root/"assets/tiled/Demo.tmx").string());
+    common::TriggerSystem triggers;triggers.load((root/"assets/tiled/legacy_demo.tmx").string());
     common::PlayerState player;player.connected=true;player.pos={-512,1024};
     triggers.update(0,player);check(player.health==93,"Configured trigger entry damage");
     for(int i=0;i<63;++i)triggers.update(0,player);check(player.health==93,"Trigger beat too early");
@@ -178,6 +179,7 @@ int main(int argc,char** argv){
         bool rejected=false;try{common::loadClientSettings(clientPath.string());}catch(...){rejected=true;}
         std::filesystem::remove(clientPath);check(rejected,"Invalid client team accepted");
     }
+    check(common::ServerSettings{}.map=="demo","Wrong default map");
     common::applySettings(common::ServerSettings{});
     std::cout<<"PASS: TOML, settings sync, damage/intervals, teams, friendly fire, variable spawn counts\n";
 }

@@ -19,8 +19,9 @@ public:
         const auto offset = layer->getOffset();
         for (std::size_t i=0; i<tiles.size(); ++i) {
             const tmx::Tileset::Tile* tile = nullptr;
+            sf::Vector2f tileOffset{};
             for (const auto& set : map.getTilesets()) {
-                if (tiles[i].ID && set.hasTile(tiles[i].ID)) { tile=set.getTile(tiles[i].ID); break; }
+                if (tiles[i].ID && set.hasTile(tiles[i].ID)) { tile=set.getTile(tiles[i].ID); tileOffset={float(set.getTileOffset().x),float(set.getTileOffset().y)}; break; }
             }
             // Walkable floor decorations do not hide players.
             if (!tile || tile->objectGroup.getObjects().empty()) continue;
@@ -48,8 +49,8 @@ public:
                 image=std::move(transformed);
             }
             const float x=float(i%width), y=float(i/width);
-            sf::Vector2f origin{(x-y)*tileSize.x*.5f+(float(tileSize.x)-size.x)*.5f+offset.x,
-                                (x+y)*tileSize.y*.5f+float(tileSize.y)-size.y+offset.y};
+            sf::Vector2f origin{(x-y)*tileSize.x*.5f+(float(tileSize.x)-size.x)*.5f+offset.x+tileOffset.x,
+                                (x+y)*tileSize.y*.5f+float(tileSize.y)-size.y+offset.y+tileOffset.y};
             // The lower silhouette envelope bridges overhead doorway gaps.
             std::vector<sf::Vector2f> hull;
             for (unsigned col=0; col<size.x; ++col) {

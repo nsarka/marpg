@@ -5,7 +5,7 @@
 void check(bool ok,const char* message){if(!ok)throw std::runtime_error(message);}
 int main(int argc,char** argv) {
     check(argc==2,"Project root required");const std::filesystem::path root=argv[1];
-    tmx::Map map;check(map.load((root/"assets/tiled/Demo.tmx").string()),"Map load failed");
+    tmx::Map map;check(map.load((root/"assets/tiled/legacy_demo.tmx").string()),"Map load failed");
     MapLayer floor(map,1),walls(map,2);
     check(tileLighting.enabled,"Sun point missing");
     check(std::isfinite(tileLighting.sun.x) && std::isfinite(tileLighting.sun.y) && tileLighting.sun.z>0,"Invalid Tiled Sun position");

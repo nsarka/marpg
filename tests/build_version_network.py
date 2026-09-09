@@ -40,7 +40,7 @@ bots=0
                     assert read_string(body)[0]==commit
                 else:
                     assigned,protocol=struct.unpack_from('!iI',body)
-                    assert assigned==0 and protocol==5
+                    assert assigned==0 and protocol==6
                     assert read_string(body[8:])[0]==commit
             print('PASS: mismatched build rejected without consuming slot; matching build accepted with server hash')
         finally:

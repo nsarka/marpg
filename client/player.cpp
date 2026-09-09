@@ -134,6 +134,10 @@ void Player::stepAnimation(float dtSeconds)
     const auto frameDuration=[&]() {
         if(m_currentAnim==Anim::LeftJab || m_currentAnim==Anim::RightHook)
             return client::meleeFrameDuration(m_currentAnim==Anim::LeftJab?common::AttackKind::Jab:common::AttackKind::Hook,clip.frames,m_frameIndex);
+        if((m_currentAnim==Anim::Uppercut || m_currentAnim==Anim::Carrying) && m_frameIndex<10) {
+            const auto kind=m_currentAnim==Anim::Uppercut?common::AttackKind::Uppercut:common::AttackKind::Lightning;
+            return common::attackDescription(kind).startupTicks*common::TICK_DT/10.f;
+        }
         return clip.frames[m_frameIndex].durationSeconds;
     };
     while (m_frameTime >= frameDuration()) {
@@ -240,6 +244,7 @@ void Player::setOutlineEnabled(bool enabled)
 void Player::setOutlineColor(const sf::Color& color)
 {
     m_outlineColor = color;
+    m_outlineColor.a = static_cast<std::uint8_t>(color.a * 0.2f);
 }
 
 void Player::setOutlineThickness(float pixels)
@@ -422,7 +427,7 @@ void Player::updateNameTextPosition()
     // Anchor overhead UI to the ground pivot, not transparent sprite padding.
     m_nameText->setPosition({
         m_renderPos.x - textBounds.position.x - textBounds.size.x * 0.5f,
-        m_renderPos.y - 76.f - textBounds.position.y - textBounds.size.y
+        m_renderPos.y - 100.f - textBounds.position.y - textBounds.size.y
     });
 }
 
@@ -483,7 +488,7 @@ void Player::draw(sf::RenderTarget& target, sf::RenderStates states) const
     }
     constexpr float barWidth = 48.f;
     constexpr float barHeight = 5.f;
-    const auto barPosition = m_renderPos + sf::Vector2f{-barWidth * 0.5f, -70.f};
+    const auto barPosition = m_renderPos + sf::Vector2f{-barWidth * 0.5f, -94.f};
     sf::RectangleShape bar({barWidth, barHeight});
     bar.setPosition(barPosition);
     bar.setFillColor(sf::Color(180, 45, 50));

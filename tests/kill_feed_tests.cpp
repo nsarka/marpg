@@ -10,7 +10,7 @@
 void check(bool ok,const char* message){if(!ok)throw std::runtime_error(message);}
 int main(int argc,char** argv){
     check(argc==2,"Project path required");std::filesystem::path root=argv[1];
-    common::TriggerSystem hazards;hazards.load((root/"assets/tiled/Demo.tmx").string());
+    common::TriggerSystem hazards;hazards.load((root/"assets/tiled/legacy_demo.tmx").string());
     std::vector<common::PlayerState> players(common::MAX_PLAYERS);auto& killer=players[0];auto& victim=players[1];
     killer.connected=victim.connected=true;killer.name="Alice";victim.name="Bob";killer.team=0;victim.team=1;killer.lastAttack=common::AttackKind::Hook;
     common::KillHistory history;std::vector<common::PlayerState*> references;for(auto& player:players)references.push_back(&player);

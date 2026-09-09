@@ -48,8 +48,8 @@ public:
     bool loadFont(const std::string& id, const std::filesystem::path& path);
     bool loadFragmentShader(const std::string& id, const std::filesystem::path& path);
 
-    // Loads the same businessman animation pack layout your Player used before.
-    bool loadBusinessmanCharacter(const std::string& id,
+    // Loads the fantasy player sheets (15 frames x 8 directions).
+    bool loadFantasyCharacter(const std::string& id,
                                  const std::filesystem::path& assetRoot);
 
     const sf::Font& getFont(const std::string& id) const;
@@ -64,16 +64,6 @@ public:
     bool hasFont(const std::string& id) const;
     bool hasShader(const std::string& id) const;
     bool hasCharacterAnimations(const std::string& id) const;
-
-private:
-    static void parseFramesFromJson(const std::filesystem::path& jsonPath,
-                                    std::vector<Frame>& outFrames);
-
-    static void loadAnimationSet(CharacterAnimations& outAnimations,
-                                 std::size_t animIndex,
-                                 const std::filesystem::path& root,
-                                 const std::string& baseName,
-                                 bool looping);
 
 private:
     common::Logger& m_logger;

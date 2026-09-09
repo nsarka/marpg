@@ -3,9 +3,9 @@
 #include <algorithm>
 
 namespace client {
-// The first extended punch pose in the Businessman sprite sheets.
+// First sword-trail frame: Attack1 (jab) and Attack4 (hook).
 inline std::size_t meleeImpactFrame(common::AttackKind kind) {
-    return kind==common::AttackKind::Jab?6:4;
+    return kind==common::AttackKind::Jab?7:8;
 }
 template<class Frames>
 float meleeFrameDuration(common::AttackKind kind,const Frames& frames,std::size_t index) {
