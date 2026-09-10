@@ -1,3 +1,4 @@
+#include "common/character_roster.hpp"
 #include "loading_connection.hpp"
 #include "common/common.hpp"
 #include "common/collision_world.hpp"
@@ -117,9 +118,8 @@ int main(int argc, char**) {
 
     if (!resources.loadFragmentShader("player_occlusion", "../shaders/player_occlusion.frag")) return 1;
 
-    if (!resources.loadFantasyCharacter("fantasy_player", assetRoot)) {
-        return 1;
-    }
+    for(const auto* character:common::CharacterNames)
+        if(!resources.loadFantasyCharacter(character,assetRoot.parent_path()/character))return 1;
 
     // -------------------------------------------------------------------------
     // Client connection
@@ -164,13 +164,16 @@ int main(int argc, char**) {
     }
     common::TriggerSystem triggers;
     triggers.load(common::mapPath());
-    for (const auto& points : triggers.outlines()) {
-        sf::ConvexShape shape(points.size());
-        for (std::size_t i=0; i<points.size(); ++i) shape.setPoint(i, points[i]);
-        shape.setFillColor(sf::Color(255,180,40,40));
-        shape.setOutlineColor(sf::Color(255,180,40));
-        shape.setOutlineThickness(1.5f);
-        collisionDebugShapes.push_back(std::move(shape));
+    for(const auto& region:triggers.regions().all()) {
+        for(const auto& points:region->shape.outlines()) {
+            sf::ConvexShape shape(points.size());
+            for(std::size_t i=0;i<points.size();++i)shape.setPoint(i,points[i]);
+            auto fill=region->color;fill.a=40;
+            shape.setFillColor(fill);
+            shape.setOutlineColor(region->color);
+            shape.setOutlineThickness(1.5f);
+            collisionDebugShapes.push_back(std::move(shape));
+        }
     }
     common::TeamSpawns teamSpawns;
     teamSpawns.load(common::mapPath(),common::activeSettings.teams,collision,triggers);
@@ -190,9 +193,14 @@ int main(int argc, char**) {
             levelLabels.push_back(std::move(label));
         }
     }
-    MapLayer layerFloor(map, 1);
-    MapLayer layerWalls(map, 2);
-    WallOcclusion wallOcclusion(map, 2);
+    auto layerIndex=[&](const std::string& name){
+        for(std::size_t i=0;i<map.getLayers().size();++i)
+            if(map.getLayers()[i]->getType()==tmx::Layer::Type::Tile && map.getLayers()[i]->getName()==name)return i;
+        throw std::runtime_error("Missing tile layer: "+name);
+    };
+    MapLayer layerFloor(map, layerIndex("Floor"));
+    MapLayer layerWalls(map, layerIndex("Walls"));
+    WallOcclusion wallOcclusion(map, layerIndex("Walls"));
     //MapLayer layerTriggers(map, 9);
     layerWalls.update(sf::Time::Zero);
     layerFloor.update(sf::Time::Zero);
@@ -241,9 +249,9 @@ int main(int argc, char**) {
 
         p.state() = newStates[i];
 
-        p.setCharacterAnimations(resources.getCharacterAnimations("fantasy_player"));
+        p.setCharacterAnimations(resources.getCharacterAnimations(common::CharacterNames[p.state().character]));
         p.setFont(resources.getFont("ui"));
-        p.setSpriteScale({2.f, 2.f});
+        p.setSpriteScale({common::CharacterScale, common::CharacterScale});
         p.setOriginToFeet();
         p.setOcclusionShader(&resources.getShader("player_occlusion"));
         p.setInterpolationSharpness(14.f);
@@ -271,6 +279,8 @@ int main(int argc, char**) {
     DamageNumbers damageNumbers;
     KillFeed killFeed;
     std::optional<sf::Clock> shutdownDisplay;
+    float teleportFlash = 0.f;
+    constexpr float teleportFlashDuration = 0.22f;
     float damageFlash = 0.f;
     constexpr float damageFlashDuration = 0.35f;
 
@@ -283,6 +293,7 @@ int main(int argc, char**) {
         // ---------------------------------------------------------------------
         const float renderDt = frameClock.restart().asSeconds();
         accumulator += renderDt;
+        teleportFlash = std::max(0.f,teleportFlash-renderDt);
         damageFlash = std::max(0.f, damageFlash-renderDt);
         damageNumbers.update(renderDt);
         killFeed.update(renderDt);
@@ -318,7 +329,7 @@ int main(int argc, char**) {
         input.updateSpellAvailability(newStates[myId]);
         spellEffects.observe(newStates,renderDt);
         if(!newStates[myId].alive)input.cancelCombatInput();
-        sounds.observe(newStates, players[myId].renderPosition());
+        sounds.observe(newStates, newStates[myId].pos);
         while(joined_players.size() > 0) {
             const common::PlayerId p = joined_players.back();
             joined_players.pop_back();
@@ -368,6 +379,13 @@ int main(int argc, char**) {
                 if (i == myId && newStates[i].connected && newStates[i].health < p.state().health)
                     damageFlash = damageFlashDuration;
                 if (i == myId && !p.isAlive() && newStates[i].alive) camera.snapTo(newStates[i].pos);
+                if(i==myId && p.state().connected && newStates[i].teleportSequence!=p.state().teleportSequence) {
+                    teleportFlash=teleportFlashDuration;
+                    camera.snapTo(newStates[i].pos);
+                    input.cancelCombatInput();
+                }
+                if(p.state().character!=newStates[i].character)
+                    p.setCharacterAnimations(resources.getCharacterAnimations(common::CharacterNames[newStates[i].character]));
                 p.applySnapshot(newStates[i]);
                 p.setOutlineColor(common::teamColor(p.state().team,common::activeSettings.teams));
                 //logger.log_info("Player ", i, "'s state: ", p.state());
@@ -458,19 +476,24 @@ int main(int argc, char**) {
             tileLighting.addLight(players[i].renderPosition(),i<common::activeSettings.bots?options.lighting.bot:options.lighting.player);
         spellEffects.addLights(options.lighting);
 
+        layerFloor.update(sf::seconds(renderDt));
+        layerWalls.update(sf::seconds(renderDt));
         window.draw(layerFloor);
         spellEffects.drawWindups(window);
         window.draw(layerWalls);
         for (const auto& label : levelLabels) window.draw(label);
         //window.draw(layerTrigger);
 
-        for (int i = 0; i < common::MAX_PLAYERS; i++) {
-            auto& p = players[i];
-            if (!p.state().connected) {
-                continue;
-            }
-            window.draw(p);
-        }
+        // Sort a separate view: player slots remain indexed by network ID.
+        // Render positions include interpolation, matching the visible feet.
+        std::vector<const Player*> characterDrawOrder;
+        characterDrawOrder.reserve(players.size());
+        for(const auto& player:players)
+            if(player.isConnected())characterDrawOrder.push_back(&player);
+        std::stable_sort(characterDrawOrder.begin(),characterDrawOrder.end(),[](const Player* a,const Player* b) {
+            return a->renderPosition().y<b->renderPosition().y;
+        });
+        for(const auto* player:characterDrawOrder)window.draw(*player);
 
         if (input.collisionDebugEnabled()) {
             for (const auto& shape : collisionDebugShapes) window.draw(shape);
@@ -521,6 +544,12 @@ int main(int argc, char**) {
             legend.setPosition({12,12});
             legend.setOutlineColor(sf::Color::Black);legend.setOutlineThickness(1.f);
             window.draw(legend);
+        }
+        if(teleportFlash>0.f) {
+            sf::RectangleShape flash(sf::Vector2f(window.getSize()));
+            const float fade=teleportFlash/teleportFlashDuration;
+            flash.setFillColor(sf::Color(150,45,235,static_cast<std::uint8_t>(95.f*fade*fade)));
+            window.draw(flash);
         }
         if (damageFlash > 0.f) {
             sf::RectangleShape flash(sf::Vector2f(window.getSize()));

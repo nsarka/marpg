@@ -1,3 +1,4 @@
+#include "common/character_roster.hpp"
 #include "client/resource_manager.hpp"
 #include "client/player.hpp"
 #include <SFML/Graphics.hpp>
@@ -9,6 +10,11 @@ int main(int argc,char** argv) {
     common::Logger logger;ResourceManager resources(logger);
     const auto root=std::filesystem::path(argv[1]);
     check(resources.loadFantasyCharacter("player",root/"assets/Fantasy tileset - 2D Isometric/Characters/Player"),"Fantasy player failed to load");
+    for(const auto* name:common::CharacterNames) {
+        check(resources.loadFantasyCharacter(name,root/"assets/Fantasy tileset - 2D Isometric/Characters"/name),"Team character failed to load");
+        for(const auto& set:resources.getCharacterAnimations(name).anims)
+            for(const auto& clip:set.byFacing)check(clip.texture && clip.frames.size()==15,"Team character animation incomplete");
+    }
     const auto& animations=resources.getCharacterAnimations("player");
     constexpr int rows[]={3,4,5,6,7,0,1,2};
     for(const auto& set:animations.anims) {

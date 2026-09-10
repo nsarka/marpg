@@ -1,3 +1,4 @@
+#include "common/tile_alignment.hpp"
 #pragma once
 #include <SFML/Graphics.hpp>
 #include <tmxlite/Map.hpp>
@@ -21,7 +22,7 @@ public:
             const tmx::Tileset::Tile* tile = nullptr;
             sf::Vector2f tileOffset{};
             for (const auto& set : map.getTilesets()) {
-                if (tiles[i].ID && set.hasTile(tiles[i].ID)) { tile=set.getTile(tiles[i].ID); tileOffset={float(set.getTileOffset().x),float(set.getTileOffset().y)}; break; }
+                if (tiles[i].ID && set.hasTile(tiles[i].ID)) { tile=set.getTile(tiles[i].ID); tileOffset={float(static_cast<std::int32_t>(set.getTileOffset().x))+common::tileAlignmentCorrection(set,float(tile->imageSize.x),float(map.getTileSize().x)),float(static_cast<std::int32_t>(set.getTileOffset().y))}; break; }
             }
             // Walkable floor decorations do not hide players.
             if (!tile || tile->objectGroup.getObjects().empty()) continue;

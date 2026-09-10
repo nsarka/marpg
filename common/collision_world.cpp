@@ -1,3 +1,4 @@
+#include "common/tile_alignment.hpp"
 #include "collision_world.hpp"
 #include <tmxlite/Map.hpp>
 #include <tmxlite/TileLayer.hpp>
@@ -55,7 +56,7 @@ void CollisionWorld::load(const std::string& mapPath, bool triggersOnly) {
             const tmx::Tileset::Tile* tile = nullptr;
             sf::Vector2f tileOffset{};
             for (const auto& set : map.getTilesets()) {
-                if (set.hasTile(tiles[i].ID)) { tile = set.getTile(tiles[i].ID); tileOffset={float(set.getTileOffset().x),float(set.getTileOffset().y)}; break; }
+                if (set.hasTile(tiles[i].ID)) { tile = set.getTile(tiles[i].ID); tileOffset={float(static_cast<std::int32_t>(set.getTileOffset().x))+common::tileAlignmentCorrection(set,float(tile->imageSize.x),float(map.getTileSize().x)),float(static_cast<std::int32_t>(set.getTileOffset().y))}; break; }
             }
             if (!tile || tile->objectGroup.getObjects().empty()) continue;
 

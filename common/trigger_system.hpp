@@ -3,6 +3,7 @@
 #include "settings.hpp"
 #include "collision_world.hpp"
 #include "damage.hpp"
+#include "teleport_system.hpp"
 #include <unordered_map>
 #include <algorithm>
 #include <stdexcept>
@@ -13,8 +14,12 @@
 namespace common {
 // Non-solid, feet-position regions. Every player/region pair has its own timer.
 class TriggerSystem {
+    std::shared_ptr<TriggerRegions> regions_=std::make_shared<TriggerRegions>();
+    TeleportSystem teleports_{regions_};
 public:
+    const TriggerRegions& regions() const {return *regions_;}
     void load(const std::string& mapPath, const ServerSettings& settings=activeSettings) {
+        teleports_.load(mapPath);
         boundsDamage_=settings.boundsDamage; boundsInterval_=damageInterval(settings.boundsInterval);
         CollisionWorld regions;
         regions.load(mapPath, true);
@@ -36,16 +41,26 @@ public:
         floorLoaded_=true;
         voidElapsed_.clear();
         zones_.clear();
+        for(const auto& layer:map.getLayers()) {
+            if(layer->getType()!=tmx::Layer::Type::Object || layer->getName()!="Triggers")continue;
+            for(const auto& object:layer->getLayerAs<tmx::ObjectGroup>().getObjects())
+                if(object.getClass()=="DamageTrigger")
+                    addDamageTrigger(triggerObjectPoints(map,*layer,object),settings.triggerDamage,damageInterval(settings.triggerInterval));
+        }
         for (auto points : regions.outlines()) addDamageTrigger(std::move(points), settings.triggerDamage, damageInterval(settings.triggerInterval));
     }
     void addDamageTrigger(std::vector<sf::Vector2f> points, int damage, Tick interval) {
         if (damage < 0 || interval == 0) throw std::invalid_argument("Invalid damage trigger settings");
         Zone zone;
-        zone.region.addPolygon(std::move(points));
+        zone.region=regions_->add(std::move(points),sf::Color(255,180,40));
         zone.damage=damage; zone.interval=interval;
         zones_.push_back(std::move(zone));
     }
     void reset(PlayerId id) {
+        teleports_.reset(id);
+        resetDamage(id);
+    }
+    void resetDamage(PlayerId id) {
         voidElapsed_.erase(id);
         for (auto& zone : zones_) zone.elapsed.erase(id);
     }
@@ -62,8 +77,12 @@ public:
     }
     bool contains(sf::Vector2f position) const {
         if (!hasFloor(position)) return true;
-        for (const auto& zone : zones_) if (zone.region.overlaps(position, 0.f)) return true;
+        for (const auto& zone : zones_) if (zone.region->contains(position)) return true;
         return false;
+    }
+    void update(PlayerId id,PlayerState& player,const CollisionWorld& walls) {
+        if(teleports_.update(id,player,walls))resetDamage(id);
+        update(id,player);
     }
     void update(PlayerId id, PlayerState& player) {
         if (!player.connected || !player.alive) { reset(id); return; }
@@ -74,7 +93,7 @@ public:
         }
         voidElapsed_.erase(id);
         for (auto& zone : zones_) {
-            if (!player.connected || !player.alive || !zone.region.overlaps(player.pos,0.f)) {
+            if (!player.connected || !player.alive || !zone.region->contains(player.pos)) {
                 zone.elapsed.erase(id);
                 continue;
             }
@@ -83,7 +102,7 @@ public:
     }
     std::vector<std::vector<sf::Vector2f>> outlines() const {
         std::vector<std::vector<sf::Vector2f>> result;
-        for (const auto& zone : zones_) result.push_back(zone.region.outlines().front());
+        for (const auto& zone : zones_) result.push_back(zone.region->shape.outlines().front());
         return result;
     }
 private:
@@ -103,7 +122,7 @@ private:
     std::vector<bool> floorTiles_;
     std::unordered_map<PlayerId,Tick> voidElapsed_;
     struct Zone {
-        CollisionWorld region;
+        std::shared_ptr<const TriggerRegion> region;
         int damage=2;
         Tick interval=TICK_RATE/2;
         std::unordered_map<PlayerId,Tick> elapsed;

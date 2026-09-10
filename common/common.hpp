@@ -118,6 +118,7 @@ struct KillEvent {
 inline constexpr std::size_t KillHistorySize=32;
 
 struct PlayerState {
+    std::uint8_t character=6;
     std::int32_t team=-1;
     bool connected = false;
     bool alive = true;
@@ -127,6 +128,7 @@ struct PlayerState {
     int health = 100;
     int score = 0;
     std::uint32_t kills = 0, deaths = 0;
+    std::uint32_t teleportSequence = 0;
     std::uint32_t spellSequence = 0;
     sf::Vector2f spellPosition{};
     AttackKind spellEffect = AttackKind::Uppercut;

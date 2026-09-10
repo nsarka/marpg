@@ -1,3 +1,4 @@
+#include "common/character_visual.hpp"
 #pragma once
 
 #include "common/common.hpp"
@@ -63,7 +64,7 @@ public:
     void setFont(const sf::Font& font, unsigned int characterSize = 16);
     void setNameColor(sf::Color color);
     void setSpriteScale(sf::Vector2f scale);
-    void setOriginToFeet(float xFraction = 0.5f, float yFraction = 0.6875f);
+    void setOriginToFeet(float xFraction = common::CharacterFeetX, float yFraction = common::CharacterFeetY);
     void setInterpolationSharpness(float sharpness);
     void setWalkSpeed(float speed);
     void setRunSpeed(float speed);
@@ -151,9 +152,9 @@ private:
     bool m_isCarrying = false;
     bool m_inCombatIdle = false;
 
-    float m_originXF = 0.5f;
+    float m_originXF = common::CharacterFeetX;
     // Fantasy sheets use a stable foot pivot at (64,88) in each 128px cell.
-    float m_originYF = 0.6875f;
+    float m_originYF = common::CharacterFeetY;
 
     bool m_outlineEnabled = false;
     sf::Color m_outlineColor = sf::Color(255, 60, 60, 220);

@@ -15,7 +15,7 @@ The server reads `server.toml` from the project root at startup. The client read
 ip = "0.0.0.0"        # Local bind address; all interfaces by default.
 port = 54000
 slots = 20            # Total capacity (1-32). Human capacity = slots - bots.
-teams = 2             # From 1 to 20; cannot exceed slots.
+teams = 2             # 0 = free-for-all; otherwise 1 through slots.
 bots = 10             # Set 0 for humans only; cannot exceed slots.
 friendly_fire = false
 honor_team_requests = true # Set false to enforce team balancing.
@@ -51,7 +51,7 @@ Damage values accept 0–10000 (0 disables that damage); intervals accept 0.0156
 name = "Rick"
 ip = "127.0.0.1"
 port = 54000
-team = 0 # 0 = automatic, 1 = red, 2 = blue, then 3-20.
+team = 0 # 0 = automatic, 1 = red, 2 = blue, then 3-32 (must exist on the server).
 ```
 
 The scripts and executables accept no command-line arguments. Edit `client.toml` for your name and server IP/port, and `server.toml` for server settings, then run `./client.sh` or `./server.sh`. Player names may contain up to 64 UTF-8 bytes.
@@ -247,3 +247,17 @@ Set `map = "demo"` under `[server]` in `server.toml`. The value names a `.tmx` f
 `arena.tmx` is a 24×24 grass arena with crossing paths, ruined walls, trees, chests, and 20 safe spawn points in two clusters. Open it directly in Tiled. The tileset uses padded 256×256 artwork on a 128×64 isometric grid with a 12-pixel drawing offset; collision and wall masks use the same offset.
 
 The default `demo` is a walk-through asset gallery: 2,108 labeled exhibits, every fantasy environment image, animated props/effects/destructibles, and all 168 character animations cycling their eight directions. Exhibits are nonblocking so every item can be inspected. Twenty safe spawn points are near the entrance. Use `map = "arena"` for the playable fantasy combat arena, or `map = "legacy_demo"` for the original sample tiles. Regenerate the gallery with `python3 tools/generate_fantasy_demo.py`; its complete inventory is `assets/tiled/gallery/manifest.json`.
+
+Fantasy tile alignment uses the bottom-origin normalized pivot in `assets/tiled/fantasy_pivots.json`. The default `[0.5, 0.18]` gives a Tiled drawing offset of `(-64, 14)` on the 128x64 grid. Add static-image overrides by pack-relative filename, for example `"Environment/YourCliff.png": [0.5, 0.43]`, then rerun the gallery generator. Overrides generate separate tilesets with their own offsets; a 256px cliff with that pivot uses `(-64, 78)`. Original PNG padding is retained. Animation frame overrides are rejected to keep sequences together. Arena currently uses only the standard pivot.
+
+Teleport portals: on an object layer named `Triggers`, draw a rectangle or convex polygon over each portal footprint, set class `Teleport`, give each a unique name, and add a string `destination` property naming another portal. The server moves living players/bots to its center; leaving all portal regions rearms teleporting. Destinations inside walls do not activate. Teleports snap the player/camera, play a random medium jump sound (five variants), and briefly flash purple for the local player. Keep manual portal edits backed up before regenerating the demo gallery.
+
+All finite trigger regions share `TriggerRegions`: behavior code creates a region through the registry and uses that region for overlap checks. F1 enumerates this registry once, using the color carried by each region (orange damage, purple teleport). New region-based trigger behaviors require no client drawing changes. Out-of-bounds damage is a floor-occupancy rule, not a finite trigger polygon.
+
+Fantasy damage areas can be drawn directly on the `Triggers` object layer: use a rectangle or convex polygon and set its class to `DamageTrigger`. No special tile or tileset is required. The area uses `[trigger_damage]` settings and automatically appears orange with F1. Teleport and damage object regions share the same coordinate conversion.
+
+Character gallery frames carry the boolean tile property `player_animation = true`. The game renders these frames using the same scale and feet pivot as live players (currently 2x, pivot 0.5/0.6875). Animation UVs and timing remain unchanged. The gallery generator writes the property on every frame so animated tiles retain the layout throughout their cycle.
+
+The server randomly assigns each joining player and starting bot a character: red team uses Enemy 1/2/3, blue team uses NPC1/2/3 or Player. Other team colors use the full roster. The choice is included in snapshots for all clients and stays the same across respawns.
+
+Set `[server] teams = 0` for free-for-all: everyone is an opponent, bots target any other living participant, spawn points form one shared pool, characters come from the full roster, and the scoreboard ranks all participants together. Team requests are ignored. Team mode accepts 1 through `slots` teams (currently up to 32 slots).

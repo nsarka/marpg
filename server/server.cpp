@@ -1,3 +1,4 @@
+#include "common/character_roster.hpp"
 #include <memory>
 #include "build_version.hpp"
 #include "common/common.hpp"
@@ -76,6 +77,7 @@ int main(int argc,char**) {
         common::applySettings(settings);
     } catch(const std::exception& error){logger.log_error(error.what());return 1;}
 
+    std::mt19937 characterRandom{std::random_device{}()};
     std::srand(static_cast<unsigned>(std::time(nullptr)));
 
     common::CollisionWorld collision;
@@ -112,7 +114,8 @@ int main(int argc,char**) {
         auto team=common::smallestTeam(states(players),settings.teams);
         auto spawn=spawns.choose(team,states(players),collision,triggers);
         if(!spawn){logger.log_error("No safe bot spawn");return 1;}
-        players[i].state.connected=true;players[i].state.team=team;
+        players[i].state.connected=true;players[i].state.team=settings.teams?static_cast<int>(team):-1;
+        players[i].state.character=common::chooseCharacter(players[i].state.team,characterRandom);
         players[i].state.name="Bot "+std::to_string(i+1);players[i].state.pos=*spawn;
     }
 
@@ -192,7 +195,8 @@ int main(int argc,char**) {
                         const auto team=common::chooseTeam(states(players),settings,requestedTeam);
                         const auto spawn = spawns.choose(team,states(players),collision,triggers);
                         if (!spawn) { assignedId = -1; break; }
-                        players[i].state.team=team;
+                        players[i].state.team=settings.teams?static_cast<int>(team):-1;
+                        players[i].state.character=common::chooseCharacter(players[i].state.team,characterRandom);
                         players[i].state.pos = *spawn;
                         players[i].state.connected = true;
                         players[i].ip = *senderIp;
@@ -357,7 +361,7 @@ int main(int argc,char**) {
                     botAI->update(i,player.state,player.combat,opponents);
                 }
 
-                triggers.update(i, player.state);
+                triggers.update(i, player.state, collision);
             }
             std::vector<common::PlayerState*> targets;
             std::vector<common::CombatState*> targetCombats;

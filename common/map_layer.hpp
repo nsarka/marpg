@@ -1,3 +1,5 @@
+#include "common/tile_alignment.hpp"
+#include "common/character_visual.hpp"
 #pragma once
 #include "client/tile_lighting.hpp"
 #include <filesystem>
@@ -125,37 +127,30 @@ public:
 
     void update(sf::Time elapsed)
     {
-        for (auto& chunkPtr : m_chunks)
-        {
-            for (AnimationState& as : chunkPtr->getActiveAnimations())
-            {
-                as.currentTime += elapsed;
-
-                tmx::TileLayer::Tile tile;
-                tile.ID=as.animTile.animation.frames.front().tileID;
-                std::int32_t animTime = 0;
-                auto frameIt = as.animTile.animation.frames.begin();
-
-                while (animTime < as.currentTime.asMilliseconds())
-                {
-                    if (frameIt == as.animTile.animation.frames.end())
-                    {
-                        frameIt = as.animTile.animation.frames.begin();
-                        as.currentTime -= sf::milliseconds(animTime);
-                        animTime = 0;
-                    }
-
-                    tile.ID = frameIt->tileID;
-                    animTime += frameIt->duration;
-                    ++frameIt;
+        for(auto& chunk:m_chunks) {
+            bool changed=false;
+            for(auto& animation:chunk->getActiveAnimations()) {
+                const auto& frames=animation.animTile.animation.frames;
+                if(frames.empty())continue;
+                std::int64_t cycle=0;
+                for(const auto& frame:frames)cycle+=std::max<std::int64_t>(1,frame.duration)*1000;
+                const auto time=(animation.currentTime.asMicroseconds()+std::max<std::int64_t>(0,elapsed.asMicroseconds()))%cycle;
+                animation.currentTime=sf::microseconds(time);
+                auto remaining=time;
+                auto id=frames.front().tileID;
+                for(const auto& frame:frames) {
+                    const auto duration=std::max<std::int64_t>(1,frame.duration)*1000;
+                    if(remaining<duration){id=frame.tileID;break;}
+                    remaining-=duration;
                 }
-
-                tile.flipFlags = as.flipFlags;
-                if(getTile(static_cast<std::int32_t>(as.tileCoords.x),static_cast<std::int32_t>(as.tileCoords.y)).ID!=tile.ID)
-                setTile(static_cast<std::int32_t>(as.tileCoords.x),
-                        static_cast<std::int32_t>(as.tileCoords.y),
-                        tile);
+                const auto x=static_cast<std::int32_t>(animation.tileCoords.x),y=static_cast<std::int32_t>(animation.tileCoords.y);
+                if(getTile(x,y).ID!=id) {
+                    tmx::TileLayer::Tile tile;tile.ID=id;tile.flipFlags=animation.flipFlags;
+                    setTile(x,y,tile,false);changed=true;
+                }
             }
+            // Multiple exhibits in a chunk advance together; rebuild only once.
+            if(changed)chunk->refresh();
         }
     }
 
@@ -259,6 +254,8 @@ private:
             m_chunkColors[calcIndexFrom(x, y)] = color;
             maybeRegenerate(refresh);
         }
+
+        void refresh(){maybeRegenerate(true);}
 
         bool empty() const
         {
@@ -735,7 +732,7 @@ private:
             const std::uint32_t row = localID / columns;
 
             TileVisual visual;
-            visual.offset={float(tileset.getTileOffset().x),float(tileset.getTileOffset().y)};
+            visual.offset={float(static_cast<std::int32_t>(tileset.getTileOffset().x)),float(static_cast<std::int32_t>(tileset.getTileOffset().y))};
             visual.textureKey = atlasPath;
             visual.texture = &texture;
             visual.texTopLeft = {
@@ -747,6 +744,9 @@ private:
                 static_cast<float>(tileSize.y)
             };
             visual.drawSize = visual.texSize;
+            visual.offset.x += common::tileAlignmentCorrection(tileset,visual.drawSize.x,float(m_mapTileSize.x));
+            if(common::isPlayerAnimation(tileset,gid))
+                common::applyCharacterTileLayout(visual.texSize,sf::Vector2f(m_mapTileSize),visual.drawSize,visual.offset);
 
             m_tileVisuals[gid] = visual;
         }
@@ -770,7 +770,7 @@ private:
             const std::uint32_t height = (tile.imageSize.y != 0) ? tile.imageSize.y : textureSize.y;
 
             TileVisual visual;
-            visual.offset={float(tileset.getTileOffset().x),float(tileset.getTileOffset().y)};
+            visual.offset={float(static_cast<std::int32_t>(tileset.getTileOffset().x)),float(static_cast<std::int32_t>(tileset.getTileOffset().y))};
             visual.textureKey = tile.imagePath;
             visual.texture = &texture;
             const std::filesystem::path source(tile.imagePath);
@@ -792,6 +792,9 @@ private:
                 static_cast<float>(height)
             };
             visual.drawSize = visual.texSize;
+            visual.offset.x += common::tileAlignmentCorrection(tileset,visual.drawSize.x,float(m_mapTileSize.x));
+            if(common::isPlayerAnimation(tileset,gid))
+                common::applyCharacterTileLayout(visual.texSize,sf::Vector2f(m_mapTileSize),visual.drawSize,visual.offset);
 
             m_tileVisuals[gid] = visual;
         }

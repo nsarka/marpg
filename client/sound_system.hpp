@@ -49,7 +49,7 @@ public:
         // Bound simultaneous voices while keeping buffers alive for every active sound.
         if (voices_.size()>=32) voices_.erase(voices_.begin());
         Voice voice{std::make_unique<sf::Sound>(*bank.buffers[choice]),cue.position,
-                    cue.effect==SoundEffect::Swing ? 38.f : 52.f};
+                    cue.effect==SoundEffect::Cast ? 32.f : cue.effect==SoundEffect::Swing ? 38.f : 52.f};
         voice.sound->setSpatializationEnabled(false);
         mix(voice,listener);
         voice.sound->play();

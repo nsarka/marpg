@@ -1,3 +1,4 @@
+#include "common/character_roster.hpp"
 #include "common/world_transport.hpp"
 #include <iostream>
 #include <stdexcept>
@@ -12,6 +13,14 @@ int main(){
         player.connected=true;player.name=std::string(64,'x');
         for(unsigned i=1;i<=8;++i)player.damageEvents.push_back({i,2,-1,{100,200}});
     }
+    std::mt19937 random(42);
+    std::array<bool,7> seen{};
+    for(int i=0;i<200;++i)for(int team=0;team<2;++team) {
+        auto character=common::chooseCharacter(team,random);seen[character]=true;
+        check(team==0?character<3:character>=3 && character<7,"Character escaped team pool");
+    }
+    for(bool available:seen)check(available,"Character variant is never selected");
+    for(std::size_t i=0;i<players.size();++i)players[i].character=i%7;
     auto parts=common::worldPackets(players,1);
     check(parts.size()>1,"Test must exercise multiple datagrams");
     for(const auto& part:parts)check(part.getDataSize()<=1200,"Datagram exceeds safe budget");
@@ -24,6 +33,7 @@ int main(){
     std::string type;*result>>type;
     std::vector<common::PlayerState> decoded;
     check(type==common::MSG_WORLD && common::readWorldPacket(*result,decoded),"Snapshot decode failed");
+    for(std::size_t i=0;i<players.size();++i)check(decoded[i].character==players[i].character,"Character selection lost in snapshot");
     check(decoded.size()==32 && decoded.back().damageEvents.size()==8 && decoded.back().name==players.back().name,"Roundtrip changed state");
     for(auto part:parts)check(!deliver(receiver,part),"Stale snapshot replayed");
     auto lost=common::worldPackets(players,2);

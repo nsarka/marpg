@@ -31,8 +31,9 @@ void ServerSettings::validate() const {
         throw std::runtime_error("map must be a map name in assets/tiled without a path or .tmx extension");
     if (name.empty() || name.size()>128 || name.find_first_of("\r\n\t")!=std::string::npos)
         throw std::runtime_error("Server name must be 1-128 bytes and a single line");
-    if (ip.empty() || ip.size()>255 || !port || slots<1 || slots>MAX_PLAYERS || teams<1 || teams>20 || teams>slots || bots>slots)
-        throw std::runtime_error("Server requires a valid address/port, 1-32 slots, 1-20 teams (no more than slots), and bots <= slots");
+    if (ip.empty() || ip.size()>255 || !port || slots<1 || slots>MAX_PLAYERS || bots>slots)
+        throw std::runtime_error("Server requires a valid address/port, 1-32 slots, and bots <= slots");
+    if(teams>slots)throw std::runtime_error("Out of range: server.teams (expected 0-"+std::to_string(slots)+"; 0 = free-for-all, 1-slots = team mode)");
     if(jabDamageMin<0 || jabDamageMin>jabDamage || hookDamageMin<0 || hookDamageMin>hookDamage)
         throw std::runtime_error("Melee damage must satisfy 0 <= min <= max <= 10000");
     if(!std::isfinite(respawnSeconds) || respawnSeconds<0 || respawnSeconds>600)
@@ -83,7 +84,9 @@ ServerSettings loadServerSettings(const std::string& path) {
     s.ip=get<std::string>(t,"server","ip",s.ip);
     s.port=integer(t,"server","port",s.port,65535);
     s.slots=integer(t,"server","slots",s.slots,MAX_PLAYERS);
-    s.teams=integer(t,"server","teams",s.teams,20);
+    const auto teamCount=get<std::int64_t>(t,"server","teams",s.teams);
+    if(teamCount<0 || teamCount>s.slots)throw std::runtime_error("Out of range: server.teams (expected 0-"+std::to_string(s.slots)+"; 0 = free-for-all, 1-slots = team mode)");
+    s.teams=static_cast<std::uint32_t>(teamCount);
     s.bots=integer(t,"server","bots",s.bots,MAX_PLAYERS);
     s.botAI=get<bool>(t,"server","bot_ai",s.botAI);
     s.honorTeamRequests=get<bool>(t,"server","honor_team_requests",s.honorTeamRequests);
@@ -143,7 +146,7 @@ ClientSettings loadClientSettings(const std::string& path) {
     s.mouseIdleSeconds=get<double>(t,"client","mouse_idle_seconds",s.mouseIdleSeconds);
     if(!std::isfinite(s.mouseIdleSeconds) || s.mouseIdleSeconds<0 || s.mouseIdleSeconds>600)throw std::runtime_error("mouse_idle_seconds must be between 0 and 600");
     s.showOtherDamageNumbers=get<bool>(t,"client","show_other_damage_numbers",s.showOtherDamageNumbers);
-    s.team=integer(t,"client","team",s.team,20);
+    s.team=integer(t,"client","team",s.team,MAX_PLAYERS);
     s.name=get<std::string>(t,"client","name",s.name);s.ip=get<std::string>(t,"client","ip",s.ip);
     s.port=integer(t,"client","port",s.port,65535);
     if (s.name.empty() || s.name.size()>64 || s.ip.empty() || !s.port) throw std::runtime_error("Invalid client name, address, or port");

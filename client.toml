@@ -5,7 +5,7 @@ name = "Rick"
 # 147.182.213.239
 ip = "127.0.0.1"
 port = 54000
-# 0 = automatic, 1 = red, 2 = blue; further teams use 3-20.
+# 0 = automatic, 1 = red, 2 = blue; further teams use 3-32 (must exist on the server).
 team = 0
 # Show white damage numbers for combat between other players/bots.
 show_other_damage_numbers = true

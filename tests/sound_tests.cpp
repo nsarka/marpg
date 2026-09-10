@@ -10,6 +10,7 @@ int main(int argc,char** argv) {
     for (std::size_t i=0;i<counts.size();++i)
         check(sounds.variantCount(static_cast<SoundEffect>(i))==counts[i],"All applicable WAV variants must decode");
     check(sounds.variantCount(SoundEffect::Cast)>0 && sounds.variantCount(SoundEffect::Blast)>0,"Spell audio assets missing");
+    check(sounds.variantCount(SoundEffect::Teleport)==5,"All medium jump sounds must load");
     SoundEvents events;
     std::vector<common::PlayerState> players(2);
     auto& player=players[0]; player.connected=true;

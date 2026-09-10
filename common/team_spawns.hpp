@@ -7,6 +7,7 @@
 
 namespace common {
 class TeamSpawns {
+    bool freeForAll_=false;
 public:
     void load(const std::string& path,unsigned teams,const CollisionWorld& walls,const TriggerSystem& triggers) {
         tmx::Map map;if(!map.load(path))throw std::runtime_error("Cannot load spawn map");
@@ -20,7 +21,9 @@ public:
                 points.push_back(world);
             }
         }
-        if(teams<1 || teams>20)throw std::runtime_error("Spawns require 1-20 teams");
+        freeForAll_=teams==0;
+        teams=std::max(1u,teams);
+        if(teams>MAX_PLAYERS)throw std::runtime_error("Spawn team count exceeds maximum player slots");
         if(points.size()<teams)throw std::runtime_error("Spawns layer requires at least one safe spawn point per team: found "+std::to_string(points.size())+" for "+std::to_string(teams)+" teams");
         groups_.assign(teams,{}); cursors_.assign(teams,0);
         partition(std::move(points),0,teams);
@@ -28,6 +31,7 @@ public:
     const std::vector<std::vector<sf::Vector2f>>& groups() const{return groups_;}
     std::optional<sf::Vector2f> choose(unsigned team,const std::vector<PlayerState>& players,
                                      const CollisionWorld& walls,const TriggerSystem& triggers) {
+        if(freeForAll_)team=0;
         if(team>=groups_.size())return std::nullopt;
         const auto& group=groups_[team];
         // Rotate through the team's points; nearby offsets accommodate occupied points.
@@ -59,6 +63,7 @@ private:
     std::vector<std::size_t> cursors_;
 };
 inline unsigned smallestTeam(const std::vector<PlayerState>& players,unsigned teams) {
+    if(!teams)return 0;
     std::vector<unsigned> count(teams);
     for(const auto& p:players)if(p.connected && p.team>=0 && unsigned(p.team)<teams)++count[p.team];
     return std::min_element(count.begin(),count.end())-count.begin();

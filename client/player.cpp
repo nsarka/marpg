@@ -259,10 +259,12 @@ void Player::setOutlineShader(sf::Shader* shader)
 
 void Player::applySnapshot(const common::PlayerState& snapshot)
 {
+    const bool teleported = snapshot.teleportSequence != m_state.teleportSequence;
     const bool respawned = (!m_state.connected || !m_state.alive) && snapshot.alive;
     const bool newAttack = snapshot.attackSequence != m_state.attackSequence;
     const bool tookDamage = m_state.connected && snapshot.health < m_state.health;
     m_state = snapshot;
+    if (teleported) teleportTo(snapshot.pos);
     if (respawned) {
         m_lockedAnim.reset();
         m_facing = Facing8::Dir1;

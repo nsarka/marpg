@@ -1,3 +1,4 @@
+#include "character_roster.hpp"
 #include "common/common.hpp"
 
 #include <algorithm>
@@ -157,6 +158,8 @@ void writeWorldPacket(sf::Packet& packet,
     for(int i=0;i<MAX_PLAYERS;++i)packet << players[i].stunTicks;
     for(int i=0;i<MAX_PLAYERS;++i)packet << players[i].explosionCooldown << players[i].lightningCooldown;
     for(int i=0;i<MAX_PLAYERS;++i)packet << players[i].pingMs;
+    for(int i=0;i<MAX_PLAYERS;++i)packet << players[i].teleportSequence;
+    for(int i=0;i<MAX_PLAYERS;++i)packet << players[i].character;
 }
 
 bool readWorldPacket(sf::Packet& packet,
@@ -200,6 +203,8 @@ bool readWorldPacket(sf::Packet& packet,
     if(!packet.endOfPacket())for(auto& player:snapshot)if(!(packet>>player.stunTicks))return false;
     if(!packet.endOfPacket())for(auto& player:snapshot)if(!(packet>>player.explosionCooldown>>player.lightningCooldown))return false;
     if(!packet.endOfPacket())for(auto& player:snapshot)if(!(packet>>player.pingMs) || player.pingMs < -1)return false;
+    if(!packet.endOfPacket())for(auto& player:snapshot)if(!(packet>>player.teleportSequence))return false;
+    if(!packet.endOfPacket())for(auto& player:snapshot)if(!(packet>>player.character) || player.character>=CharacterNames.size())return false;
     if(kills)*kills=std::move(history);
     players=std::move(snapshot);
     return true;

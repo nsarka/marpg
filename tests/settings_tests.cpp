@@ -115,7 +115,7 @@ int main(int argc,char** argv){
                 file<<"<object id='"<<i+1<<"' x='"<<i*256<<"' y='128'><point/></object>";
             file<<"</objectgroup></map>";
         }
-        for(unsigned teams=1;teams<=std::min(20u,pointCount);++teams) {
+        for(unsigned teams=1;teams<=std::min(unsigned(common::MAX_PLAYERS),pointCount);++teams) {
             common::TeamSpawns spawns;spawns.load(spawnMap,teams,walls,safeFloor);
             unsigned count=0;std::set<std::uint32_t> colors;
             std::vector<common::PlayerState> occupants;
@@ -127,7 +127,7 @@ int main(int argc,char** argv){
             }
             check(count==pointCount && colors.size()==teams,"Spawns/colors not unique or complete");
         }
-        if(pointCount<20) {
+        if(pointCount<unsigned(common::MAX_PLAYERS)) {
             bool rejected=false;try {common::TeamSpawns spawns;spawns.load(spawnMap,pointCount+1,walls,safeFloor);}catch(...) {rejected=true;}
             check(rejected,"Too few spawns for teams must be rejected");
         }
@@ -152,7 +152,7 @@ int main(int argc,char** argv){
     for(int i=0;i<64;++i)common::updateAttack(attacker,combat,{&attacker,&target},empty);
     check(target.health==60,"Enemy/configured hook damage");
     common::respawn(target,combat,{10,20});check(target.team==1,"Respawn changed team");
-    auto invalid=settings;invalid.teams=0;bool failed=false;try{invalid.validate();}catch(...){failed=true;}check(failed,"Invalid config accepted");
+    auto invalid=settings;invalid.teams=invalid.slots+1;bool failed=false;try{invalid.validate();}catch(...){failed=true;}check(failed,"Invalid config accepted");
     {
         common::ServerSettings rules;rules.teams=2;rules.honorTeamRequests=false;
         std::vector<common::PlayerState> members(3);
@@ -175,7 +175,7 @@ int main(int argc,char** argv){
             bool rejected=false;try{common::loadClientSettings(clientPath.string());}catch(...){rejected=true;}
             check(rejected,"Invalid keybinding accepted");
         }
-        {std::ofstream file(clientPath);file<<"[client]\nteam=21\n";}
+        {std::ofstream file(clientPath);file<<"[client]\nteam=33\n";}
         bool rejected=false;try{common::loadClientSettings(clientPath.string());}catch(...){rejected=true;}
         std::filesystem::remove(clientPath);check(rejected,"Invalid client team accepted");
     }

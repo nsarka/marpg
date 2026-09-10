@@ -15,7 +15,7 @@ public:
         auto& brain=brains_[id];
         if(!bot.connected || !bot.alive){reset(id);return;}
         auto enemy=[&](int i){return i>=0 && std::size_t(i)<players.size() && players[i]!=&bot && players[i]->connected &&
-            players[i]->alive && players[i]->health>0 && players[i]->team>=0 && players[i]->team!=bot.team;};
+            players[i]->alive && players[i]->health>0 && (activeSettings.teams==0 || (players[i]->team>=0 && players[i]->team!=bot.team));};
         for(const auto& hit:bot.damageEvents) {
             if(!sequenceNewer(hit.sequence,seenDamage_[id]))continue;
             seenDamage_[id]=hit.sequence;
