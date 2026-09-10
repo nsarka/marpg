@@ -1,4 +1,4 @@
-#include "common/map_layer.hpp"
+#include "client/rendering/map_layer.hpp"
 #include <filesystem>
 #include <iostream>
 #include <stdexcept>

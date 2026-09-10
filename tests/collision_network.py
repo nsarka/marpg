@@ -30,7 +30,7 @@ def drive(seconds, move):
             offset += 18
             size = struct.unpack_from('!I', data, offset)[0]
             offset += 4 + size + 31
-            count=data[offset+4];offset+=5+count*20
+            count=data[offset+4];offset+=5+count*20+50
     return position
 
 # In tests/network.toml, the third authored spawn has a clear approach to the window.

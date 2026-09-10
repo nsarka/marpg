@@ -2,33 +2,23 @@
 """Build the complete fantasy-pack Tiled gallery (stdlib only; originals unchanged)."""
 from pathlib import Path
 import xml.etree.ElementTree as E
-import struct, math, re, json
+import math, re, json
+from map_authoring import dimensions, write, drawing_offset, set_pivot, image_tile, csv_layer
 ROOT=Path(__file__).resolve().parents[1]
 PACK=ROOT/'assets/Fantasy tileset - 2D Isometric'
 OUT=ROOT/'assets/tiled'
 META=OUT/'gallery';META.mkdir(exist_ok=True)
-def dimensions(path):
-    with path.open('rb') as f:f.seek(16);return struct.unpack('>II',f.read(8))
-def write(node,path):
-    E.indent(node);E.ElementTree(node).write(path,encoding='UTF-8',xml_declaration=True)
 def natural(path):return [int(v) if v.isdigit() else v.lower() for v in re.split(r'(\d+)',str(path))]
 collection=E.Element('tileset',version='1.10',tiledversion='1.12.2',name='Fantasy pack gallery',tilewidth='256',tileheight='256',columns='0')
 # Tiled tile layers anchor images at the cell's bottom-left. Put the authored pivot
 # at the ground diamond's center (half a map tile above that anchor).
 PIVOTS=json.loads((OUT/'fantasy_pivots.json').read_text())
-def drawing_offset(width,height,pivot):
-    return (round(64-width*pivot[0]),round(height*pivot[1]-32))
-def set_pivot(tileset,pivot,width=256,height=256):
-    x,y=drawing_offset(width,height,pivot)
-    E.SubElement(tileset,'tileoffset',x=str(x),y=str(y))
-    properties=E.SubElement(tileset,'properties')
-    E.SubElement(properties,'property',name='tile_layer_alignment',value='bottom_left')
-    E.SubElement(tileset,'grid',orientation='isometric',width='128',height='64')
 set_pivot(collection,PIVOTS['default'])
 entries=[];tile_nodes=[];groups={}
 def tile(path):
-    i=len(tile_nodes);w,h=dimensions(path)
-    node=E.SubElement(collection,'tile',id=str(i));E.SubElement(node,'image',source='../Fantasy tileset - 2D Isometric/'+path.relative_to(PACK).as_posix(),width=str(w),height=str(h));tile_nodes.append(node)
+    i=len(tile_nodes)
+    node=image_tile(collection,i,'../Fantasy tileset - 2D Isometric/'+path.relative_to(PACK).as_posix(),path)
+    tile_nodes.append(node)
     return i
 # The base floor lives in its own small tileset, so the floor layer never loads the gallery textures.
 environment=sorted((PACK/'Environment').glob('*.png'),key=natural)
@@ -89,7 +79,7 @@ for i,(text,x,y) in enumerate(labels,1):E.SubElement(label_group,'object',id=str
 for lid,name,data in [(2,'Floor',[1]*(WIDTH*HEIGHT)),(3,'Walls',[0]*(WIDTH*HEIGHT))]:
     if lid==3:
         for x,y,gid in placements:data[y*WIDTH+x]=gid
-    layer=E.SubElement(m,'layer',id=str(lid),name=name,width=str(WIDTH),height=str(HEIGHT));E.SubElement(layer,'data',encoding='csv').text='\n'+',\n'.join(','.join(map(str,data[y*WIDTH:(y+1)*WIDTH])) for y in range(HEIGHT))+'\n'
+    csv_layer(m,lid,name,WIDTH,HEIGHT,data)
 spawns=E.SubElement(m,'objectgroup',id='4',name='Spawns')
 for i in range(20):
     x=4+i%10*2;y=5+i//10*2

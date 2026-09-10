@@ -1,6 +1,7 @@
 #pragma once
 
 #include "common/logger.hpp"
+#include "common/animation_catalog.hpp"
 
 #include <SFML/Graphics/Font.hpp>
 #include <SFML/Graphics/Rect.hpp>
@@ -37,9 +38,11 @@ public:
 
     struct CharacterAnimations {
         static constexpr std::size_t FacingCount = 8;
-        static constexpr std::size_t AnimCount = 20;
+        static constexpr std::size_t AnimCount = common::CharacterAnimations.size();
 
-        std::array<AnimSet, AnimCount> anims{};
+        mutable std::array<AnimSet, AnimCount> anims{};
+        std::filesystem::path directory;
+        const AnimSet& get(common::CharacterAnimation animation) const;
     };
 
 public:

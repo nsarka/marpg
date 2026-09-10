@@ -25,8 +25,8 @@ public:
             if(damage.source>=0 && std::size_t(damage.source)<players.size()) {
                 const auto& killer=*players[damage.source];
                 event.killerName=killer.name;event.killerTeam=killer.team;
-                event.cause=killer.lastAttack==AttackKind::Lightning?KillCause::Lightning:killer.lastAttack==AttackKind::Uppercut?KillCause::Spell:killer.lastAttack==AttackKind::Jab?KillCause::Jab:
-                            killer.lastAttack==AttackKind::Hook?KillCause::Hook:KillCause::Hit;
+                event.cause=killer.lastAttack==AttackKind::Lightning?KillCause::Lightning:killer.lastAttack==AttackKind::Explosion?KillCause::Spell:killer.lastAttack==AttackKind::Light?KillCause::Light:
+                            killer.lastAttack==AttackKind::Heavy?KillCause::Heavy:KillCause::Hit;
             }else{
                 event.killer=-1;event.killerName="WORLD";
                 event.cause=hazards.hasFloor(player.pos)?KillCause::Floor:KillCause::Bounds;

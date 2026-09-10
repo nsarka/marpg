@@ -1,17 +1,18 @@
 #pragma once
-#include "common/common.hpp"
+#include "attack_presentation.hpp"
+#include "common/settings.hpp"
 #include <algorithm>
 
 namespace client {
-// First sword-trail frame: Attack1 (jab) and Attack4 (hook).
+// First sword-trail frame: Attack1 (light) and Attack4 (heavy).
 inline std::size_t meleeImpactFrame(common::AttackKind kind) {
-    return kind==common::AttackKind::Jab?7:8;
+    return attackPresentation(kind).impactFrame;
 }
 template<class Frames>
-float meleeFrameDuration(common::AttackKind kind,const Frames& frames,std::size_t index) {
+float meleeFrameDuration(common::AttackKind kind,const Frames& frames,std::size_t index,const common::ServerSettings& settings=common::ServerSettings{}) {
     const auto impact=meleeImpactFrame(kind);
     if(index>=impact || frames.size()<=impact)return frames[index].durationSeconds;
-    const float windup=common::attackDescription(kind).startupTicks*common::TICK_DT;
+    const float windup=common::attackDescription(kind, settings).startupTicks*common::TICK_DT;
     // Preserve the opening pose where possible; distribute the remaining windup
     // proportionally across the anticipation poses before the punch extends.
     const float opening=std::min(frames[0].durationSeconds,windup/float(impact));

@@ -30,17 +30,13 @@ FetchContent_Declare(tmxlite
     SOURCE_SUBDIR tmxlite
 )
 
-FetchContent_Declare(json
-    GIT_REPOSITORY https://github.com/nlohmann/json.git
-    GIT_TAG v3.11.3
-    GIT_SHALLOW ON
-)
-
-FetchContent_MakeAvailable(SFML tmxlite json)
+FetchContent_MakeAvailable(SFML tmxlite)
 
 add_library(common STATIC
     common/collision_world.cpp
     common/settings.cpp
+    common/state_codec.cpp
+    common/attack_definitions.cpp
     common/common.cpp
     common/logger.cpp
 )
@@ -73,7 +69,7 @@ target_link_libraries(server PRIVATE
     SFML::Network
 )
 
-add_executable(client client/client.cpp client/input_manager.cpp client/player.cpp client/camera.cpp client/client_connection.cpp client/resource_manager.cpp client/hud.cpp)
+add_executable(client client/client.cpp client/input_manager.cpp client/player.cpp client/camera.cpp client/client_connection.cpp client/resource_manager.cpp)
 target_link_libraries(client PRIVATE
     common
     SFML::System
@@ -81,7 +77,6 @@ target_link_libraries(client PRIVATE
     SFML::Graphics
     SFML::Network
     SFML::Audio
-    nlohmann_json::nlohmann_json
 )
 include(CTest)
 if(BUILD_TESTING)
@@ -135,7 +130,6 @@ if(WIN32)
             DESTINATION . COMPONENT Game)
     install(FILES "${sfml_SOURCE_DIR}/license.md" DESTINATION licenses/SFML COMPONENT Game)
     install(FILES "${tmxlite_SOURCE_DIR}/LICENSE" DESTINATION licenses/tmxlite COMPONENT Game)
-    install(FILES "${json_SOURCE_DIR}/LICENSE.MIT" DESTINATION licenses/json COMPONENT Game)
     install(DIRECTORY third_party/tomlplusplus/ DESTINATION licenses/tomlplusplus
             COMPONENT Game FILES_MATCHING PATTERN "LICENSE*")
 endif()
@@ -154,6 +148,9 @@ if(BUILD_TESTING)
 endif()
 
 if(BUILD_TESTING)
+    add_executable(farms_map_tests tests/farms_map_tests.cpp)
+    target_link_libraries(farms_map_tests PRIVATE common)
+    add_test(NAME farms_map COMMAND farms_map_tests ${CMAKE_CURRENT_SOURCE_DIR})
     add_executable(fantasy_map_tests tests/fantasy_map_tests.cpp)
     target_link_libraries(fantasy_map_tests PRIVATE common)
     add_test(NAME fantasy_map COMMAND fantasy_map_tests ${CMAKE_CURRENT_SOURCE_DIR})

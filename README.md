@@ -25,14 +25,14 @@ trigger = 2
 trigger_interval_seconds = 0.5
 out_of_bounds = 2
 out_of_bounds_interval_seconds = 0.5
-[jab]
+[light]
 cone_degrees = 90.0 # Full cone width in degrees (0 < width <= 360).
 damage_min = 20
 damage_max = 20
 range = 70.0
 windup_seconds = 0.25
 
-[hook]
+[heavy]
 cone_degrees = 90.0
 damage_min = 35
 damage_max = 35
@@ -107,7 +107,7 @@ F1 draws trigger regions in amber. A decrease in the local player's replicated
 health produces a red screen flash that fades out over 0.35 seconds. Each
 nonlethal hit also plays the hurt animation; lethal damage plays death instead.
 
-With the default server settings, left click lands a jab for 20 damage; right click lands a hook for 35.
+With the default server settings, left click lands a light for 20 damage; right click lands a heavy for 35.
 Attacks aim toward the mouse cursor at click time, have a forward arc and limited
 range, and cannot hit through walls. Each swing damages at most one target once,
 with a short windup and a one-second total attack/recovery period. Hurt reactions,
@@ -149,8 +149,8 @@ Numbers rise 42 world units and fade over 0.9 seconds. Recent hit history is sen
 in snapshots and deduplicated, so repeated packets cannot duplicate numbers.
 
 Damage numbers always carry a minus sign (for example, `-20` or `-2`). Outgoing
-damage is white; incoming damage remains red. At 100 health, five jabs (20 each)
-or three hooks (35 each) defeat a player. Final-hit numbers show actual health
+damage is white; incoming damage remains red. At 100 health, five lights (20 each)
+or three heavys (35 each) defeat a player. Final-hit numbers show actual health
 lost, capped at the remaining health.
 
 Players standing off the floor (outside the isometric map or on an empty Floor tile) take 2 damage immediately, then every 0.5 seconds. Returning to a floor tile stops this damage. Missing-floor damage uses the same hurt effects, death, and respawn behavior as the floor switch.
@@ -165,13 +165,13 @@ World snapshots are sent at 30 Hz in application-level UDP parts of at most 1,02
 
 Every configured bot chooses a random living opponent on another team. A server-side A* navigation grid checks the actual collision polygons and floor/trigger regions, so routes go around walls and avoid damage switches and missing floor. Bots periodically replan for moving targets, favor paths away from crowds, and try collision-checked sidesteps when blocked by other players. They run at the same speed as players.
 
-Within melee range, bots aim at their opponent and execute random two-to-four-hit combinations containing both hooks and jabs, with short pauses between combinations. Attacks use the same cooldowns, hit cones, wall checks, damage settings, animations, and sounds as human attacks. Dead/disconnected targets are replaced; bots idle when there are no enemy teams and reset their decisions on respawn. Targets are also periodically reconsidered to avoid indefinite pursuit.
+Within melee range, bots aim at their opponent and execute random two-to-four-hit combinations containing both heavys and lights, with short pauses between combinations. Attacks use the same cooldowns, hit cones, wall checks, damage settings, animations, and sounds as human attacks. Dead/disconnected targets are replaced; bots idle when there are no enemy teams and reset their decisions on respawn. Targets are also periodically reconsidered to avoid indefinite pursuit.
 
 `ctest --test-dir build --output-on-failure` includes bot navigation and combat checks. `python3 tests/bot_network.py` runs an isolated ten-bot battle and verifies movement, both attacks, enemy damage, hazard avoidance, and ongoing world updates.
 
 ## Kill feed
 
-A compact kill feed appears at the top right. Each row shows the killer, a slightly larger bold white JAB/HOOK label, and the victim, with names in team colors. Environmental deaths show WORLD with FLOOR or VOID. The feed is text-only, without backgrounds, badges, or borders. The latest six entries remain for seven seconds and fade during the final second.
+A compact kill feed appears at the top right. Each row shows the killer, a slightly larger bold white LIGHT/HEAVY label, and the victim, with names in team colors. Environmental deaths show WORLD with FLOOR or VOID. The feed is text-only, without backgrounds, badges, or borders. The latest six entries remain for seven seconds and fade during the final second.
 
 The server records names, teams, and the lethal attack at death and repeats a bounded kill history in world updates. Clients deduplicate entries and suppress historical kills on first connection, so packet loss, respawns, or reclaimed player slots do not duplicate or rename old feed entries.
 
@@ -183,7 +183,7 @@ Hold **Tab** to view the scoreboard, grouped by team with kills and deaths for e
 
 Set `name = "Rick's Funhaus"` under `[server]` in `server.toml` to customize the server name shown in the scoreboard. The server sends this name to clients on connection.
 
-Client controls are configurable in `[bindings]` in `client.toml`: `move_up`, `move_down`, `move_left`, `move_right`, `walk`, `jab`, `hook`, `scoreboard`, and `debug`. Values accept a key name (e.g. `"Space"`), an array of alternatives (e.g. `["LShift", "RShift"]`), or `[]` to disable an action. Names are case-insensitive. Supported inputs include A-Z, 0-9, F1-F15, arrows, Tab, Space, Enter, Escape, left/right Shift/Control/Alt/System, navigation and punctuation keys, Numpad0-Numpad9, and Mouse_Left/Right/Middle/X1/X2. Omitted actions retain the original defaults. Restart the client to apply changes.
+Client controls are configurable in `[bindings]` in `client.toml`: `move_up`, `move_down`, `move_left`, `move_right`, `walk`, `light`, `heavy`, `scoreboard`, and `debug`. Values accept a key name (e.g. `"Space"`), an array of alternatives (e.g. `["LShift", "RShift"]`), or `[]` to disable an action. Names are case-insensitive. Supported inputs include A-Z, 0-9, F1-F15, arrows, Tab, Space, Enter, Escape, left/right Shift/Control/Alt/System, navigation and punctuation keys, Numpad0-Numpad9, and Mouse_Left/Right/Middle/X1/X2. Omitted actions retain the original defaults. Restart the client to apply changes.
 
 Press **E**, then **left-click** to cast an explosion using the uppercut animation. Press E again to cancel targeting. Configure E with `[bindings] spell = "E"`. The default explosion has 500-unit cast range, 120-unit radius and random 5–30 damage per target. The spell respects friendly fire and walls, and uses the normal hurt, damage-number and kill systems.
 
@@ -220,7 +220,7 @@ cmake --build build --target server --parallel 1
 
 Edit `server.toml` before starting. Allow inbound UDP on its configured port (default 54000) in the VPS/provider firewall. The client defaults to `147.182.213.239:54000`; change `client.toml` for another server.
 
-Player facing follows the mouse. Attack aim and spell targets track the cursor during windup, then lock when the attack becomes active. Spell targeting turns red for out-of-range or wall-blocked locations, and invalid clicks are rejected. Team-color squares appear beside names. The bottom attack HUD shows the server-authoritative shared attack lock and remaining time for jab, hook, explosion and lightning. A damaged bot switches to its attacker if that enemy is not already targeted by another living bot.
+Player facing follows the mouse. Attack aim and spell targets track the cursor during windup, then lock when the attack becomes active. Spell targeting turns red for out-of-range or wall-blocked locations, and invalid clicks are rejected. Team-color squares appear beside names. The bottom attack HUD shows the server-authoritative shared attack lock and remaining time for light, heavy, explosion and lightning. A damaged bot switches to its attacker if that enemy is not already targeted by another living bot.
 
 Client and server binaries embed the Git commit at build time. Connections require matching commits; a mismatch displays an update message in the client. Download the release matching the server, or rebuild both from the same commit. Build from a Git checkout; the commit is refreshed on every build. Uncommitted edits do not change the embedded commit.
 
@@ -245,3 +245,23 @@ Character gallery frames carry the boolean tile property `player_animation = tru
 The server randomly assigns each joining player and starting bot a character: red team uses Enemy 1/2/3, blue team uses NPC1/2/3 or Player. Other team colors use the full roster. The choice is included in snapshots for all clients and stays the same across respawns.
 
 Set `[server] teams = 0` for free-for-all: everyone is an opponent, bots target any other living participant, spawn points form one shared pool, characters come from the full roster, and the scoreboard ranks all participants together. Team requests are ignored. Team mode accepts 1 through `slots` teams (currently up to 32 slots).
+
+### Code organization
+
+`common/loaded_map.hpp` owns one parsed Tiled map per world. Collision, triggers, spawns, and navigation consume it. Client-only rendering lives in `client/rendering/`; shared map geometry remains in `common`.
+
+`client/world_scene.hpp` owns map layers, lighting, height-field textures, and occlusion. Visible tile layers retain their Tiled order: layers before `Walls` are drawn beneath spell windups; `Walls` and subsequent layers are drawn above them. New ground-detail and structure layers do not require changes to the client loop. Lighting is initialized once for each scene.
+
+`server/game_simulation.hpp` owns gameplay state, bot AI, movement, combat, respawns, and kill history. `server/connection_manager.hpp` owns UDP endpoints, sequence validation, keepalive, joining/leaving, snapshots, and shutdown delivery. `server/server.cpp` coordinates the fixed simulation clock and network cadence.
+
+Server rules are passed explicitly. Each simulation owns its rules; ClientConnection owns the rules received at connection time and provides them to client components. Combat helpers have standalone default arguments for tests/tools, but running game code supplies the connected server's settings. There is no mutable global settings or lighting object.
+
+`common/attack_definitions.cpp` resolves attack timing, damage bounds, range, cone, and targeting from server settings. `client/attack_presentation.hpp` maps attacks to fantasy animations, bindings, names, sound cues, and visual effects. Explosion retains its existing numeric network ID (3).
+
+`client/player_animation.hpp` handles animation selection, facing, locks, and frame timing; `client/nameplate.hpp` handles overhead names, team markers, and health bars. Player owns snapshot interpolation and sprite presentation. `common/animation_catalog.hpp` supports all 24 fantasy animations, with shared resource caching and lazy loading of non-gameplay clips.
+
+`common/state_codec.cpp` serializes complete player snapshots. The current protocol is 7; rebuild and restart both binaries together when updating from older code.
+
+`tools/map_authoring.py` shares image dimensions, pivots, tileset image entries, XML writing, and CSV layers between map generators. Run `python3 tests/map_authoring_tests.py` to verify generators in a temporary project without overwriting hand-edited maps.
+
+`map = "farms"` selects a 64x40 two-farm battlefield: wheat fields, thatched buildings, animated windmills, fenced plots, hay stores, and three connecting dirt roads separated by woodland. Each farm has 16 safe spawn points; two-team games group them by farm. Open `assets/tiled/farms.tmx` in Tiled. `GroundDetails` renders between Floor and Walls, and `Roofs` renders above Walls with collision/occlusion support. To rebuild the authored layout, run `python3 tools/generate_farms.py` (this overwrites manual edits to farms and its four tilesets).

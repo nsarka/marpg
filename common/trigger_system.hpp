@@ -15,16 +15,19 @@ namespace common {
 // Non-solid, feet-position regions. Every player/region pair has its own timer.
 class TriggerSystem {
     std::shared_ptr<TriggerRegions> regions_=std::make_shared<TriggerRegions>();
+    ServerSettings settings_;
     TeleportSystem teleports_{regions_};
 public:
     const TriggerRegions& regions() const {return *regions_;}
-    void load(const std::string& mapPath, const ServerSettings& settings=activeSettings) {
-        teleports_.load(mapPath);
+    void load(const std::string& mapPath, const ServerSettings& settings=ServerSettings{}) {
+        tmx::Map map;if(!map.load(mapPath))throw std::runtime_error("Cannot load trigger map: "+mapPath);
+        load(map,settings);
+    }
+    void load(const tmx::Map& map,const ServerSettings& settings=ServerSettings{}) {
+        settings_=settings;
+        teleports_.load(map);
         boundsDamage_=settings.boundsDamage; boundsInterval_=damageInterval(settings.boundsInterval);
-        CollisionWorld regions;
-        regions.load(mapPath, true);
-        tmx::Map map;
-        if (!map.load(mapPath)) throw std::runtime_error("Cannot load floor map: " + mapPath);
+        CollisionWorld regions;regions.load(map,true);
         bool foundFloor=false;
         for (const auto& layer : map.getLayers()) {
             if (layer->getType()!=tmx::Layer::Type::Tile || layer->getName()!="Floor") continue;
@@ -106,12 +109,12 @@ public:
         return result;
     }
 private:
-    static void beat(PlayerId id, PlayerState& player, std::unordered_map<PlayerId,Tick>& elapsed,
+    void beat(PlayerId id, PlayerState& player, std::unordered_map<PlayerId,Tick>& elapsed,
                      int damage, Tick interval) {
         auto [timer,entered]=elapsed.try_emplace(id,0);
         if (entered || ++timer->second>=interval) {
             timer->second=0;
-            applyDamage(player,damage,-1,player.pos);
+            applyDamage(player,damage,-1,player.pos,settings_);
         }
     }
     int boundsDamage_=2;

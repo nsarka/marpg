@@ -10,19 +10,19 @@ struct SpellSettings {
 };
 struct ServerSettings {
     std::string map="demo";
-    int jabDamageMin=20, hookDamageMin=35;
-    double jabConeDegrees=120, hookConeDegrees=20;
+    int lightDamageMin=20, heavyDamageMin=35;
+    double lightConeDegrees=120, heavyConeDegrees=20;
     double damageStunSeconds=.5;
     double respawnSeconds=2.5;
-    double jabRange=140, hookRange=160;
-    double jabWindup=.25, hookWindup=.375;
+    double lightRange=140, heavyRange=160;
+    double lightWindup=.25, heavyWindup=.375;
     SpellSettings spell;
     SpellSettings lightning{1,4,45,500,.25,1,3,1.0/3.0};
     std::string name="Rick's Funhaus";
     std::string ip="0.0.0.0";
     std::uint16_t port=54000;
     std::uint32_t slots=20, teams=2, bots=10;
-    int triggerDamage=2, boundsDamage=2, jabDamage=20, hookDamage=35;
+    int triggerDamage=2, boundsDamage=2, lightDamage=20, heavyDamage=35;
     double triggerInterval=.5, boundsInterval=.5;
     bool botAI=true;
     bool friendlyFire=false;
@@ -45,10 +45,10 @@ struct ClientLighting {
 struct ClientSettings {ClientLighting lighting;double mouseIdleSeconds=3;KeyBindings bindings;std::string name="Rick",ip="147.182.213.239";std::uint16_t port=54000;std::uint32_t team=0;bool showOtherDamageNumbers=true;};
 ServerSettings loadServerSettings(const std::string& path);
 ClientSettings loadClientSettings(const std::string& path);
-inline ServerSettings activeSettings{};
-inline std::string mapPath(const ServerSettings& settings=activeSettings) {return "../assets/tiled/"+settings.map+".tmx";}
-inline constexpr std::uint32_t ProtocolVersion=6;
-void applySettings(const ServerSettings& settings);
+
+inline std::string mapPath(const ServerSettings& settings=ServerSettings{}) {return "../assets/tiled/"+settings.map+".tmx";}
+inline constexpr std::uint32_t ProtocolVersion=7;
+inline AttackDesc attackDescription(AttackKind kind){return attackDescription(kind,ServerSettings{});}
 void writeSettings(sf::Packet& packet,const ServerSettings& settings);
 bool readSettings(sf::Packet& packet,ServerSettings& settings);
 sf::Color teamColor(std::uint32_t team,std::uint32_t count);

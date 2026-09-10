@@ -27,6 +27,7 @@ def decode(data):
         for _ in range(count):
             serial,amount,source=struct.unpack_from('!Iii',data,offset);offset+=20
             events.append((serial,amount,source))
+        offset+=50 # Complete player-state extension (protocol 7)
         players.append((connected,alive,pos,team,health,attack,sequence,events))
     if offset<len(data):
         count=data[offset];offset+=1

@@ -1,3 +1,4 @@
+#include "map_geometry.hpp"
 #include "common/tile_alignment.hpp"
 #include "collision_world.hpp"
 #include <tmxlite/Map.hpp>
@@ -42,6 +43,10 @@ void CollisionWorld::addPolygon(std::vector<sf::Vector2f> points) {
 void CollisionWorld::load(const std::string& mapPath, bool triggersOnly) {
     tmx::Map map;
     if (!map.load(mapPath)) throw std::runtime_error("Cannot load collision map: " + mapPath);
+    load(map,triggersOnly);
+}
+
+void CollisionWorld::load(const tmx::Map& map,bool triggersOnly) {
     if (map.getOrientation() != tmx::Orientation::Isometric || map.isInfinite())
         throw std::runtime_error("Collision requires a finite isometric map");
     CollisionWorld loaded;
@@ -61,9 +66,9 @@ void CollisionWorld::load(const std::string& mapPath, bool triggersOnly) {
             if (!tile || tile->objectGroup.getObjects().empty()) continue;
 
             const float x = static_cast<float>(i % width), y = static_cast<float>(i / width);
-            sf::Vector2f origin{
-                (x-y)*tileSize.x*0.5f + (float(tileSize.x)-tile->imageSize.x)*0.5f + offset.x + tileOffset.x,
-                (x+y)*tileSize.y*0.5f + float(tileSize.y)-tile->imageSize.y + offset.y + tileOffset.y};
+            const auto size=sf::Vector2f(float(tileSize.x),float(tileSize.y));
+            const auto origin=tileImagePosition(tileToWorld(x,y,size),size,
+                {float(tile->imageSize.x),float(tile->imageSize.y)},tileOffset+sf::Vector2f(float(offset.x),float(offset.y)));
             for (const auto& object : tile->objectGroup.getObjects()) {
                 const bool isTrigger = object.getClass() == "DamageTrigger";
                 if (isTrigger != triggersOnly) continue;

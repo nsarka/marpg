@@ -2,6 +2,14 @@
 import struct
 import weakref
 
+def unwrap_world(data):
+    length=struct.unpack_from('!I',data)[0]
+    end=4+length
+    if data[4:end]==b'world':
+        assert struct.unpack_from('!I',data,end)[0]==7, 'Unexpected world protocol'
+        return data[:end]+data[end+4:]
+    return data
+
 _pending = weakref.WeakKeyDictionary()
 
 def recv_world(sock, size=65535):
@@ -9,7 +17,7 @@ def recv_world(sock, size=65535):
         data=sock.recv(size)
         if len(data)<4: continue
         length=struct.unpack_from('!I',data)[0]
-        if data[4:4+length]!=b'world_part': return data
+        if data[4:4+length]!=b'world_part': return unwrap_world(data)
         offset=4+length
         sequence,index,count,total=struct.unpack_from('!IHHI',data,offset)
         payload=data[offset+12:]
@@ -22,4 +30,4 @@ def recv_world(sock, size=65535):
         parts=pending[sequence];parts[index]=payload
         if len(parts)==count:
             del pending[sequence]
-            return b''.join(parts[i] for i in range(count))
+            return unwrap_world(b''.join(parts[i] for i in range(count)))

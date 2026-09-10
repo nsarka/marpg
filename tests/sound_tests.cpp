@@ -16,7 +16,7 @@ int main(int argc,char** argv) {
     auto& player=players[0]; player.connected=true;
     common::applyDamage(player,2,-1,player.pos);
     check(events.observe(players).empty(),"Joining must not replay old damage");
-    player.lastAttack=common::AttackKind::Jab; ++player.attackSequence;
+    player.lastAttack=common::AttackKind::Light; ++player.attackSequence;
     auto cues=events.observe(players);
     check(cues.size()==1 && cues[0].effect==SoundEffect::Swing,"A swing must play even without a hit");
     check(events.observe(players).empty(),"Repeated snapshots must not replay attacks");
@@ -36,7 +36,7 @@ int main(int argc,char** argv) {
     player.alive=true;player.health=100;
     cues=events.observe(players);
     check(cues.size()==1 && cues[0].effect==SoundEffect::Respawn,"Respawn cue missing");
-    player.lastAttack=common::AttackKind::Uppercut;++player.attackSequence;
+    player.lastAttack=common::AttackKind::Explosion;++player.attackSequence;
     cues=events.observe(players);check(cues.size()==1 && cues[0].effect==SoundEffect::Cast,"Cast sound missing");
     ++player.spellSequence;player.spellPosition={40,50};
     cues=events.observe(players);check(cues.size()==1 && cues[0].effect==SoundEffect::Blast && cues[0].position==player.spellPosition,"AoE sound missing");

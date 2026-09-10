@@ -6,11 +6,11 @@
 #include <array>
 
 inline void drawScoreboard(sf::RenderTarget& target,const sf::Font& font,
-                           const std::vector<common::PlayerState>& players,common::PlayerId local) {
-    std::vector<std::vector<std::size_t>> teams(std::max(1u,common::activeSettings.teams));
+                           const std::vector<common::PlayerState>& players,common::PlayerId local,const common::ServerSettings& settings=common::ServerSettings{}) {
+    std::vector<std::vector<std::size_t>> teams(std::max(1u,settings.teams));
     for(std::size_t i=0;i<players.size();++i)
         if(players[i].connected) {
-            if(common::activeSettings.teams==0)teams[0].push_back(i);
+            if(settings.teams==0)teams[0].push_back(i);
             else if(players[i].team>=0 && std::size_t(players[i].team)<teams.size())teams[players[i].team].push_back(i);
         }
     std::array<unsigned,2> rows{};
@@ -37,13 +37,13 @@ inline void drawScoreboard(sf::RenderTarget& target,const sf::Font& font,
         label.setPosition({x,y});target.draw(label);
     };
     box(left,top,900,height,sf::Color(18,23,31,240));
-    const auto& serverName=common::activeSettings.name;
+    const auto& serverName=settings.name;
     text(sf::String::fromUtf8(serverName.begin(),serverName.end()),
          left+24,top+18,24,sf::Color::White,852);
     std::array<float,2> y{top+68,top+68};
     for(std::size_t t=0;t<teams.size();++t) {
         const auto col=t%2;const float x=left+24+col*444;
-        auto color=common::teamColor(t,common::activeSettings.teams);color.a=255;
+        auto color=common::teamColor(t,settings.teams);color.a=255;
         box(x,y[col],408,2,color);
         y[col]+=8;
         text("PLAYER",x,y[col],13,sf::Color(165,175,190));

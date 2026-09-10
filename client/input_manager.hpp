@@ -1,4 +1,5 @@
 #pragma once
+#include "common/settings.hpp"
 
 #include "common/common.hpp"
 #include "common/keybindings.hpp"
@@ -16,6 +17,7 @@
 
 class InputManager {
 public:
+    void setSettings(const common::ServerSettings& settings){settings_=settings;}
     struct KeyState {
         bool up = false;
         bool down = false;
@@ -27,16 +29,16 @@ public:
         bool walk = false; // left shift
         bool rightWalk = false; // right shift
 
-        bool jab = false;   // left mouse
-        bool hook = false;  // right mouse
+        bool light = false;   // left mouse
+        bool heavy = false;  // right mouse
     };
 
     struct EdgeState {
-        bool jabPressed = false;
-        bool jabReleased = false;
+        bool lightPressed = false;
+        bool lightReleased = false;
 
-        bool hookPressed = false;
-        bool hookReleased = false;
+        bool heavyPressed = false;
+        bool heavyReleased = false;
     };
 
 public:
@@ -65,7 +67,7 @@ public:
 
     void clearAll();
     void cancelCombatInput() {
-        keys_.jab=keys_.hook=false;edges_={};
+        keys_.light=keys_.heavy=false;edges_={};
         spellReady_=spellClicked_=false;spellClick_.reset();attackMousePosition_.reset();
     }
     common::AttackKind selectedSpell() const {return selectedSpell_;}
@@ -73,6 +75,7 @@ public:
     bool collisionDebugEnabled() const { return collisionDebugEnabled_; }
 
 private:
+    common::ServerSettings settings_;
     void setBinding(int code, bool pressed);
     common::KeyBindings bindings_;
     std::set<int> held_;
@@ -85,7 +88,7 @@ private:
     bool collisionDebugEnabled_ = false;
     bool debugKeyHeld_ = false;
     bool spellKeyHeld_ = false, spellReady_ = false, spellClicked_ = false;
-    common::AttackKind selectedSpell_=common::AttackKind::Uppercut, clickedSpell_=common::AttackKind::Uppercut;
+    common::AttackKind selectedSpell_=common::AttackKind::Explosion, clickedSpell_=common::AttackKind::Explosion;
     bool lightningKeyHeld_=false;
     bool explosionAvailable_=false,lightningAvailable_=false;
     std::optional<sf::Vector2i> spellClick_;

@@ -30,11 +30,11 @@ public:
     }
     const std::vector<Entry>& entries()const{return entries_;}
     static const char* cause(common::KillCause cause) {
-        switch(cause){case common::KillCause::Lightning:return "LIGHTNING";case common::KillCause::Spell:return "SPELL";case common::KillCause::Jab:return "JAB";case common::KillCause::Hook:return "HOOK";
+        switch(cause){case common::KillCause::Lightning:return "LIGHTNING";case common::KillCause::Spell:return "SPELL";case common::KillCause::Light:return "LIGHT";case common::KillCause::Heavy:return "HEAVY";
             case common::KillCause::Floor:return "FLOOR";case common::KillCause::Bounds:return "VOID";default:return "HIT";}
     }
     static float opacity(const Entry& entry){return std::clamp(Lifetime-entry.age,0.f,1.f);}
-    void draw(sf::RenderTarget& target,const sf::Font& font) const {
+    void draw(sf::RenderTarget& target,const sf::Font& font,const common::ServerSettings& settings=common::ServerSettings{}) const {
         const float right=target.getView().getSize().x-18;
         const float limit=std::min(600.f,right-18);
         for(std::size_t i=0;i<entries_.size();++i) {
@@ -55,8 +55,8 @@ public:
                 return text;
             };
             auto killer=makeName(event.killerName),victim=makeName(event.victimName);
-            const auto killerColor=event.killer<0?sf::Color(190,196,205):common::teamColor(event.killerTeam,common::activeSettings.teams);
-            killer.setFillColor(tint(killerColor));victim.setFillColor(tint(common::teamColor(event.victimTeam,common::activeSettings.teams)));
+            const auto killerColor=event.killer<0?sf::Color(190,196,205):common::teamColor(event.killerTeam,settings.teams);
+            killer.setFillColor(tint(killerColor));victim.setFillColor(tint(common::teamColor(event.victimTeam,settings.teams)));
             float width=killer.getLocalBounds().size.x+victim.getLocalBounds().size.x+methodWidth+24;
             float x=right-width+12*std::max(0.f,1-entry.age/.15f),y=18+float(i)*32;
             auto place=[&](sf::Text& text,float left){auto bounds=text.getLocalBounds();text.setPosition({left-bounds.position.x,y+12-bounds.position.y-bounds.size.y*.5f});};

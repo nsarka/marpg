@@ -27,7 +27,7 @@ def pump(duration):
         for i in range(ident+1):
             offset+=22;n=struct.unpack_from('!I',data,offset)[0];offset+=4+n+8
             attack,latest=struct.unpack_from('!BI',data,offset);offset+=23
-            count=data[offset+4];offset+=5+count*20
+            count=data[offset+4];offset+=5+count*20+50
     return latest
 
 def attack(sequence,kind=1,age=0):

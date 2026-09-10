@@ -20,6 +20,7 @@
 
 class ClientConnection {
 public:
+    const common::ServerSettings& serverSettings() const{return settings_;}
     explicit ClientConnection(common::Logger& logger);
 
     [[nodiscard]] common::PlayerId connectToServer(const std::string serverText = "127.0.0.1", const std::string myName = "Rick", unsigned short port=54000, std::uint32_t requestedTeam=0);
@@ -36,6 +37,7 @@ public:
     void sendInput(common::PlayerId& id, common::InputCommand &cmd);
 
 private:
+    common::ServerSettings settings_;
     std::string connectionError_;
     common::Logger& logger;
     sf::UdpSocket udp_socket_;

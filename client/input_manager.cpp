@@ -33,7 +33,7 @@ void InputManager::handleEvents() {
                 clickedSpell_=selectedSpell_;spellClick_=mouse->position;spellClicked_=true;spellReady_=false;continue;
             }
             setMouseButton(mouse->button, true);
-            if (edges_.jabPressed || edges_.hookPressed)attackMousePosition_ = mouse->position;
+            if (edges_.lightPressed || edges_.heavyPressed)attackMousePosition_ = mouse->position;
         }
         else if (const auto* mouse = event->getIf<sf::Event::MouseButtonReleased>()) {
             setMouseButton(mouse->button, false);
@@ -52,7 +52,7 @@ common::InputCommand InputManager::buildCommand(sf::Vector2f playerPosition, con
     if(spellClick_)cmd.spellTarget=window_.mapPixelToCoords(*spellClick_,worldView);
     if(cmd.spellPressed) {
         common::PlayerState caster;caster.pos=playerPosition;
-        if(!common::spellTargetValid(caster,cmd.spellKind,cmd.spellTarget,walls)){cmd.spellPressed=false;spellReady_=true;}
+        if(!common::spellTargetValid(caster,cmd.spellKind,cmd.spellTarget,walls, settings_)){cmd.spellPressed=false;spellReady_=true;}
     }
     spellClicked_=false;spellClick_.reset();
 
@@ -69,13 +69,13 @@ common::InputCommand InputManager::buildCommand(sf::Vector2f playerPosition, con
     cmd.cursor=window_.mapPixelToCoords(sf::Mouse::getPosition(window_),worldView);cmd.hasCursor=window_.hasFocus();
     attackMousePosition_.reset();
 
-    cmd.jabHeld = keys_.jab;
-    cmd.jabPressed = edges_.jabPressed;
-    cmd.jabReleased = edges_.jabReleased;
+    cmd.lightHeld = keys_.light;
+    cmd.lightPressed = edges_.lightPressed;
+    cmd.lightReleased = edges_.lightReleased;
 
-    cmd.hookHeld = keys_.hook;
-    cmd.hookPressed = edges_.hookPressed;
-    cmd.hookReleased = edges_.hookReleased;
+    cmd.heavyHeld = keys_.heavy;
+    cmd.heavyPressed = edges_.heavyPressed;
+    cmd.heavyReleased = edges_.heavyReleased;
 
     // Consume edges only when a simulation command is produced.
     edges_ = {};
@@ -114,15 +114,15 @@ void InputManager::setBinding(int code, bool pressed) {
     };
     keys_.up=active(0);keys_.down=active(1);keys_.left=active(2);keys_.right=active(3);
     keys_.walk=active(4);keys_.rightWalk=false;keys_.scoreboard=active(7);
-    const bool jab=active(5),hook=active(6),debug=active(8);
-    edges_.jabPressed|=jab && !keys_.jab;edges_.jabReleased|=!jab && keys_.jab;
-    edges_.hookPressed|=hook && !keys_.hook;edges_.hookReleased|=!hook && keys_.hook;
-    if((jab && !keys_.jab) || (hook && !keys_.hook))attackMousePosition_=sf::Mouse::getPosition(window_);
-    keys_.jab=jab;keys_.hook=hook;
+    const bool light=active(5),heavy=active(6),debug=active(8);
+    edges_.lightPressed|=light && !keys_.light;edges_.lightReleased|=!light && keys_.light;
+    edges_.heavyPressed|=heavy && !keys_.heavy;edges_.heavyReleased|=!heavy && keys_.heavy;
+    if((light && !keys_.light) || (heavy && !keys_.heavy))attackMousePosition_=sf::Mouse::getPosition(window_);
+    keys_.light=light;keys_.heavy=heavy;
     if(debug && !debugKeyHeld_)collisionDebugEnabled_=!collisionDebugEnabled_;
     debugKeyHeld_=debug;
     const bool spell=active(9);
-    if(spell && !spellKeyHeld_ && explosionAvailable_) {spellReady_=!spellReady_ || selectedSpell_!=common::AttackKind::Uppercut;selectedSpell_=common::AttackKind::Uppercut;}
+    if(spell && !spellKeyHeld_ && explosionAvailable_) {spellReady_=!spellReady_ || selectedSpell_!=common::AttackKind::Explosion;selectedSpell_=common::AttackKind::Explosion;}
     const bool lightning=active(10);
     if(lightning && !lightningKeyHeld_ && lightningAvailable_) {spellReady_=!spellReady_ || selectedSpell_!=common::AttackKind::Lightning;selectedSpell_=common::AttackKind::Lightning;}
     lightningKeyHeld_=lightning;

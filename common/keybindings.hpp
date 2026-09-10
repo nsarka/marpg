@@ -9,7 +9,7 @@
 #include <stdexcept>
 
 namespace common {
-inline constexpr std::array<const char*,8> BindingNames={"move_up","move_down","move_left","move_right","walk","jab","hook","scoreboard"};
+inline constexpr std::array<const char*,8> BindingNames={"move_up","move_down","move_left","move_right","walk","light","heavy","scoreboard"};
 // Keyboard codes occupy the first range; mouse buttons follow them.
 inline int mouseBinding(sf::Mouse::Button button){return int(sf::Keyboard::KeyCount)+int(button);}
 inline int parseBinding(std::string name) {

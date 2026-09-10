@@ -28,7 +28,7 @@ def states(sock):
         n=struct.unpack_from('!I',data,offset)[0];offset+=4
         name=data[offset:offset+n].decode();offset+=n
         health=struct.unpack_from('!i',data,offset)[0];offset+=31
-        count=data[offset+4];offset+=5+count*20
+        count=data[offset+4];offset+=5+count*20+50
         result.append((connected,team,pos,name,health))
     return result
 
@@ -49,10 +49,10 @@ trigger = 7
 trigger_interval_seconds = 1.0
 out_of_bounds = 9
 out_of_bounds_interval_seconds = 0.25
-[jab]
+[light]
 damage_min = 27
 damage_max = 27
-[hook]
+[heavy]
 damage_min = 41
 damage_max = 41
 ''')
@@ -67,7 +67,7 @@ damage_max = 41
                 s.sendto(string('join')+string(f'Player {i}')+join_identity,('127.0.0.1',port))
                 ack=receive(s,'join_ack');ident=struct.unpack_from('!i',ack)[0]
                 assert ident==(i if i<6 else -1),(i,ident)
-                assert struct.unpack_from('!I',ack,4)[0]==5
+                assert struct.unpack_from('!I',ack,4)[0]==7
                 if i<6:
                     current=states(s)
                     assert current[i][0] and current[i][1]==i%3 and current[i][3]==f'Player {i}',current[i]

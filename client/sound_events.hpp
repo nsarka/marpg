@@ -1,4 +1,6 @@
 #pragma once
+#include "sound_types.hpp"
+#include "attack_presentation.hpp"
 #include "common/common.hpp"
 #include "common/attack_delivery.hpp"
 #include <array>
@@ -6,7 +8,6 @@
 #include <string>
 
 // Keep snapshot deduplication independent of playback and audio hardware.
-enum class SoundEffect { Swing, Punch, SmallDamage, Death, Respawn, Cast, Blast, Teleport, Count };
 struct SoundCue { SoundEffect effect; sf::Vector2f position; };
 inline std::optional<SoundEffect> soundCategory(const std::string& name) {
     const auto starts=[&](const char* prefix){return name.rfind(prefix,0)==0;};
@@ -38,10 +39,10 @@ public:
             if (common::sequenceNewer(player.attackSequence,seen.attack)) {
                 seen.attack=player.attackSequence;
                 if (player.lastAttack!=common::AttackKind::None)
-                    cues.push_back({(player.lastAttack==common::AttackKind::Uppercut || player.lastAttack==common::AttackKind::Lightning)?SoundEffect::Cast:SoundEffect::Swing,player.pos});
+                    cues.push_back({client::attackPresentation(player.lastAttack).castSound,player.pos});
             }
             if(common::sequenceNewer(player.spellSequence,seen.spell)) {
-                seen.spell=player.spellSequence;cues.push_back({SoundEffect::Blast,player.spellPosition});
+                seen.spell=player.spellSequence;cues.push_back({client::attackPresentation(player.spellEffect).impactSound,player.spellPosition});
             }
             for (const auto& event:player.damageEvents) {
                 if (!common::sequenceNewer(event.sequence,seen.damage)) continue;

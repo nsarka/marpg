@@ -10,6 +10,8 @@
 #include <stdexcept>
 
 struct TileLighting {
+    TileLighting() = default;
+    explicit TileLighting(const tmx::Map& map){load(map);}
     bool enabled=false;
     sf::Vector3f sun{0,0,800};
     float ambient=.10f,intensity=.12f;
@@ -105,4 +107,4 @@ struct TileLighting {
         }
     }
 };
-inline TileLighting tileLighting;
+

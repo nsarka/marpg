@@ -1,4 +1,5 @@
 """Verify shutdown notifications, retries to peers, and abrupt-loss fallback."""
+from build_identity import join_identity
 import pathlib
 import signal
 import socket
@@ -38,7 +39,7 @@ for stop in (signal.SIGINT,signal.SIGTERM,signal.SIGKILL):
                     time.sleep(.02)
                 for i in range(2):
                     peer=socket.socket(socket.AF_INET,socket.SOCK_DGRAM);peer.settimeout(3);peers.append(peer)
-                    peer.sendto(string('join')+string(f'Peer {i}'),('127.0.0.1',port))
+                    peer.sendto(string('join')+string(f'Peer {i}')+join_identity,('127.0.0.1',port))
                     ident=struct.unpack_from('!i',receive(peer,'join_ack'))[0]
                     assert ident==i+1
                 server.send_signal(stop)

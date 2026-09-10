@@ -1,14 +1,15 @@
 #pragma once
+#include "attack_presentation.hpp"
 #include "common/attack_delivery.hpp"
 #include "common/settings.hpp"
-#include "client/tile_lighting.hpp"
+#include "client/rendering/tile_lighting.hpp"
 #include <SFML/Graphics.hpp>
 #include <array>
 #include <filesystem>
 
 class SpellEffects {
 public:
-    explicit SpellEffects(const std::filesystem::path& folder) {
+    explicit SpellEffects(const std::filesystem::path& folder,const common::ServerSettings& rules=common::ServerSettings{}) :rules_(rules) {
         for(int i=0;i<10;++i)if(!frames_[i].loadFromFile(folder/("Explosion"+std::to_string(i+1)+".png")))
             throw std::runtime_error("Cannot load spell explosion frames");
         for(int i=0;i<6;++i)if(!bolts_[i].loadFromFile(folder.parent_path()/"Lightning"/("Lightning_cycle"+std::to_string(i+1)+".png")))
@@ -23,7 +24,7 @@ public:
     }
     void predictCast(std::size_t id,const common::PlayerState& player,common::AttackKind kind,sf::Vector2f position) {
         if(id>=warnings_.size() || !player.alive || player.stunTicks>0 || player.combatDebug.attack!=common::AttackKind::None)return;
-        if((kind==common::AttackKind::Uppercut && player.explosionCooldown>0) ||
+        if((kind==common::AttackKind::Explosion && player.explosionCooldown>0) ||
            (kind==common::AttackKind::Lightning && player.lightningCooldown>0))return;
         warnings_[id]=Warning{position,kind,0,player.attackSequence,true,0};
     }
@@ -36,9 +37,9 @@ public:
             if(!p.connected){seen_[i].reset();continue;}
             auto& warning=warnings_[i];
             const auto& combat=p.combatDebug;
-            const bool casting=p.alive && (combat.attack==common::AttackKind::Uppercut || combat.attack==common::AttackKind::Lightning) &&
-                combat.age<common::attackDescription(combat.attack).startupTicks+
-                    (combat.attack==common::AttackKind::Lightning?common::attackDescription(combat.attack).activeTicks:0);
+            const bool casting=p.alive && (combat.attack==common::AttackKind::Explosion || combat.attack==common::AttackKind::Lightning) &&
+                combat.age<common::attackDescription(combat.attack, rules_).startupTicks+
+                    (combat.attack==common::AttackKind::Lightning?common::attackDescription(combat.attack, rules_).activeTicks:0);
             if(warning) {warning->age+=dt;warning->pendingAge+=dt;}
             if(casting) {
                 const float serverAge=combat.age*common::TICK_DT;
@@ -48,18 +49,18 @@ public:
             } else if(warning && (!warning->predicted || p.attackSequence!=warning->sequence || warning->pendingAge>.5f)) {
                 warning.reset();
             }
-            if(seen_[i] && common::sequenceNewer(p.spellSequence,*seen_[i]))effects_.push_back({p.spellPosition,0,p.spellEffect==common::AttackKind::Lightning});
+            if(seen_[i] && common::sequenceNewer(p.spellSequence,*seen_[i]))effects_.push_back({p.spellPosition,0,client::attackPresentation(p.spellEffect).effect==client::SpellVisual::Lightning});
             seen_[i]=p.spellSequence;
         }
     }
-    void addLights(const common::ClientLighting& settings) const {
+    void addLights(TileLighting& tileLighting,const common::ClientLighting& settings) const {
         for(const auto& warning:warnings_)if(warning) {
             const bool lightning=warning->kind==common::AttackKind::Lightning;
-            const float radius=lightning?common::activeSettings.lightning.radius:common::activeSettings.spell.radius;
+            const float radius=common::attackDescription(lightning?common::AttackKind::Lightning:common::AttackKind::Explosion,rules_).range;
             tileLighting.addLight(warning->position,lightning?settings.lightningSpot:settings.explosionWindup,radius);
         }
         for(const auto& effect:effects_) {
-            const float radius=effect.lightning?common::activeSettings.lightning.radius:common::activeSettings.spell.radius;
+            const float radius=common::attackDescription(effect.lightning?common::AttackKind::Lightning:common::AttackKind::Explosion,rules_).range;
             const float fade=1.f-effect.age/(effect.lightning?.3f:.8f);
             tileLighting.addLight(effect.position,effect.lightning?settings.lightningImpact:settings.explosionImpact,radius,fade);
         }
@@ -69,9 +70,9 @@ public:
             if(!entry)continue;
             const auto& w=*entry;
             const bool lightning=w.kind==common::AttackKind::Lightning;
-            const auto& rules=lightning?common::activeSettings.lightning:common::activeSettings.spell;
-            const float radius=rules.radius;
-            const float duration=common::attackDescription(w.kind).startupTicks*common::TICK_DT;
+            const auto rules=common::attackDescription(w.kind,rules_);
+            const float radius=rules.range;
+            const float duration=common::attackDescription(w.kind, rules_).startupTicks*common::TICK_DT;
             const float progress=std::clamp(w.age/duration,0.f,1.f);
             const int frame=static_cast<int>(w.age/.08f)%6;
             sf::Sprite charge(lightning?spots_[static_cast<int>(w.age/.08f)%4]:chargeFire_[frame]);
@@ -94,11 +95,12 @@ public:
                 continue;
             }
             sf::Sprite sprite(frames_[std::min(9,int(effect.age/.08f))]);
-            sprite.setOrigin({128,128});const float scale=common::activeSettings.spell.radius/120.f*1.3f;sprite.setScale({scale,scale});sprite.setPosition(effect.position);
+            sprite.setOrigin({128,128});const float scale=common::attackDescription(common::AttackKind::Explosion,rules_).range/120.f*1.3f;sprite.setScale({scale,scale});sprite.setPosition(effect.position);
             target.draw(sprite);
         }
     }
 private:
+    common::ServerSettings rules_;
     struct Warning {
         sf::Vector2f position;
         common::AttackKind kind;

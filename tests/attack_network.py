@@ -25,13 +25,13 @@ while True:
         break
 
 
-def command(sequence, jab=False, hook=False):
-    if jab or hook:
-        return (string('attack') + struct.pack('!IIB', player_id, sequence, 1 if jab else 2)
+def command(sequence, light=False, heavy=False):
+    if light or heavy:
+        return (string('attack') + struct.pack('!IIB', player_id, sequence, 1 if light else 2)
                 + struct.pack('=ff', 1, 0) + struct.pack('!I', 0))
     return (string('state') + struct.pack('!II', player_id, sequence)
             + struct.pack('=ff', 0, 0)
-            + bytes([False, jab, jab, False, hook, hook, False]) + struct.pack("=ff", 1, 0))
+            + bytes([False, light, light, False, heavy, heavy, False]) + struct.pack("=ff", 1, 0))
 
 
 def attack_state(data):
@@ -45,7 +45,7 @@ def attack_state(data):
         kind, serial = struct.unpack_from('!BI', data, offset)
         offset += 23
         count = data[offset + 4]
-        offset += 5 + count * 20
+        offset += 5 + count * 20 + 50
     return kind, serial
 
 
@@ -59,19 +59,19 @@ def observe(expected, duration=0.2):
     assert latest == expected, (latest, expected)
 
 
-sock.sendto(command(0, jab=True), server)
+sock.sendto(command(0, light=True), server)
 observe((1, 1))
 # A second press during the clip must not interrupt it.
-sock.sendto(command(1, hook=True), server)
+sock.sendto(command(1, heavy=True), server)
 observe((1, 1))
 time.sleep(0.8)
-sock.sendto(command(2, hook=True), server)
+sock.sendto(command(2, heavy=True), server)
 observe((2, 2))
 time.sleep(1.1)
 # Replayed inputs must never retrigger a completed swing.
-sock.sendto(command(2, hook=True), server)
-sock.sendto(command(0, jab=True), server)
+sock.sendto(command(2, heavy=True), server)
+sock.sendto(command(0, light=True), server)
 observe((2, 2))
-sock.sendto(command(3, jab=True), server)
+sock.sendto(command(3, light=True), server)
 observe((1, 3))
-print('PASS: jab, hook, cooldown, repeated attacks, duplicate/out-of-order inputs, snapshot serialization')
+print('PASS: light, heavy, cooldown, repeated attacks, duplicate/out-of-order inputs, snapshot serialization')

@@ -84,7 +84,7 @@ common::PlayerId ClientConnection::connectToServer(const std::string serverText,
                     logger.log_error("Incompatible server configuration/protocol. Rebuild server and client together.");
                     return -1;
                 }
-                common::applySettings(settings);
+                settings_=settings;
                 logger.log_info("Received server settings: ",settings.slots," total slots (",settings.slots-settings.bots," human), ",settings.teams," teams");
                 myId=assignedId;
                 break;
@@ -210,8 +210,8 @@ void ClientConnection::sendInput(common::PlayerId &id, common::InputCommand &cmd
     if(shuttingDown())return;
     const auto nowMs=static_cast<std::uint32_t>(attackClock_.getElapsedTime().asMilliseconds());
     if(cmd.spellPressed)attackOutbox_.enqueue(cmd.spellKind,cmd.spellTarget,nowMs);
-    if (cmd.jabPressed || cmd.hookPressed)
-        attackOutbox_.enqueue(cmd.jabPressed ? common::AttackKind::Jab : common::AttackKind::Hook,cmd.aim,nowMs);
+    if (cmd.lightPressed || cmd.heavyPressed)
+        attackOutbox_.enqueue(cmd.lightPressed ? common::AttackKind::Light : common::AttackKind::Heavy,cmd.aim,nowMs);
     for (const auto& request : attackOutbox_.requests(nowMs)) {
         auto attack=common::attackPacket(id,request);
         sendPacket(udp_socket_,attack,serverIp_,serverPort_,"attack send");

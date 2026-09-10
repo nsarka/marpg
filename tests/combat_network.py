@@ -6,14 +6,14 @@ from player_collision_network import a, b, aid, bid, seq, string, server, direct
 import struct, time
 
 
-def send(s, ident, jab=False, hook=False):
+def send(s, ident, light=False, heavy=False):
     global seq
     seq += 1
-    if jab or hook:
-        s.sendto(string('attack')+struct.pack('!IIB',ident,seq,1 if jab else 2)
+    if light or heavy:
+        s.sendto(string('attack')+struct.pack('!IIB',ident,seq,1 if light else 2)
                  +struct.pack('=ff',*direction)+struct.pack('!I',0),server)
     s.sendto(string('state')+struct.pack('!II',ident,seq)+struct.pack('=ff',0,0)
-             +bytes([1,jab,jab,0,hook,hook,0])+struct.pack("=ff", 1, 0),server)
+             +bytes([1,light,light,0,heavy,heavy,0])+struct.pack("=ff", 1, 0),server)
 
 
 def victim(data):
@@ -32,12 +32,13 @@ def victim(data):
             event_id,amount,source=struct.unpack_from('!Iii',data,offset)
             contact=struct.unpack_from('=ff',data,offset+12)
             events.append((event_id,amount,source,contact));offset+=20
+        offset+=50 # Complete player-state extension (protocol 7)
     return bool(alive),health,position,events
 
 send(a,aid);send(b,bid)
 previous_health=100
 for swing in range(4):
-    send(a,aid,jab=swing==0,hook=swing!=0)
+    send(a,aid,light=swing==0,heavy=swing!=0)
     end=time.monotonic()+1.1
     state=None
     while time.monotonic()<end:
@@ -57,7 +58,7 @@ while time.monotonic()<end:
     if state and state[0]:
         assert state[1]==100,'Respawn health must be full'
         assert state[2]!=death_position,'Respawn should use a free spawn'
-        print('PASS: network jab/hook damage, lethal hit, death snapshot, full-health respawn')
+        print('PASS: network light/heavy damage, lethal hit, death snapshot, full-health respawn')
         break
 else:
     raise AssertionError('No automatic respawn')

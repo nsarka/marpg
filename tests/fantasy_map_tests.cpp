@@ -1,4 +1,4 @@
-#include "common/map_layer.hpp"
+#include "client/rendering/map_layer.hpp"
 #include "common/team_spawns.hpp"
 #include "client/wall_occlusion.hpp"
 #include <filesystem>

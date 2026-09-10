@@ -12,6 +12,12 @@ public:
     Navigation(const std::string& mapPath,const CollisionWorld& walls,const TriggerSystem& hazards)
         : walls_(walls),hazards_(hazards) {
         tmx::Map map;if(!map.load(mapPath))throw std::runtime_error("Cannot load navigation map");
+        initialize(map);
+    }
+    Navigation(const tmx::Map& map,const CollisionWorld& walls,const TriggerSystem& hazards)
+        :walls_(walls),hazards_(hazards){initialize(map);}
+private:
+    void initialize(const tmx::Map& map) {
         for(const auto& layer:map.getLayers()) {
             if(layer->getType()!=tmx::Layer::Type::Tile || layer->getName()!="Floor")continue;
             auto size=layer->getSize();auto tile=map.getTileSize();auto offset=layer->getOffset();
@@ -39,6 +45,7 @@ public:
             }
         }
     }
+public:
     bool safePoint(sf::Vector2f p) const {
         if(walls_.overlaps(p))return false;
         // Keep the whole footprint on floor and out of hazardous regions.

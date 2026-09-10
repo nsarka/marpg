@@ -36,12 +36,12 @@ std::ostream& operator<<(std::ostream& os, const common::InputCommand& cmd)
        << "sequence=" << cmd.sequence
        << ", move=" << cmd.move
        << ", sprint=" << std::boolalpha << cmd.sprint
-       << ", jabHeld=" << std::boolalpha << cmd.jabHeld
-       << ", jabPressed=" << std::boolalpha << cmd.jabPressed
-       << ", jabReleased=" << std::boolalpha << cmd.jabReleased
-       << ", hookHeld=" << std::boolalpha << cmd.hookHeld
-       << ", hookPressed=" << std::boolalpha << cmd.hookPressed
-       << ", hookReleased=" << std::boolalpha << cmd.hookReleased
+       << ", lightHeld=" << std::boolalpha << cmd.lightHeld
+       << ", lightPressed=" << std::boolalpha << cmd.lightPressed
+       << ", lightReleased=" << std::boolalpha << cmd.lightReleased
+       << ", heavyHeld=" << std::boolalpha << cmd.heavyHeld
+       << ", heavyPressed=" << std::boolalpha << cmd.heavyPressed
+       << ", heavyReleased=" << std::boolalpha << cmd.heavyReleased
        << "}";
 
     return os;

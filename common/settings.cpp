@@ -34,21 +34,21 @@ void ServerSettings::validate() const {
     if (ip.empty() || ip.size()>255 || !port || slots<1 || slots>MAX_PLAYERS || bots>slots)
         throw std::runtime_error("Server requires a valid address/port, 1-32 slots, and bots <= slots");
     if(teams>slots)throw std::runtime_error("Out of range: server.teams (expected 0-"+std::to_string(slots)+"; 0 = free-for-all, 1-slots = team mode)");
-    if(jabDamageMin<0 || jabDamageMin>jabDamage || hookDamageMin<0 || hookDamageMin>hookDamage)
+    if(lightDamageMin<0 || lightDamageMin>lightDamage || heavyDamageMin<0 || heavyDamageMin>heavyDamage)
         throw std::runtime_error("Melee damage must satisfy 0 <= min <= max <= 10000");
     if(!std::isfinite(respawnSeconds) || respawnSeconds<0 || respawnSeconds>600)
         throw std::runtime_error("respawn_seconds must be between 0 and 600");
     if(!std::isfinite(damageStunSeconds) || damageStunSeconds<0 || damageStunSeconds>60)
         throw std::runtime_error("damage_stun_seconds must be between 0 and 60");
-    for(double cone:{jabConeDegrees,hookConeDegrees})
+    for(double cone:{lightConeDegrees,heavyConeDegrees})
         if(!std::isfinite(cone) || cone<=0 || cone>360)
             throw std::runtime_error("Melee cone_degrees must be greater than 0 and at most 360");
-    for(double range:{jabRange,hookRange})
+    for(double range:{lightRange,heavyRange})
         if(!std::isfinite(range) || range<=0 || range>10000)
-            throw std::runtime_error("Jab/hook range must be greater than 0 and at most 10000");
-    for(double windup:{jabWindup,hookWindup})
+            throw std::runtime_error("Light/heavy range must be greater than 0 and at most 10000");
+    for(double windup:{lightWindup,heavyWindup})
         if(!std::isfinite(windup) || windup<0 || windup>60)
-            throw std::runtime_error("Jab/hook windup must be between 0 and 60 seconds");
+            throw std::runtime_error("Light/heavy windup must be between 0 and 60 seconds");
     for(const auto& spell:{this->spell,lightning}) {
         if(spell.damageMin<0 || spell.damageMax<spell.damageMin || spell.damageMax>10000)
             throw std::runtime_error("Spell damage range must satisfy 0 <= min <= max <= 10000");
@@ -57,26 +57,26 @@ void ServerSettings::validate() const {
         if(spell.radius<=0 || spell.range<=0 || spell.interval<1.0/TICK_RATE || spell.duration>60 || spell.windup>60 || spell.cooldown>600)
             throw std::runtime_error("Spell radius/range must be positive; interval >= 1 tick; duration/windup <= 60s; cooldown <= 600s");
     }
-    for (auto damage:{triggerDamage,boundsDamage,jabDamage,hookDamage})
+    for (auto damage:{triggerDamage,boundsDamage,lightDamage,heavyDamage})
         if (damage<0 || damage>10000) throw std::runtime_error("Damage must be between 0 and 10000");
     for (auto interval:{triggerInterval,boundsInterval})
         if (!std::isfinite(interval) || interval<1.0/TICK_RATE || interval>60) throw std::runtime_error("Damage intervals must be between 0.015625 and 60 seconds");
 }
 ServerSettings loadServerSettings(const std::string& path) {
     auto t=toml::parse_file(path); ServerSettings s;
-    for (const auto& [key,value]:t) if(key!="server" && key!="trigger_damage" && key!="spell" && key!="lightning" && key!="jab" && key!="hook") throw std::runtime_error("Unknown server configuration table: "+std::string(key.str()));
+    for (const auto& [key,value]:t) if(key!="server" && key!="trigger_damage" && key!="spell" && key!="lightning" && key!="light" && key!="heavy") throw std::runtime_error("Unknown server configuration table: "+std::string(key.str()));
     keys(t,"server",{"map","name","ip","port","slots","teams","bots","bot_ai","friendly_fire","honor_team_requests","damage_stun_seconds","respawn_seconds"});
     keys(t,"trigger_damage",{"trigger","trigger_interval_seconds","out_of_bounds","out_of_bounds_interval_seconds"});
-    keys(t,"jab",{"windup_seconds","damage_min","damage_max","range","cone_degrees"});
-    keys(t,"hook",{"windup_seconds","damage_min","damage_max","range","cone_degrees"});
-    s.jabDamageMin=integer(t,"jab","damage_min",s.jabDamageMin,10000);
-    s.hookDamageMin=integer(t,"hook","damage_min",s.hookDamageMin,10000);
-    s.jabConeDegrees=get<double>(t,"jab","cone_degrees",s.jabConeDegrees);
-    s.hookConeDegrees=get<double>(t,"hook","cone_degrees",s.hookConeDegrees);
-    s.jabRange=get<double>(t,"jab","range",s.jabRange);
-    s.hookRange=get<double>(t,"hook","range",s.hookRange);
-    s.jabWindup=get<double>(t,"jab","windup_seconds",s.jabWindup);
-    s.hookWindup=get<double>(t,"hook","windup_seconds",s.hookWindup);
+    keys(t,"light",{"windup_seconds","damage_min","damage_max","range","cone_degrees"});
+    keys(t,"heavy",{"windup_seconds","damage_min","damage_max","range","cone_degrees"});
+    s.lightDamageMin=integer(t,"light","damage_min",s.lightDamageMin,10000);
+    s.heavyDamageMin=integer(t,"heavy","damage_min",s.heavyDamageMin,10000);
+    s.lightConeDegrees=get<double>(t,"light","cone_degrees",s.lightConeDegrees);
+    s.heavyConeDegrees=get<double>(t,"heavy","cone_degrees",s.heavyConeDegrees);
+    s.lightRange=get<double>(t,"light","range",s.lightRange);
+    s.heavyRange=get<double>(t,"heavy","range",s.heavyRange);
+    s.lightWindup=get<double>(t,"light","windup_seconds",s.lightWindup);
+    s.heavyWindup=get<double>(t,"heavy","windup_seconds",s.heavyWindup);
     s.respawnSeconds=get<double>(t,"server","respawn_seconds",s.respawnSeconds);
     s.damageStunSeconds=get<double>(t,"server","damage_stun_seconds",s.damageStunSeconds);
     s.map=get<std::string>(t,"server","map",s.map);
@@ -93,8 +93,8 @@ ServerSettings loadServerSettings(const std::string& path) {
     s.friendlyFire=get<bool>(t,"server","friendly_fire",s.friendlyFire);
     s.triggerDamage=integer(t,"trigger_damage","trigger",s.triggerDamage,10000);
     s.boundsDamage=integer(t,"trigger_damage","out_of_bounds",s.boundsDamage,10000);
-    s.jabDamage=integer(t,"jab","damage_max",s.jabDamage,10000);
-    s.hookDamage=integer(t,"hook","damage_max",s.hookDamage,10000);
+    s.lightDamage=integer(t,"light","damage_max",s.lightDamage,10000);
+    s.heavyDamage=integer(t,"heavy","damage_max",s.heavyDamage,10000);
     s.triggerInterval=get<double>(t,"trigger_damage","trigger_interval_seconds",s.triggerInterval);
     s.boundsInterval=get<double>(t,"trigger_damage","out_of_bounds_interval_seconds",s.boundsInterval);
     for(const auto& section:{"spell","lightning"}) {
@@ -128,7 +128,7 @@ ClientSettings loadClientSettings(const std::string& path) {
     light("light_explosion_windup",s.lighting.explosionWindup);light("light_explosion_impact",s.lighting.explosionImpact);
     light("light_lightning_spot",s.lighting.lightningSpot);light("light_lightning_impact",s.lighting.lightningImpact);
     keys(t,"client",{"name","ip","port","team","show_other_damage_numbers","mouse_idle_seconds"});
-    keys(t,"bindings",{"move_up","move_down","move_left","move_right","walk","jab","hook","scoreboard","debug","spell","lightning"});
+    keys(t,"bindings",{"move_up","move_down","move_left","move_right","walk","light","heavy","scoreboard","debug","spell","lightning"});
     for(std::size_t i=0;i<s.bindings.actions.size();++i) {
         const std::string action=i<BindingNames.size()?BindingNames[i]:(i==8?"debug":i==9?"spell":"lightning");
         const auto node=t["bindings"][action];
@@ -152,29 +152,28 @@ ClientSettings loadClientSettings(const std::string& path) {
     if (s.name.empty() || s.name.size()>64 || s.ip.empty() || !s.port) throw std::runtime_error("Invalid client name, address, or port");
     return s;
 }
-void applySettings(const ServerSettings& s) {s.validate();activeSettings=s;setAttackDamage(s.jabDamage,s.hookDamage);}
 void writeSettings(sf::Packet& p,const ServerSettings& s) {
     p<<s.ip<<s.port<<s.slots<<s.teams<<s.bots<<s.friendlyFire
-     <<s.triggerDamage<<s.triggerInterval<<s.boundsDamage<<s.boundsInterval<<s.jabDamage<<s.hookDamage<<s.honorTeamRequests<<s.name<<s.botAI;
+     <<s.triggerDamage<<s.triggerInterval<<s.boundsDamage<<s.boundsInterval<<s.lightDamage<<s.heavyDamage<<s.honorTeamRequests<<s.name<<s.botAI;
     for(const auto& v:{s.spell,s.lightning})p<<v.damageMin<<v.damageMax<<v.radius<<v.range<<v.windup<<v.cooldown<<v.duration<<v.interval;
-    p<<s.jabWindup<<s.hookWindup;
-    p<<s.jabRange<<s.hookRange;
-    p<<s.jabDamageMin<<s.hookDamageMin<<s.jabConeDegrees<<s.hookConeDegrees;
+    p<<s.lightWindup<<s.heavyWindup;
+    p<<s.lightRange<<s.heavyRange;
+    p<<s.lightDamageMin<<s.heavyDamageMin<<s.lightConeDegrees<<s.heavyConeDegrees;
     p<<s.damageStunSeconds;
     p<<s.respawnSeconds<<s.map;
 }
 bool readSettings(sf::Packet& p,ServerSettings& s) {
     ServerSettings value;
     if (!(p>>value.ip>>value.port>>value.slots>>value.teams>>value.bots>>value.friendlyFire
-          >>value.triggerDamage>>value.triggerInterval>>value.boundsDamage>>value.boundsInterval>>value.jabDamage>>value.hookDamage>>value.honorTeamRequests)) return false;
+          >>value.triggerDamage>>value.triggerInterval>>value.boundsDamage>>value.boundsInterval>>value.lightDamage>>value.heavyDamage>>value.honorTeamRequests)) return false;
     if(!p.endOfPacket() && !(p>>value.name))return false;
     if(!p.endOfPacket() && !(p>>value.botAI))return false;
     if(!p.endOfPacket())for(auto* v:{&value.spell,&value.lightning})
         if(!(p>>v->damageMin>>v->damageMax>>v->radius>>v->range>>v->windup>>v->cooldown>>v->duration>>v->interval))return false;
-    if(!p.endOfPacket() && !(p>>value.jabWindup>>value.hookWindup))return false;
-    if(!p.endOfPacket() && !(p>>value.jabRange>>value.hookRange))return false;
-    value.jabDamageMin=value.jabDamage;value.hookDamageMin=value.hookDamage;
-    if(!p.endOfPacket() && !(p>>value.jabDamageMin>>value.hookDamageMin>>value.jabConeDegrees>>value.hookConeDegrees))return false;
+    if(!p.endOfPacket() && !(p>>value.lightWindup>>value.heavyWindup))return false;
+    if(!p.endOfPacket() && !(p>>value.lightRange>>value.heavyRange))return false;
+    value.lightDamageMin=value.lightDamage;value.heavyDamageMin=value.heavyDamage;
+    if(!p.endOfPacket() && !(p>>value.lightDamageMin>>value.heavyDamageMin>>value.lightConeDegrees>>value.heavyConeDegrees))return false;
     if(!p.endOfPacket() && !(p>>value.damageStunSeconds))return false;
     if(!p.endOfPacket() && !(p>>value.respawnSeconds))return false;
     if(!(p>>value.map))return false;

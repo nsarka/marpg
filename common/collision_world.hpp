@@ -1,3 +1,4 @@
+#include <tmxlite/Map.hpp>
 #pragma once
 
 #include <SFML/System/Vector2.hpp>
@@ -10,6 +11,7 @@ class CollisionWorld {
 public:
     static constexpr float PlayerRadius = 10.f;
     void load(const std::string& mapPath, bool triggersOnly = false);
+    void load(const tmx::Map& map, bool triggersOnly = false);
     void addPolygon(std::vector<sf::Vector2f> points);
     sf::Vector2f move(sf::Vector2f position, sf::Vector2f displacement,
                       float radius = PlayerRadius,

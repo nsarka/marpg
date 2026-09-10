@@ -19,6 +19,9 @@ public:
     explicit TeleportSystem(std::shared_ptr<TriggerRegions> regions=std::make_shared<TriggerRegions>()):regions_(std::move(regions)){}
     void load(const std::string& path) {
         tmx::Map map;if(!map.load(path))throw std::runtime_error("Cannot load teleport map: "+path);
+        load(map);
+    }
+    void load(const tmx::Map& map) {
         portals_.clear();blocked_.clear();
         for(const auto& layer:map.getLayers()) {
             if(layer->getType()!=tmx::Layer::Type::Object || layer->getName()!="Triggers")continue;

@@ -11,6 +11,9 @@ class TeamSpawns {
 public:
     void load(const std::string& path,unsigned teams,const CollisionWorld& walls,const TriggerSystem& triggers) {
         tmx::Map map;if(!map.load(path))throw std::runtime_error("Cannot load spawn map");
+        load(map,teams,walls,triggers);
+    }
+    void load(const tmx::Map& map,unsigned teams,const CollisionWorld& walls,const TriggerSystem& triggers) {
         std::vector<sf::Vector2f> points;
         for(const auto& layer:map.getLayers()) {
             if(layer->getType()!=tmx::Layer::Type::Object || layer->getName()!="Spawns")continue;

@@ -5,17 +5,17 @@
 #include <SFML/Graphics.hpp>
 
 inline void drawCombatDebug(sf::RenderTarget& target, std::vector<Player>& players,
-                            const common::CollisionWorld& walls, const sf::Font& font) {
+                            const common::CollisionWorld& walls, const sf::Font& font,const common::ServerSettings& settings=common::ServerSettings{}) {
     for (auto& player : players) {
         const auto& state=player.state();
         const auto& debug=state.combatDebug;
         if (!state.connected || !state.alive || debug.attack==common::AttackKind::None) continue;
-        const auto& attack=common::attackDescription(debug.attack);
+        const auto& attack=common::attackDescription(debug.attack, settings);
         const bool active=debug.age>=attack.startupTicks && debug.age<attack.startupTicks+attack.activeTicks;
         const char* phase=debug.hit ? "HIT" : debug.age<attack.startupTicks ? "WINDUP" : active ? "ACTIVE" : "RECOVERY";
         sf::Color color=debug.hit ? sf::Color(60,255,130) : debug.age<attack.startupTicks ? sf::Color(255,200,60)
                                     : active ? sf::Color(255,70,90) : sf::Color(150,160,180);
-        if((debug.attack==common::AttackKind::Uppercut || debug.attack==common::AttackKind::Lightning)) {
+        if((debug.attack==common::AttackKind::Explosion || debug.attack==common::AttackKind::Lightning)) {
             const auto center=state.spellPosition;
             sf::CircleShape area(attack.range);area.setOrigin({attack.range,attack.range});area.setPosition(center);
             area.setFillColor(sf::Color(color.r,color.g,color.b,35));area.setOutlineColor(color);area.setOutlineThickness(1.f);target.draw(area);
@@ -25,7 +25,7 @@ inline void drawCombatDebug(sf::RenderTarget& target, std::vector<Player>& playe
             for(auto& candidate:players) {
                 const auto& other=candidate.state();
                 if(!other.connected || !other.alive || (other.pos-center).length()>attack.range)continue;
-                if(&other!=&state && !common::activeSettings.friendlyFire && state.team>=0 && state.team==other.team)continue;
+                if(&other!=&state && !settings.friendlyFire && state.team>=0 && state.team==other.team)continue;
                 const bool clear=castClear && common::attackPathClear(center,other.pos,walls);
                 const auto tint=clear?sf::Color(80,220,255):sf::Color(255,70,90);
                 sf::Vertex line[]={{center,tint},{other.pos,tint}};target.draw(line,2,sf::PrimitiveType::Lines);
@@ -42,7 +42,7 @@ inline void drawCombatDebug(sf::RenderTarget& target, std::vector<Player>& playe
         sf::ConvexShape sector(segments+2);
         sector.setPoint(0,state.pos);
         for (unsigned i=0;i<=segments;++i) {
-            const float a=angle-common::attackHalfAngle(debug.attack)+(2.f*common::attackHalfAngle(debug.attack))*float(i)/segments;
+            const float a=angle-common::attackHalfAngle(debug.attack, settings)+(2.f*common::attackHalfAngle(debug.attack, settings))*float(i)/segments;
             sector.setPoint(i+1,state.pos+sf::Vector2f{std::cos(a),std::sin(a)}*attack.range);
         }
         sector.setFillColor(sf::Color(color.r,color.g,color.b,35));
@@ -56,8 +56,8 @@ inline void drawCombatDebug(sf::RenderTarget& target, std::vector<Player>& playe
             const bool confirmed=debug.hit && debug.target==static_cast<std::int32_t>(i);
             const auto delta=other.pos-state.pos;
             if (!confirmed && (!other.alive || delta.length()>attack.range)) continue;
-            if (!common::activeSettings.friendlyFire && state.team>=0 && state.team==other.team) continue;
-            const bool inArc=common::inAttackArc(delta,debug.direction,attack.range,debug.attack);
+            if (!settings.friendlyFire && state.team>=0 && state.team==other.team) continue;
+            const bool inArc=common::inAttackArc(delta,debug.direction,attack.range,debug.attack, settings);
             const bool clear=common::attackPathClear(state.pos,other.pos,walls);
             const auto lineColor=confirmed ? sf::Color(60,255,130) : !inArc ? sf::Color(130,140,160)
                                           : !clear ? sf::Color(255,70,90) : sf::Color(80,220,255);
@@ -67,7 +67,7 @@ inline void drawCombatDebug(sf::RenderTarget& target, std::vector<Player>& playe
             mark.setOrigin({mark.getRadius(),mark.getRadius()});mark.setPosition(other.pos);
             mark.setFillColor(lineColor);target.draw(mark);
         }
-        const std::string label=std::string(debug.attack==common::AttackKind::Jab ? "JAB " : "HOOK ")+phase;
+        const std::string label=std::string(debug.attack==common::AttackKind::Light ? "LIGHT " : "HEAVY ")+phase;
         sf::Text text(font,label,uiFontSize(12));text.setFillColor(color);
         text.setOutlineColor(sf::Color::Black);text.setOutlineThickness(1.f);
         text.setPosition(state.pos+sf::Vector2f{-35,16});target.draw(text);

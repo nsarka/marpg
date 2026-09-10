@@ -26,7 +26,7 @@ def positions(data):
         offset+=4
         result.append(struct.unpack_from('=ff',data,offset+2) if data[offset] else None); offset+=18
         n=struct.unpack_from('!I',data,offset)[0]; offset+=4+n+31
-        count=data[offset+4];offset+=5+count*20
+        count=data[offset+4];offset+=5+count*20+50
     return result
 
 initial=None

@@ -1,3 +1,5 @@
+#include "world_scene.hpp"
+#include "common/loaded_map.hpp"
 #include "ui_font.hpp"
 #include "common/character_roster.hpp"
 #include "loading_connection.hpp"
@@ -8,9 +10,8 @@
 #include "player.hpp"
 #include "client_connection.hpp"
 #include "common/logger.hpp"
-#include "common/map_layer.hpp"
+#include "client/rendering/map_layer.hpp"
 #include "input_manager.hpp"
-#include "hud.hpp"
 #include "wall_occlusion.hpp"
 #include "combat_debug.hpp"
 #include "damage_numbers.hpp"
@@ -34,7 +35,7 @@
 namespace {
 volatile std::sig_atomic_t quitRequested=0;
 void requestQuit(int) { quitRequested=1; }
-constexpr float kRemoteSnapshotInterval = 0.10f; // 10 Hz fake network updates
+constexpr float kRemoteSnapshotInterval = 0.10f; // 10 Hz server snapshots
 
 sf::Vector2f normalizeOrZero(sf::Vector2f v) {
     const float len2 = v.x * v.x + v.y * v.y;
@@ -69,17 +70,6 @@ Player* chooseCameraTarget(std::vector<Player>& players, std::size_t localIndex)
     return nullptr;
 }
 
-sf::RectangleShape makeOutlinedRect(const sf::FloatRect& rect,
-                                    float thickness = 2.f,
-                                    sf::Color color = sf::Color::Red)
-{
-    sf::RectangleShape shape(rect.size);
-    shape.setPosition(rect.position);
-    shape.setFillColor(sf::Color::Transparent);
-    shape.setOutlineThickness(thickness);
-    shape.setOutlineColor(color);
-    return shape;
-}
 
 } // namespace
 
@@ -142,104 +132,42 @@ int main(int argc, char**) {
         return 1;
     }
     logger.log_info("Assigned player id ", myId);
+    const auto& settings=client_conn.serverSettings();
     LoadingConnection loadingConnection(client_conn);
 
     // -------------------------------------------------------------------------
     // Level setup
     // -------------------------------------------------------------------------
-    tmx::Map map;
-    if (!map.load(common::mapPath())) {
-        logger.log_error("Failed to load level: ", common::mapPath());
-        return 1;
-    }
+    common::LoadedMap world(common::mapPath(settings));
+    const auto& map=world.data();
     common::CollisionWorld collision;
-    collision.load(common::mapPath());
-    std::vector<sf::ConvexShape> collisionDebugShapes;
-    for (const auto& points : collision.outlines()) {
-        sf::ConvexShape shape(points.size());
-        for (std::size_t i = 0; i < points.size(); ++i) shape.setPoint(i, points[i]);
-        shape.setFillColor(sf::Color(255, 70, 90, 55));
-        shape.setOutlineColor(sf::Color(255, 80, 100));
-        shape.setOutlineThickness(1.5f);
-        collisionDebugShapes.push_back(std::move(shape));
-    }
-    common::TriggerSystem triggers;
-    triggers.load(common::mapPath());
-    for(const auto& region:triggers.regions().all()) {
-        for(const auto& points:region->shape.outlines()) {
-            sf::ConvexShape shape(points.size());
-            for(std::size_t i=0;i<points.size();++i)shape.setPoint(i,points[i]);
-            auto fill=region->color;fill.a=40;
-            shape.setFillColor(fill);
-            shape.setOutlineColor(region->color);
-            shape.setOutlineThickness(1.5f);
-            collisionDebugShapes.push_back(std::move(shape));
-        }
-    }
-    common::TeamSpawns teamSpawns;
-    teamSpawns.load(common::mapPath(),common::activeSettings.teams,collision,triggers);
-    std::vector<sf::Text> levelLabels;
-    for (const auto& mapLayer : map.getLayers()) {
-        if (mapLayer->getType() != tmx::Layer::Type::Object || mapLayer->getName() != "Labels") continue;
-        for (const auto& object : mapLayer->getLayerAs<tmx::ObjectGroup>().getObjects()) {
-            sf::Text label(resources.getFont("ui"), object.getName(), uiFontSize(18));
-            const auto p = object.getPosition();
-            const float scale = float(map.getTileSize().x) / (2.f * map.getTileSize().y);
-            label.setPosition({(p.x - p.y) * scale, (p.x + p.y) * 0.5f});
-            const auto bounds = label.getLocalBounds();
-            label.setOrigin({bounds.position.x + bounds.size.x * 0.5f, 0.f});
-            label.setFillColor(sf::Color(245, 235, 200));
-            label.setOutlineColor(sf::Color(25, 25, 30));
-            label.setOutlineThickness(2.f);
-            levelLabels.push_back(std::move(label));
-        }
-    }
-    auto layerIndex=[&](const std::string& name){
-        for(std::size_t i=0;i<map.getLayers().size();++i)
-            if(map.getLayers()[i]->getType()==tmx::Layer::Type::Tile && map.getLayers()[i]->getName()==name)return i;
-        throw std::runtime_error("Missing tile layer: "+name);
-    };
-    MapLayer layerFloor(map, layerIndex("Floor"));
-    MapLayer layerWalls(map, layerIndex("Walls"));
-    WallOcclusion wallOcclusion(map, layerIndex("Walls"));
-    //MapLayer layerTriggers(map, 9);
-    layerWalls.update(sf::Time::Zero);
-    layerFloor.update(sf::Time::Zero);
-    logger.log_info("World bounds: ", layerFloor.getGlobalBounds());
+    collision.load(map);
+    common::TriggerSystem triggers;triggers.load(map,settings);
+    common::TeamSpawns teamSpawns;teamSpawns.load(map,settings.teams,collision,triggers);
+    WorldScene scene(world,collision,triggers,resources.getFont("ui"));
+    logger.log_info("World bounds: ", scene.bounds());
 
     // -------------------------------------------------------------------------
     // Camera setup
     // -------------------------------------------------------------------------
-    sf::FloatRect layerBounds = layerFloor.getGlobalBounds();
+    sf::FloatRect layerBounds = scene.bounds();
     Camera camera({common::WINDOW_WIDTH, common::WINDOW_HEIGHT});
     camera.setFollowSharpness(8.f);
     camera.setDeadZone({60.f, 40.f});
     camera.setWorldBounds(layerBounds);
 
     // -------------------------------------------------------------------------
-    // Hud setup
-    // -------------------------------------------------------------------------
-    Hud hud(resources.getFont("ui"));
-    hud.setWindowSize({common::WINDOW_WIDTH, common::WINDOW_HEIGHT});
-    hud.setPlayerName(playerName);
-    hud.setHealth(100.f, 100.f);
-    hud.setStamina(100.f, 100.f);
-    hud.setPingMs(0);
-
-    // -------------------------------------------------------------------------
     // Input manager setup
     // -------------------------------------------------------------------------
     InputManager input{window, options.bindings};
+    input.setSettings(settings);
 
     // -------------------------------------------------------------------------
     // Players: Complete Player for everybody, and an extra PlayerState for running
     // the local simulation for the client
     // -------------------------------------------------------------------------
     std::vector<Player> players{common::MAX_PLAYERS};
-    bool shouldDrawWaitingForPlayers = true;
-    int connectedPlayers = 0; // used for setting shouldDrawWaitingForPlayers
     std::vector<common::PlayerId> joined_players; // pushed when a player joined later than me in order to set his connected = true. popped after it gets set
-    //common::PlayerState simulatedLocalPlayer{.connected = true, .alive = true};
 
     // Initialize world based on what the server tells us the state is the first time
     std::vector<common::PlayerState> newStates(common::MAX_PLAYERS);
@@ -247,6 +175,7 @@ int main(int argc, char**) {
     client_conn.pumpNetwork(newStates, joined_players);
     for (int i = 0; i < common::MAX_PLAYERS; i++) {
         Player& p = players[i];
+        p.setSettings(settings);
 
         p.state() = newStates[i];
 
@@ -262,7 +191,7 @@ int main(int argc, char**) {
 
         p.setOutlineEnabled(true);
         p.setOutlineShader(&resources.getShader("sprite_outline"));
-        p.setOutlineColor(common::teamColor(p.state().team,common::activeSettings.teams));
+        p.setOutlineColor(common::teamColor(p.state().team,settings.teams));
         p.setOutlineThickness(.5f);
     }
 
@@ -274,9 +203,8 @@ int main(int argc, char**) {
     sf::Clock mouseIdleClock;
     auto previousMousePosition=sf::Mouse::getPosition(window);
     float accumulator = 0.f;
-    sf::Texture lightShadows,stairShadows;
-    tileLighting.buildHeightField(lightShadows,stairShadows);
-    SpellEffects spellEffects("../assets/sprites/Free Pixel Art Explosions/PNG/Explosion");
+
+    SpellEffects spellEffects("../assets/sprites/Free Pixel Art Explosions/PNG/Explosion",settings);
     DamageNumbers damageNumbers;
     KillFeed killFeed;
     std::optional<sf::Clock> shutdownDisplay;
@@ -336,7 +264,6 @@ int main(int argc, char**) {
             joined_players.pop_back();
             players[p].state().connected = true;
         }
-        //simulatedLocalPlayer = players[myId].state(); // Set the sim state to the authoratative state
 
         // ---------------------------------------------------------------------
         // Fixed simulation clock
@@ -350,25 +277,6 @@ int main(int argc, char**) {
             if(input_cmd.spellPressed)
                 spellEffects.predictCast(myId,newStates[myId],input_cmd.spellKind,input_cmd.spellTarget);
             client_conn.sendInput(myId, input_cmd);
-
-            // -----------------------------------------------------------------
-            // Local player simulation
-            //
-            // This is gameplay-side movement using a FIXED timestep.
-            // In a real game, this would be input -> movement -> collision ->
-            // prediction -> send input command to server.
-            // -----------------------------------------------------------------
-            // Player& localPlayer = players[myId];
-
-            // {
-            //     const float speed = input_cmd.sprint ? common::RUN_SPEED : common::WALK_SPEED;
-
-            //     simulatedLocalPlayer.vel = input_cmd.move * speed;
-            //     simulatedLocalPlayer.pos += simulatedLocalPlayer.vel * common::TICK_DT;
-
-            //     localPlayer.applySnapshot(simulatedLocalPlayer);
-            // }
-
 
             for (int i = 0; i < common::MAX_PLAYERS; i++) {
                 auto& p = players[i];
@@ -388,7 +296,7 @@ int main(int argc, char**) {
                 if(p.state().character!=newStates[i].character)
                     p.setCharacterAnimations(resources.getCharacterAnimations(common::CharacterNames[newStates[i].character]));
                 p.applySnapshot(newStates[i]);
-                p.setOutlineColor(common::teamColor(p.state().team,common::activeSettings.teams));
+                p.setOutlineColor(common::teamColor(p.state().team,settings.teams));
                 //logger.log_info("Player ", i, "'s state: ", p.state());
             }
         }
@@ -402,13 +310,11 @@ int main(int argc, char**) {
         // - animation
         // - camera smoothing
         // ---------------------------------------------------------------------
-        connectedPlayers = 0;
         for (int i = 0; i < common::MAX_PLAYERS; i++) {
             auto& p = players[i];
             if (!p.state().connected) {
                 continue;
             }
-            connectedPlayers++;
 
             // Check if near another player
             p.setCombatIdle(false);
@@ -426,8 +332,8 @@ int main(int argc, char**) {
             if(i==myId && window.hasFocus() && p.isAlive()) {
                 const auto cursor=window.mapPixelToCoords(sf::Mouse::getPosition(window),camera.view());
                 const auto& debug=p.state().combatDebug;
-                const bool spellWindup=(debug.attack==common::AttackKind::Uppercut || debug.attack==common::AttackKind::Lightning) &&
-                    debug.age<common::attackDescription(debug.attack).startupTicks;
+                const bool spellWindup=(debug.attack==common::AttackKind::Explosion || debug.attack==common::AttackKind::Lightning) &&
+                    debug.age<common::attackDescription(debug.attack, settings).startupTicks;
                 const auto delta=spellWindup?p.state().spellPosition-p.renderPosition():
                     movementFacing?p.state().vel:cursor-p.renderPosition();
                 if(delta.length()>.001f)p.state().facing=delta.normalized();
@@ -435,25 +341,6 @@ int main(int argc, char**) {
             p.update(renderDt);
         }
 
-        // Me and the bot
-        shouldDrawWaitingForPlayers = (connectedPlayers <= 2);
-
-        // -------------------------------------------------------------------------
-        // Update hud
-        // -------------------------------------------------------------------------
-        hud.setHealth(players[myId].state().health, 100.f);
-        hud.setStamina(100, 100);
-        //hud.setPingMs(client_conn.pingMs());
-        if (shouldDrawWaitingForPlayers) {
-            hud.setCenterMessage("Waiting for other players...");
-        } else {
-            hud.clearCenterMessage();
-        }
-        hud.setFps(1.f / std::max(renderDt, 0.0001f));
-
-        // -------------------------------------------------------------------------
-        // Update camera
-        // -------------------------------------------------------------------------
         if (Player* target = chooseCameraTarget(players, myId)) {
             camera.follow(target->renderPosition());
         } else {
@@ -466,24 +353,18 @@ int main(int argc, char**) {
         // ---------------------------------------------------------------------
         // Draw
         // ---------------------------------------------------------------------
-        wallOcclusion.update(window.getSize(), camera.view());
-        auto& visibilityShader = resources.getShader("player_occlusion");
-        visibilityShader.setUniform("wallDepth", wallOcclusion.texture());
-        visibilityShader.setUniform("renderSize", sf::Glsl::Vec2(window.getSize()));
+        scene.prepareOcclusion(window.getSize(),camera.view(),resources.getShader("player_occlusion"));
         window.clear(sf::Color(30, 34, 42));
 
-        tileLighting.lights.clear();
+        scene.lighting().lights.clear();
         for(std::size_t i=0;i<players.size();++i)if(players[i].state().connected && players[i].state().alive)
-            tileLighting.addLight(players[i].renderPosition(),i<common::activeSettings.bots?options.lighting.bot:options.lighting.player);
-        spellEffects.addLights(options.lighting);
+            scene.lighting().addLight(players[i].renderPosition(),i<settings.bots?options.lighting.bot:options.lighting.player);
+        spellEffects.addLights(scene.lighting(),options.lighting);
 
-        layerFloor.update(sf::seconds(renderDt));
-        layerWalls.update(sf::seconds(renderDt));
-        window.draw(layerFloor);
+        scene.update(sf::seconds(renderDt));
+        scene.drawGround(window);
         spellEffects.drawWindups(window);
-        window.draw(layerWalls);
-        for (const auto& label : levelLabels) window.draw(label);
-        //window.draw(layerTrigger);
+        scene.drawStructures(window);
 
         // Sort a separate view: player slots remain indexed by network ID.
         // Render positions include interpolation, matching the visible feet.
@@ -497,7 +378,7 @@ int main(int argc, char**) {
         for(const auto* player:characterDrawOrder)window.draw(*player);
 
         if (input.collisionDebugEnabled()) {
-            for (const auto& shape : collisionDebugShapes) window.draw(shape);
+            scene.drawDebug(window);
             sf::CircleShape feet(common::CollisionWorld::PlayerRadius);
             feet.setOrigin({common::CollisionWorld::PlayerRadius, common::CollisionWorld::PlayerRadius});
             feet.setFillColor(sf::Color::Transparent);
@@ -508,34 +389,28 @@ int main(int argc, char**) {
                 feet.setPosition(player.state().pos);
                 window.draw(feet);
             }
-            drawCombatDebug(window, players, collision, resources.getFont("ui"));
+            drawCombatDebug(window, players, collision, resources.getFont("ui"), settings);
             for(unsigned team=0;team<teamSpawns.groups().size();++team)for(auto point:teamSpawns.groups()[team]) {
                 sf::CircleShape marker(12);marker.setOrigin({12,12});marker.setPosition(point);
                 marker.setFillColor(sf::Color::Transparent);marker.setOutlineThickness(2);
-                marker.setOutlineColor(common::teamColor(team,common::activeSettings.teams));window.draw(marker);
+                marker.setOutlineColor(common::teamColor(team,settings.teams));window.draw(marker);
             }
         }
 
         spellEffects.draw(window);
         if(input.spellReady()) {
             const auto position=window.mapPixelToCoords(sf::Mouse::getPosition(window));
-            const auto& spellRules=input.selectedSpell()==common::AttackKind::Lightning?common::activeSettings.lightning:common::activeSettings.spell;
-            const float radius=spellRules.radius;
+            const auto spellRules=common::attackDescription(input.selectedSpell(),settings);
+            const float radius=spellRules.range;
             sf::CircleShape area(radius);area.setOrigin({radius,radius});area.setPosition(position);
-            const bool valid=common::spellTargetValid(newStates[myId],input.selectedSpell(),position,collision);
+            const bool valid=common::spellTargetValid(newStates[myId],input.selectedSpell(),position,collision, settings);
             area.setFillColor(valid?sf::Color(120,90,255,35):sf::Color(255,60,60,35));
             area.setOutlineColor(valid?sf::Color(180,140,255):sf::Color(255,60,60));area.setOutlineThickness(2.f);window.draw(area);
         }
         damageNumbers.draw(window, resources.getFont("ui"));
 
-        // Draw debug rectangles in world space
-        //window.draw(makeOutlinedRect(layerBounds, 2.f, sf::Color::Green)); // doesnt show up
-        //window.draw(makeOutlinedRect(sf::FloatRect({300.f, 300.f}, {100.f, 100.f}), 2.f, sf::Color::Blue));
-
-        // Draw hud & debug rectangles in screen space
+        // Draw HUD in screen space
         window.setView(window.getDefaultView()); // back to screen-space
-        //hud.draw(window);
-        //window.draw(makeOutlinedRect(sf::FloatRect({common::WINDOW_WIDTH / 2, common::WINDOW_HEIGHT / 2}, {120.f, 80.f}), 2.f, sf::Color::Black));
 
         if (input.collisionDebugEnabled()) {
             sf::Text legend(resources.getFont("ui"),
@@ -558,10 +433,10 @@ int main(int argc, char**) {
             flash.setFillColor(sf::Color(220, 15, 25, static_cast<std::uint8_t>(70.f*fade*fade)));
             window.draw(flash);
         }
-        drawAttackHud(window,resources.getFont("ui"),newStates[myId],options.bindings);
-        killFeed.draw(window,resources.getFont("ui"));
+        drawAttackHud(window,resources.getFont("ui"),newStates[myId],options.bindings, settings);
+        killFeed.draw(window,resources.getFont("ui"), settings);
         if(input.keys().scoreboard)
-            drawScoreboard(window,resources.getFont("ui"),newStates,myId);
+            drawScoreboard(window,resources.getFont("ui"),newStates,myId, settings);
         window.display();
     }
 

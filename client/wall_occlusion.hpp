@@ -1,3 +1,4 @@
+#include "common/map_geometry.hpp"
 #include "common/tile_alignment.hpp"
 #pragma once
 #include <SFML/Graphics.hpp>
@@ -13,6 +14,9 @@
 class WallOcclusion {
 public:
     explicit WallOcclusion(const tmx::Map& map, std::size_t layerIndex) {
+        addLayer(map, layerIndex);
+    }
+    void addLayer(const tmx::Map& map, std::size_t layerIndex) {
         const auto& layer = map.getLayers().at(layerIndex);
         const auto& tiles = layer->getLayerAs<tmx::TileLayer>().getTiles();
         auto tileSize = map.getTileSize();
@@ -50,8 +54,9 @@ public:
                 image=std::move(transformed);
             }
             const float x=float(i%width), y=float(i/width);
-            sf::Vector2f origin{(x-y)*tileSize.x*.5f+(float(tileSize.x)-size.x)*.5f+offset.x+tileOffset.x,
-                                (x+y)*tileSize.y*.5f+float(tileSize.y)-size.y+offset.y+tileOffset.y};
+            const sf::Vector2f mapSize(float(tileSize.x),float(tileSize.y));
+            const auto origin=common::tileImagePosition(common::tileToWorld(x,y,mapSize),mapSize,sf::Vector2f(size),
+                tileOffset+sf::Vector2f(float(offset.x),float(offset.y)));
             // The lower silhouette envelope bridges overhead doorway gaps.
             std::vector<sf::Vector2f> hull;
             for (unsigned col=0; col<size.x; ++col) {

@@ -36,9 +36,9 @@ using Tick = std::uint32_t;
 
 enum class AttackKind : std::uint8_t {
     None = 0,
-    Jab,
-    Hook,
-    Uppercut,
+    Light,
+    Heavy,
+    Explosion,
     Lightning
 };
 
@@ -49,10 +49,14 @@ struct AttackDesc {
 
     float range;
     int damage;
+    int damageMin=0;
+    float castRange=0, coneDegrees=0;
+    double interval=0;
+    bool area=false;
 };
 
-const AttackDesc& attackDescription(AttackKind kind);
-void setAttackDamage(int jab,int hook);
+struct ServerSettings;
+AttackDesc attackDescription(AttackKind kind,const ServerSettings& settings);
 
 struct AttackState {
     AttackKind kind = AttackKind::None;
@@ -75,19 +79,19 @@ struct InputCommand {
 
     bool sprint = false;
 
-    bool jabHeld = false;
-    bool jabPressed = false;
-    bool jabReleased = false;
+    bool lightHeld = false;
+    bool lightPressed = false;
+    bool lightReleased = false;
 
-    AttackKind spellKind = AttackKind::Uppercut;
+    AttackKind spellKind = AttackKind::Explosion;
     bool spellPressed = false;
     sf::Vector2f spellTarget{};
     sf::Vector2f cursor{};
     bool hasCursor=false;
     bool movementFacing=false;
-    bool hookHeld = false;
-    bool hookPressed = false;
-    bool hookReleased = false;
+    bool heavyHeld = false;
+    bool heavyPressed = false;
+    bool heavyReleased = false;
 };
 
 struct CombatDebugState {
@@ -105,7 +109,7 @@ struct DamageEvent {
     sf::Vector2f contact{};
 };
 inline constexpr std::size_t DamageHistorySize = 8;
-enum class KillCause : std::uint8_t { Hit, Jab, Hook, Floor, Bounds, Spell, Lightning };
+enum class KillCause : std::uint8_t { Hit, Light, Heavy, Floor, Bounds, Spell, Lightning };
 struct KillEvent {
     std::uint32_t sequence=0;
     std::int32_t killer=-1;
@@ -130,7 +134,7 @@ struct PlayerState {
     std::uint32_t teleportSequence = 0;
     std::uint32_t spellSequence = 0;
     sf::Vector2f spellPosition{};
-    AttackKind spellEffect = AttackKind::Uppercut;
+    AttackKind spellEffect = AttackKind::Explosion;
     // Retain the last event so a dropped snapshot does not lose the animation.
     AttackKind lastAttack = AttackKind::None;
     std::uint32_t attackSequence = 0;
@@ -155,7 +159,6 @@ void writeWorldPacket(sf::Packet& packet,
 bool readWorldPacket(sf::Packet& packet,
                      std::vector<PlayerState>& players, std::vector<KillEvent>* kills = nullptr);
 
-void parseTest(const char *map_path);
 
 template<typename T>
 T distance(const sf::Vector2<T>& p1, const sf::Vector2<T>& p2) {

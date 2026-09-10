@@ -1,6 +1,7 @@
 #include "common/character_roster.hpp"
 #include "common/world_transport.hpp"
 #include <iostream>
+#include "common/settings.hpp"
 #include <stdexcept>
 void check(bool value,const char* message){if(!value)throw std::runtime_error(message);}
 std::optional<sf::Packet> deliver(common::WorldAssembler& receiver,sf::Packet packet){
@@ -21,6 +22,12 @@ int main(){
     }
     for(bool available:seen)check(available,"Character variant is never selected");
     for(std::size_t i=0;i<players.size();++i)players[i].character=i%7;
+    auto& detailed=players[0];
+    detailed.kills=7; detailed.deaths=3; detailed.spellSequence=41;
+    detailed.spellPosition={123.f,456.f}; detailed.spellEffect=common::AttackKind::Lightning;
+    detailed.facing={0.f,-1.f}; detailed.stunTicks=30;
+    detailed.explosionCooldown=45; detailed.lightningCooldown=90;
+    detailed.pingMs=87; detailed.teleportSequence=19;
     auto parts=common::worldPackets(players,1);
     check(parts.size()>1,"Test must exercise multiple datagrams");
     for(const auto& part:parts)check(part.getDataSize()<=1200,"Datagram exceeds safe budget");
@@ -35,6 +42,25 @@ int main(){
     check(type==common::MSG_WORLD && common::readWorldPacket(*result,decoded),"Snapshot decode failed");
     for(std::size_t i=0;i<players.size();++i)check(decoded[i].character==players[i].character,"Character selection lost in snapshot");
     check(decoded.size()==32 && decoded.back().damageEvents.size()==8 && decoded.back().name==players.back().name,"Roundtrip changed state");
+    const auto& restored=decoded[0];
+    check(restored.kills==7 && restored.deaths==3 && restored.spellSequence==41 &&
+          restored.spellPosition==sf::Vector2f{123.f,456.f} && restored.spellEffect==common::AttackKind::Lightning &&
+          restored.facing==sf::Vector2f{0.f,-1.f} && restored.stunTicks==30 &&
+          restored.explosionCooldown==45 && restored.lightningCooldown==90 &&
+          restored.pingMs==87 && restored.teleportSequence==19,"Complete player state lost fields");
+    sf::Packet playerWire;common::writePlayerState(playerWire,detailed);
+    sf::Packet shortPlayer;shortPlayer.append(playerWire.getData(),playerWire.getDataSize()-1);
+    common::PlayerState unchanged;unchanged.name="Preserve me";
+    check(!common::readPlayerState(shortPlayer,unchanged) && unchanged.name=="Preserve me",
+          "Truncated player footer mutated state");
+    auto invalidCharacter=detailed;invalidCharacter.character=255;
+    sf::Packet invalidPlayer;common::writePlayerState(invalidPlayer,invalidCharacter);
+    check(!common::readPlayerState(invalidPlayer,unchanged) && unchanged.name=="Preserve me",
+          "Invalid player footer mutated state");
+    sf::Packet wrongVersion;wrongVersion<<std::uint32_t(common::ProtocolVersion-1);
+    check(!common::readWorldPacket(wrongVersion,decoded) && decoded[0].kills==7,"Wrong protocol accepted");
+    sf::Packet extra;common::writeWorldPacket(extra,players);extra<<std::uint8_t(0);extra>>type;
+    check(!common::readWorldPacket(extra,decoded) && decoded[0].kills==7,"Trailing world bytes accepted");
     for(auto part:parts)check(!deliver(receiver,part),"Stale snapshot replayed");
     auto lost=common::worldPackets(players,2);
     for(std::size_t i=1;i<lost.size();++i)check(!deliver(receiver,lost[i]),"Missing part accepted");

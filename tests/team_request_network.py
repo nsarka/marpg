@@ -1,4 +1,5 @@
 """Check team request balancing and override on isolated servers."""
+from build_identity import join_identity
 import pathlib
 import socket
 import struct
@@ -24,7 +25,7 @@ def team(sock,ident):
     for i in range(ident+1):
         result=struct.unpack_from('!i',data,offset)[0];offset+=22
         n=struct.unpack_from('!I',data,offset)[0];offset+=4+n+31
-        count=data[offset+4];offset+=5+count*20
+        count=data[offset+4];offset+=5+count*20+50
     return result
 
 for honor in (False,True):
@@ -43,12 +44,17 @@ for honor in (False,True):
                     time.sleep(.02)
                 for index,(request,expected) in enumerate([(2,1),(2,1 if honor else 0),(20,0)]):
                     sock=socket.socket(socket.AF_INET,socket.SOCK_DGRAM);sock.settimeout(3);sockets.append(sock)
-                    sock.sendto(string('join')+string(f'Request {index}')+struct.pack('!I',request),('127.0.0.1',port))
+                    sock.sendto(string('join')+string(f'Request {index}')+struct.pack('!I',request)+join_identity[4:],('127.0.0.1',port))
                     reply=receive(sock,'join_ack');ident=struct.unpack_from('!i',reply)[0]
-                    assert ident==index and bool(reply[-1])==honor
+                    assert ident==index
+                    offset=8  # Assigned id and protocol.
+                    for _ in range(2):  # Build identity and configured server address.
+                        length=struct.unpack_from('!I',reply,offset)[0];offset+=4+length
+                    offset+=2+12+1+32  # Port, slots/teams/bots, friendly fire, damage settings.
+                    assert bool(reply[offset])==honor
                     assert team(sock,ident)==expected,(honor,request,expected)
                 # Retry from the same endpoint with a different preference must not move the player.
-                sockets[0].sendto(string('join')+string('Request 0')+struct.pack('!I',1),('127.0.0.1',port))
+                sockets[0].sendto(string('join')+string('Request 0')+struct.pack('!I',1)+join_identity[4:],('127.0.0.1',port))
                 assert struct.unpack_from('!i',receive(sockets[0],'join_ack'))[0]==0
                 assert team(sockets[0],0)==1
             finally:

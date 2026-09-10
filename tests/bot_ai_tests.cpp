@@ -27,7 +27,7 @@ int main(int argc,char** argv){
         check(nav.safePoint(bot.pos),"AI entered a wall or hazard");
         check(ai.target(0)==1,"Bot targeted its teammate");
         if(combat.attack!=common::AttackKind::None)attacks.insert(combat.attack);
-        if((combat.attack==common::AttackKind::Uppercut || combat.attack==common::AttackKind::Lightning) && combat.age==0) {
+        if((combat.attack==common::AttackKind::Explosion || combat.attack==common::AttackKind::Lightning) && combat.age==0) {
             check(combat.spellTarget==enemy.pos,"Bot spell did not target enemy world position");
             check(bot.vel.length()==0,"Bot should stand still while casting");
         }

@@ -8,6 +8,16 @@
 #include <chrono>
 void check(bool ok,const char* message){if(!ok)throw std::runtime_error(message);}
 int main(int argc,char** argv){
+    common::ServerSettings rulesUnderTest;
+    {
+        common::ServerSettings fast,slow;fast.lightWindup=.125;slow.lightWindup=1;
+        fast.lightDamage=fast.lightDamageMin=7;slow.lightDamage=slow.lightDamageMin=45;
+        const auto first=common::attackDescription(common::AttackKind::Light,fast);
+        const auto second=common::attackDescription(common::AttackKind::Light,slow);
+        check(first.startupTicks==8 && first.damage==7 && second.startupTicks==64 && second.damage==45,
+              "Independent attack rules contaminate each other");
+        check(common::attackDescription(common::AttackKind::Light,fast).startupTicks==8,"Rule lookup mutated another context");
+    }
     check(argc==2,"Project path required");std::filesystem::path root=argv[1];
     auto temp=std::filesystem::temp_directory_path()/("marpg-settings-"+std::to_string(std::chrono::steady_clock::now().time_since_epoch().count())+".toml");
     {
@@ -28,33 +38,33 @@ int main(int argc,char** argv){
         std::filesystem::remove(temp);check(rejected,"Invalid TOML setting was silently accepted");
     }
     {
-        {std::ofstream file(temp);file<<"[jab]\nwindup_seconds=0.5\ndamage_min=23\ndamage_max=23\nrange=25.0\ncone_degrees=45.0\n[hook]\ndamage_min=37\ndamage_max=37\nrange=95.0\nwindup_seconds=0.75\n";}
+        {std::ofstream file(temp);file<<"[light]\nwindup_seconds=0.5\ndamage_min=23\ndamage_max=23\nrange=25.0\ncone_degrees=45.0\n[heavy]\ndamage_min=37\ndamage_max=37\nrange=95.0\nwindup_seconds=0.75\n";}
         auto timing=common::loadServerSettings(temp.string());
-        check(timing.jabWindup==.5 && timing.hookWindup==.75,"Melee windups not loaded");
+        check(timing.lightWindup==.5 && timing.heavyWindup==.75,"Melee windups not loaded");
         sf::Packet wire;common::writeSettings(wire,timing);common::ServerSettings copy;
-        check(common::readSettings(wire,copy) && copy.jabWindup==.5 && copy.hookWindup==.75,"Melee windups not synchronized");
-        check(copy.jabDamage==23 && copy.hookDamage==37 && copy.jabDamageMin==23 && copy.hookDamageMin==37 && copy.jabConeDegrees==45 && copy.jabRange==25 && copy.hookRange==95,"Melee damage/range not loaded and synchronized");
-        common::applySettings(copy);
-        check(common::attackDescription(common::AttackKind::Jab).startupTicks==32 &&
-              common::attackDescription(common::AttackKind::Hook).startupTicks==48,"Configured windup ticks incorrect");
+        check(common::readSettings(wire,copy) && copy.lightWindup==.5 && copy.heavyWindup==.75,"Melee windups not synchronized");
+        check(copy.lightDamage==23 && copy.heavyDamage==37 && copy.lightDamageMin==23 && copy.heavyDamageMin==37 && copy.lightConeDegrees==45 && copy.lightRange==25 && copy.heavyRange==95,"Melee damage/range not loaded and synchronized");
+        rulesUnderTest = copy;
+        check(common::attackDescription(common::AttackKind::Light,rulesUnderTest).startupTicks==32 &&
+              common::attackDescription(common::AttackKind::Heavy,rulesUnderTest).startupTicks==48,"Configured windup ticks incorrect");
         common::PlayerState a,b;a.connected=b.connected=true;a.pos={0,0};b.pos={30,0};
         common::CombatState combat;common::CollisionWorld walls;
-        common::startAttack(a,combat,common::AttackKind::Jab,{1,0});
-        for(int i=0;i<31;++i)common::updateAttack(a,combat,{&a,&b},walls);
-        check(b.health==100,"Configured jab hit before windup");
-        common::updateAttack(a,combat,{&a,&b},walls);
-        check(b.health==100,"Jab hit beyond configured range");
-        b.pos={24,0};common::updateAttack(a,combat,{&a,&b},walls);
-        check(b.health==77,"Configured jab range/damage not applied");
-        for(const auto& text:{"[jab]\ncone_degrees=0\n","[hook]\ncone_degrees=361\n","[jab]\ndamage_min=50\ndamage_max=10\n","[jab]\nrange=0\n","[hook]\nrange=inf\n","[hook]\ndamage_min=-1\n","[jab]\nwindup_seconds=-1\n","[hook]\nwindup_seconds=61\n","[jab]\nwindup_seconds=nan\n"}) {
+        common::startAttack(a,combat,common::AttackKind::Light,{1,0},rulesUnderTest);
+        for(int i=0;i<31;++i)common::updateAttack(a,combat,{&a,&b},walls,{},rulesUnderTest);
+        check(b.health==100,"Configured light hit before windup");
+        common::updateAttack(a,combat,{&a,&b},walls,{},rulesUnderTest);
+        check(b.health==100,"Light hit beyond configured range");
+        b.pos={24,0};common::updateAttack(a,combat,{&a,&b},walls,{},rulesUnderTest);
+        check(b.health==77,"Configured light range/damage not applied");
+        for(const auto& text:{"[light]\ncone_degrees=0\n","[heavy]\ncone_degrees=361\n","[light]\ndamage_min=50\ndamage_max=10\n","[light]\nrange=0\n","[heavy]\nrange=inf\n","[heavy]\ndamage_min=-1\n","[light]\nwindup_seconds=-1\n","[heavy]\nwindup_seconds=61\n","[light]\nwindup_seconds=nan\n"}) {
             {std::ofstream file(temp);file<<text;}
             bool rejected=false;try{common::loadServerSettings(temp.string());}catch(...){rejected=true;}
             check(rejected,"Invalid melee windup accepted");
         }
         check(common::ServerSettings{}.map=="demo","Wrong default map");
-    common::applySettings(common::ServerSettings{});
-        check(common::attackDescription(common::AttackKind::Jab).startupTicks==16 &&
-              common::attackDescription(common::AttackKind::Hook).startupTicks==24,"Default windups changed");
+    rulesUnderTest = common::ServerSettings{};
+        check(common::attackDescription(common::AttackKind::Light,rulesUnderTest).startupTicks==16 &&
+              common::attackDescription(common::AttackKind::Heavy,rulesUnderTest).startupTicks==24,"Default windups changed");
         std::filesystem::remove(temp);
     }
     {std::ofstream file(temp);file<<"[trigger_damage]\ntrigger_interval_seconds=0.25\nout_of_bounds_interval_seconds=1.5\n[server]\nrespawn_seconds=4.0\n";}
@@ -91,13 +101,13 @@ int main(int argc,char** argv){
     bool badRange=false;try{invalidSpell.validate();}catch(...){badRange=true;}check(badRange,"Inverted damage range accepted");
     settings.name="Custom Arena";settings.map="arena";
     settings.port=55001;settings.slots=12;settings.teams=3;settings.triggerDamage=7;settings.triggerInterval=1.0;
-    settings.boundsDamage=9;settings.boundsInterval=.25;settings.jabDamageMin=settings.jabDamage=27;settings.hookDamageMin=settings.hookDamage=40;
+    settings.boundsDamage=9;settings.boundsInterval=.25;settings.lightDamageMin=settings.lightDamage=27;settings.heavyDamageMin=settings.heavyDamage=40;
     settings.honorTeamRequests=true;
     sf::Packet packet;common::writeSettings(packet,settings);common::ServerSettings received;
     check(common::readSettings(packet,received) && received.spell.damageMax==17 && received.lightning.interval==.2 && !received.botAI && received.map=="arena" && received.name=="Custom Arena" && received.port==55001 && received.teams==3 && received.boundsInterval==.25 && received.honorTeamRequests,"Settings wire roundtrip failed");
-    common::applySettings(settings);
-    check(common::attackDescription(common::AttackKind::Jab).damage==27 && common::attackDescription(common::AttackKind::Hook).damage==40,"Combat ignores config");
-    common::TriggerSystem triggers;triggers.load((root/"tests/fixtures/world.tmx").string());
+    rulesUnderTest = settings;
+    check(common::attackDescription(common::AttackKind::Light,rulesUnderTest).damage==27 && common::attackDescription(common::AttackKind::Heavy,rulesUnderTest).damage==40,"Combat ignores config");
+    common::TriggerSystem triggers;triggers.load((root/"tests/fixtures/world.tmx").string(),rulesUnderTest);
     common::PlayerState player;player.connected=true;player.pos={-512,1024};
     triggers.update(0,player);check(player.health==93,"Configured trigger entry damage");
     for(int i=0;i<63;++i)triggers.update(0,player);check(player.health==93,"Trigger beat too early");
@@ -140,17 +150,17 @@ int main(int argc,char** argv){
     check(common::teamColor(1,2)==sf::Color(70,70,255,220),"Blue wrong");
     common::PlayerState attacker,target;attacker.connected=target.connected=true;attacker.team=target.team=0;
     attacker.pos={0,0};target.pos={30,0};common::CombatState combat;common::CollisionWorld empty;
-    common::startAttack(attacker,combat,common::AttackKind::Jab,{1,0});
-    for(int i=0;i<64;++i)common::updateAttack(attacker,combat,{&attacker,&target},empty);
+    common::startAttack(attacker,combat,common::AttackKind::Light,{1,0},rulesUnderTest);
+    for(int i=0;i<64;++i)common::updateAttack(attacker,combat,{&attacker,&target},empty,{},rulesUnderTest);
     check(target.health==100,"Friendly fire should be disabled");
-    auto friendly=settings;friendly.friendlyFire=true;common::applySettings(friendly);
-    common::startAttack(attacker,combat,common::AttackKind::Jab,{1,0});
-    for(int i=0;i<64;++i)common::updateAttack(attacker,combat,{&attacker,&target},empty);
+    auto friendly=settings;friendly.friendlyFire=true;rulesUnderTest = friendly;
+    common::startAttack(attacker,combat,common::AttackKind::Light,{1,0},rulesUnderTest);
+    for(int i=0;i<64;++i)common::updateAttack(attacker,combat,{&attacker,&target},empty,{},rulesUnderTest);
     check(target.health==73,"Configured friendly fire did not enable teammate damage");
-    target.health=100;common::applySettings(settings);
-    target.team=1;common::startAttack(attacker,combat,common::AttackKind::Hook,{1,0});
-    for(int i=0;i<64;++i)common::updateAttack(attacker,combat,{&attacker,&target},empty);
-    check(target.health==60,"Enemy/configured hook damage");
+    target.health=100;rulesUnderTest = settings;
+    target.team=1;common::startAttack(attacker,combat,common::AttackKind::Heavy,{1,0},rulesUnderTest);
+    for(int i=0;i<64;++i)common::updateAttack(attacker,combat,{&attacker,&target},empty,{},rulesUnderTest);
+    check(target.health==60,"Enemy/configured heavy damage");
     common::respawn(target,combat,{10,20});check(target.team==1,"Respawn changed team");
     auto invalid=settings;invalid.teams=invalid.slots+1;bool failed=false;try{invalid.validate();}catch(...){failed=true;}check(failed,"Invalid config accepted");
     {
@@ -166,11 +176,11 @@ int main(int argc,char** argv){
         auto clientPath=std::filesystem::temp_directory_path()/"marpg-client-team-test.toml";
         {std::ofstream file(clientPath);file<<"[client]\nteam=2\nshow_other_damage_numbers=true\n";}
         check(common::loadClientSettings(clientPath.string()).team==2 && common::loadClientSettings(clientPath.string()).showOtherDamageNumbers,"Client team preference not loaded");
-        {std::ofstream file(clientPath);file<<"[bindings]\nmove_up=\"Up\"\njab=[\"Space\",\"Mouse_Left\"]\ndebug=[]\n";}
+        {std::ofstream file(clientPath);file<<"[bindings]\nmove_up=\"Up\"\nlight=[\"Space\",\"Mouse_Left\"]\ndebug=[]\n";}
         const auto bindings=common::loadClientSettings(clientPath.string()).bindings;
         check(bindings.actions[0][0]==common::parseBinding("up") && bindings.actions[5].size()==2 && bindings.actions[8].empty(),"Custom bindings not parsed");
         check(bindings.actions[4].size()==2 && bindings.actions[7][0]==common::parseBinding("Tab"),"Missing bindings lost defaults");
-        for(const auto& invalid:{"[bindings]\njab=42\n","[bindings]\njab=\"typo\"\n","[bindings]\nunknown=\"W\"\n"}) {
+        for(const auto& invalid:{"[bindings]\nlight=42\n","[bindings]\nlight=\"typo\"\n","[bindings]\nunknown=\"W\"\n"}) {
             {std::ofstream file(clientPath);file<<invalid;}
             bool rejected=false;try{common::loadClientSettings(clientPath.string());}catch(...){rejected=true;}
             check(rejected,"Invalid keybinding accepted");
@@ -180,6 +190,6 @@ int main(int argc,char** argv){
         std::filesystem::remove(clientPath);check(rejected,"Invalid client team accepted");
     }
     check(common::ServerSettings{}.map=="demo","Wrong default map");
-    common::applySettings(common::ServerSettings{});
+    rulesUnderTest = common::ServerSettings{};
     std::cout<<"PASS: TOML, settings sync, damage/intervals, teams, friendly fire, variable spawn counts\n";
 }
