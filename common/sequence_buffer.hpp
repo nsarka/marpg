@@ -1,19 +1,18 @@
 #pragma once
 
 #include <array>
-#include <cstdint>
 #include <cstddef>
+#include <cstdint>
 #include <optional>
 #include <type_traits>
 
 namespace common {
 
 // nick: for client/server state snapshots
-template <typename T, std::size_t Capacity>
-class SequenceBuffer {
+template <typename T, std::size_t Capacity> class SequenceBuffer {
     static_assert(Capacity > 0, "Capacity must be > 0");
 
-public:
+  public:
     struct Entry {
         std::uint32_t sequence = 0;
         bool valid = false;
@@ -47,8 +46,7 @@ public:
         return e.value;
     }
 
-    template <typename... Args>
-    T& emplace(std::uint32_t sequence, Args&&... args) {
+    template <typename... Args> T& emplace(std::uint32_t sequence, Args&&... args) {
         Entry& e = entries_[index_of(sequence)];
         e.sequence = sequence;
         e.valid = true;
@@ -92,7 +90,7 @@ public:
         return &e;
     }
 
-private:
+  private:
     std::array<Entry, Capacity> entries_{};
 
     static constexpr bool is_power_of_two(std::size_t x) noexcept {

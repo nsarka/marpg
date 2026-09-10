@@ -1,7 +1,7 @@
 #pragma once
-#include "common/tile_alignment.hpp"
-#include "common/character_visual.hpp"
 #include "client/rendering/tile_lighting.hpp"
+#include "common/character_visual.hpp"
+#include "common/tile_alignment.hpp"
 #include <filesystem>
 
 #include <SFML/Graphics/Color.hpp>
@@ -31,26 +31,24 @@
 #include <vector>
 
 namespace map_detail {
-    struct AnimationState
-    {
-        sf::Vector2u tileCoords;
-        sf::Time currentTime;
-        tmx::Tileset::Tile animTile;
-        std::uint8_t flipFlags = 0;
-    };
+struct AnimationState {
+    sf::Vector2u tileCoords;
+    sf::Time currentTime;
+    tmx::Tileset::Tile animTile;
+    std::uint8_t flipFlags = 0;
+};
 
-    struct TileVisual
-    {
-        std::string textureKey;
-        const sf::Texture* texture = nullptr;
-        const sf::Texture* normal = nullptr;
-        const sf::Texture* height = nullptr;
-        unsigned stair=0;
-        sf::Vector2f offset{};
-        std::shared_ptr<sf::Shader> lightingShader;
-        sf::Vector2f texTopLeft{0.f, 0.f};
-        sf::Vector2f texSize{0.f, 0.f};
-        sf::Vector2f drawSize{0.f, 0.f};
-    };
+struct TileVisual {
+    std::string textureKey;
+    const sf::Texture* texture = nullptr;
+    const sf::Texture* normal = nullptr;
+    const sf::Texture* height = nullptr;
+    unsigned stair = 0;
+    sf::Vector2f offset{};
+    std::shared_ptr<sf::Shader> lightingShader;
+    sf::Vector2f texTopLeft{0.f, 0.f};
+    sf::Vector2f texSize{0.f, 0.f};
+    sf::Vector2f drawSize{0.f, 0.f};
+};
 
-}
+} // namespace map_detail

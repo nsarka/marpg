@@ -9,7 +9,7 @@
 #include <memory>
 
 class GameSimulation {
-    common::Logger &logger;
+    common::Logger& logger;
     std::mt19937 characterRandom{std::random_device{}()};
     common::LoadedMap world;
     std::unique_ptr<common::Navigation> navigation;
@@ -22,7 +22,7 @@ class GameSimulation {
     common::TeamSpawns spawns;
     std::vector<GamePlayer> players{common::MAX_PLAYERS};
     common::KillHistory killHistory;
-    GameSimulation(common::ServerSettings rules, common::Logger &log)
+    GameSimulation(common::ServerSettings rules, common::Logger& log)
         : logger(log), world(common::mapPath(rules)), settings(std::move(rules)) {
         collision.load(world.data());
         triggers.load(world.data(), settings);
@@ -45,12 +45,12 @@ class GameSimulation {
             players[i].state.pos = *spawn;
         }
     }
-    bool join(common::PlayerId id, const std::string &name, unsigned request) {
+    bool join(common::PlayerId id, const std::string& name, unsigned request) {
         const auto team = common::chooseTeam(states(players), settings, request);
         const auto spawn = spawns.choose(team, states(players), collision, triggers);
         if (!spawn)
             return false;
-        auto &player = players[id];
+        auto& player = players[id];
         player.state.team = settings.teams ? static_cast<int>(team) : -1;
         player.state.character = common::chooseCharacter(player.state.team, characterRandom);
         player.state.pos = *spawn;
@@ -61,7 +61,7 @@ class GameSimulation {
         return true;
     }
     void remove(common::PlayerId id) {
-        auto &player = players[id];
+        auto& player = players[id];
         const auto spellSequence = player.state.spellSequence;
         const auto attackSequence = player.state.attackSequence;
         const auto damageSequence = player.state.damageSequence;
@@ -76,17 +76,16 @@ class GameSimulation {
         player.human = false;
         triggers.reset(id);
     }
-    void requestAttack(common::PlayerId id, const common::AttackRequest &request) {
-        auto &player = players[id];
-        if ((request.kind == common::AttackKind::Explosion ||
-             request.kind == common::AttackKind::Lightning) &&
+    void requestAttack(common::PlayerId id, const common::AttackRequest& request) {
+        auto& player = players[id];
+        if ((common::isSpell(request.kind)) &&
             !common::spellTargetValid(player.state, request.kind, request.aim, collision, settings))
             return;
         if (player.attackInbox.accept(request.sequence))
             common::requestAttack(player.state, player.combat, request, settings);
     }
     void input(common::PlayerId id, common::InputCommand cmd) {
-        auto &player = players[id];
+        auto& player = players[id];
         if (!player.state.alive) {
             return;
         }
@@ -100,9 +99,7 @@ class GameSimulation {
             const auto previousFacing = player.combat.facing;
             common::updateAim(player.state, player.combat, cmd.cursor, collision, settings);
             const auto kind = player.combat.attack;
-            const bool spellWindup =
-                (kind == common::AttackKind::Explosion || kind == common::AttackKind::Lightning) &&
-                player.combat.age < common::attackDescription(kind, settings).startupTicks;
+            const bool spellWindup = common::isSpell(kind) && common::isInWindup(player.combat, settings);
             if (cmd.movementFacing && !spellWindup)
                 player.combat.facing = cmd.move.length() > .001f ? cmd.move.normalized() : previousFacing;
         }
@@ -111,7 +108,7 @@ class GameSimulation {
     }
     void step() {
         for (int i = 0; i < common::MAX_PLAYERS; i++) {
-            auto &player = players[i];
+            auto& player = players[i];
             if (!player.state.connected) {
                 continue;
             }
@@ -150,21 +147,21 @@ class GameSimulation {
             }
 
             if (i < static_cast<int>(settings.bots) && settings.botAI) {
-                std::vector<common::PlayerState *> opponents;
-                for (auto &other : players)
+                std::vector<common::PlayerState*> opponents;
+                for (auto& other : players)
                     opponents.push_back(&other.state);
                 botAI->update(i, player.state, player.combat, opponents);
             }
 
             triggers.update(i, player.state, collision);
         }
-        std::vector<common::PlayerState *> targets;
-        std::vector<common::CombatState *> targetCombats;
-        for (auto &player : players) {
+        std::vector<common::PlayerState*> targets;
+        std::vector<common::CombatState*> targetCombats;
+        for (auto& player : players) {
             targets.push_back(&player.state);
             targetCombats.push_back(&player.combat);
         }
-        for (auto &player : players) {
+        for (auto& player : players) {
             if (player.state.connected)
                 common::updateAttack(player.state, player.combat, targets, collision, targetCombats,
                                      settings);
@@ -174,9 +171,9 @@ class GameSimulation {
     std::vector<common::PlayerState> snapshot() const {
         auto result = states(players);
         for (std::size_t i = 0; i < players.size(); ++i) {
-            const auto &combat = players[i].combat;
+            const auto& combat = players[i].combat;
             result[i].facing = combat.facing;
-            result[i].combatDebug = {combat.attack, combat.age,
+            result[i].combatDebug = {combat.attack, combat.elapsedTicks,
                                      combat.attack == common::AttackKind::None ? combat.facing
                                                                                : combat.attackDirection,
                                      combat.hit, combat.hitTarget};

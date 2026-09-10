@@ -9,15 +9,23 @@ class PlayerAnimation {
   public:
     enum class Facing8 : std::uint8_t { Dir1, Dir2, Dir3, Dir4, Dir5, Dir6, Dir7, Dir8 };
     using Anim = common::CharacterAnimation;
-    void setAnimations(const ResourceManager::CharacterAnimations &animations) {
+    void setAnimations(const ResourceManager::CharacterAnimations& animations) {
         animations_ = &animations;
         select(Anim::Idle, true);
     }
-    bool ready() const { return animations_ != nullptr; }
-    Facing8 facing() const { return facing_; }
-    Anim current() const { return current_; }
-    std::size_t frame() const { return frame_; }
-    const ResourceManager::Clip &clip() const {
+    bool ready() const {
+        return animations_ != nullptr;
+    }
+    Facing8 facing() const {
+        return facing_;
+    }
+    Anim current() const {
+        return current_;
+    }
+    std::size_t frame() const {
+        return frame_;
+    }
+    const ResourceManager::Clip& clip() const {
         if (!animations_)
             throw std::runtime_error("Player animations not set");
         return animations_->get(current_).byFacing[static_cast<std::size_t>(facing_)];
@@ -41,7 +49,7 @@ class PlayerAnimation {
         const int sector = static_cast<int>(std::floor(normalized * 8.f + .5f)) % 8;
         facing_ = static_cast<Facing8>((sector + 1) % 8);
     }
-    void observe(const common::PlayerState &previous, const common::PlayerState &state) {
+    void observe(const common::PlayerState& previous, const common::PlayerState& state) {
         if ((!previous.connected || !previous.alive) && state.alive) {
             locked_.reset();
             facing_ = Facing8::Dir1;
@@ -61,25 +69,31 @@ class PlayerAnimation {
         if (!state.alive && current_ != Anim::Die)
             oneShot(Anim::Die);
     }
-    void update(float dt, const common::PlayerState &state, const common::ServerSettings &settings,
+    void update(float dt, const common::PlayerState& state, const common::ServerSettings& settings,
                 bool combatIdle, float walkSpeed, float runSpeed) {
         if (!ready())
             return;
         face(state.facing);
         const auto lightning = common::attackDescription(common::AttackKind::Lightning, settings);
-        const bool channeling = state.alive && state.combatDebug.attack == common::AttackKind::Lightning &&
-                                state.combatDebug.age < lightning.startupTicks + lightning.activeTicks;
+        const bool channeling =
+            state.alive && state.combatDebug.attack == common::AttackKind::Lightning &&
+            state.combatDebug.elapsedTicks < lightning.startupTicks + lightning.activeTicks;
         if (channeling && !locked_)
             select(Anim::Special1);
         if (!locked_ && !channeling) {
             const float speed = state.vel.lengthSquared();
-            select(!state.alive                                  ? Anim::Die
-                   : combatIdle && speed < walkSpeed * walkSpeed ? Anim::Idle2
-                   : speed >= runSpeed * runSpeed                ? Anim::Run
-                   : speed >= walkSpeed * walkSpeed              ? Anim::Walk
-                                                                 : Anim::Idle);
+            Anim locomotion = Anim::Idle;
+            if (!state.alive)
+                locomotion = Anim::Die;
+            else if (combatIdle && speed < walkSpeed * walkSpeed)
+                locomotion = Anim::Idle2;
+            else if (speed >= runSpeed * runSpeed)
+                locomotion = Anim::Run;
+            else if (speed >= walkSpeed * walkSpeed)
+                locomotion = Anim::Walk;
+            select(locomotion);
         }
-        const auto &frames = clip().frames;
+        const auto& frames = clip().frames;
         if (frames.empty())
             return;
         elapsed_ += dt;
@@ -114,7 +128,7 @@ class PlayerAnimation {
     }
 
   private:
-    const ResourceManager::CharacterAnimations *animations_ = nullptr;
+    const ResourceManager::CharacterAnimations* animations_ = nullptr;
     Facing8 facing_ = Facing8::Dir1;
     Anim current_ = Anim::Idle;
     std::optional<Anim> locked_;

@@ -5,8 +5,8 @@
 #include <SFML/Network.hpp>
 #include <csignal>
 #include <iostream>
-inline bool sendPacket(sf::UdpSocket &socket, sf::Packet &packet, const sf::IpAddress &ip,
-                       unsigned short port, const char *context) {
+inline bool sendPacket(sf::UdpSocket& socket, sf::Packet& packet, const sf::IpAddress& ip,
+                       unsigned short port, const char* context) {
     const sf::Socket::Status status = socket.send(packet, ip, port);
     if (status != sf::Socket::Status::Done) {
         std::cerr << context << " failed with socket status " << static_cast<int>(status) << '\n';
@@ -24,10 +24,10 @@ class ConnectionManager {
         std::uint32_t pingSequence = 0;
         bool pingPending = false;
     };
-    GameSimulation &simulation;
-    const common::ServerSettings &settings;
-    std::vector<GamePlayer> &players;
-    common::Logger &logger;
+    GameSimulation& simulation;
+    const common::ServerSettings& settings;
+    std::vector<GamePlayer>& players;
+    common::Logger& logger;
     sf::UdpSocket socket;
     std::vector<Peer> peers{common::MAX_PLAYERS};
     std::uint32_t snapshotSequence = 0;
@@ -38,7 +38,7 @@ class ConnectionManager {
     }
 
   public:
-    ConnectionManager(GameSimulation &game, common::Logger &log)
+    ConnectionManager(GameSimulation& game, common::Logger& log)
         : simulation(game), settings(game.settings), players(game.players), logger(log) {
         const auto ip = sf::IpAddress::resolve(settings.ip);
         if (!ip)
@@ -49,7 +49,7 @@ class ConnectionManager {
         logger.log_info("Server listening on port ", settings.port);
         std::cout.flush();
     }
-    void pump(const volatile std::sig_atomic_t &stopRequested) {
+    void pump(const volatile std::sig_atomic_t& stopRequested) {
         sf::Packet packet;
         std::optional<sf::IpAddress> senderIp;
         unsigned short senderPort = 0;
@@ -122,8 +122,8 @@ class ConnectionManager {
                     sf::Packet joined;
                     joined << std::string("player_joined") << static_cast<common::PlayerId>(assignedId);
                     for (std::size_t i = 0; i < players.size(); ++i) {
-                        const auto &player = players[i];
-                        const auto &peer = peers[i];
+                        const auto& player = players[i];
+                        const auto& peer = peers[i];
                         if (!player.state.connected || !peer.ip)
                             continue;
                         sendPacket(socket, joined, *peer.ip, peer.port, "player_joined send");
@@ -143,8 +143,8 @@ class ConnectionManager {
                 std::uint32_t sequence;
                 if (!(packet >> id >> sequence) || id >= players.size())
                     continue;
-                auto &player = players[id];
-                auto &peer = peers[id];
+                auto& player = players[id];
+                auto& peer = peers[id];
                 if (!player.state.connected || peer.ip != senderIp || peer.port != senderPort ||
                     !peer.pingPending || sequence != peer.pingSequence)
                     continue;
@@ -155,8 +155,8 @@ class ConnectionManager {
                 common::PlayerId id;
                 if (!(packet >> id) || id >= players.size())
                     continue;
-                auto &player = players[id];
-                auto &peer = peers[id];
+                auto& player = players[id];
+                auto& peer = peers[id];
                 if (peer.ip != senderIp || peer.port != senderPort)
                     continue;
                 if (player.state.connected)
@@ -169,8 +169,8 @@ class ConnectionManager {
                 common::AttackRequest request;
                 if (!common::readAttackRequest(packet, playerId, request) || playerId >= players.size())
                     continue;
-                auto &player = players[playerId];
-                auto &peer = peers[playerId];
+                auto& player = players[playerId];
+                auto& peer = peers[playerId];
                 if (!player.state.connected || peer.ip != senderIp || peer.port != senderPort)
                     continue;
                 peer.lastHeard.restart();
@@ -186,8 +186,8 @@ class ConnectionManager {
                 if (!readInputCmd(packet, playerId, cmd) || playerId >= players.size()) {
                     continue;
                 }
-                auto &player = players[playerId];
-                auto &peer = peers[playerId];
+                auto& player = players[playerId];
+                auto& peer = peers[playerId];
                 if (!player.state.connected || peer.ip != senderIp || peer.port != senderPort) {
                     continue;
                 }
@@ -207,8 +207,8 @@ class ConnectionManager {
         }
 
         for (common::PlayerId id = 0; id < players.size(); ++id) {
-            auto &player = players[id];
-            auto &peer = peers[id];
+            auto& player = players[id];
+            auto& peer = peers[id];
             if (player.state.connected && peer.ip && peer.lastHeard.getElapsedTime() >= sf::seconds(5))
                 disconnect(id);
         }
@@ -216,8 +216,8 @@ class ConnectionManager {
     void broadcast() {
         auto publicStates = simulation.snapshot();
         for (int i = 0; i < common::MAX_PLAYERS; i++) {
-            auto &player = players[i];
-            auto &peer = peers[i];
+            auto& player = players[i];
+            auto& peer = peers[i];
             if (player.state.connected && peer.ip && peer.pingClock.getElapsedTime() >= sf::seconds(1)) {
                 sf::Packet ping;
                 ping << std::string("ping") << static_cast<common::PlayerId>(i) << ++peer.pingSequence;
@@ -233,11 +233,11 @@ class ConnectionManager {
         auto packets =
             common::worldPackets(publicStates, ++snapshotSequence, simulation.killHistory.events());
         for (std::size_t i = 0; i < players.size(); ++i) {
-            const auto &player = players[i];
-            const auto &peer = peers[i];
+            const auto& player = players[i];
+            const auto& peer = peers[i];
             if (!player.state.connected || !peer.ip)
                 continue;
-            for (auto &part : packets)
+            for (auto& part : packets)
                 sendPacket(socket, part, *peer.ip, peer.port, "world part send");
         }
     }

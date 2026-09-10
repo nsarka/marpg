@@ -1,20 +1,19 @@
 #pragma once
 
+#include <tmxlite/LayerGroup.hpp>
 #include <tmxlite/Map.hpp>
 #include <tmxlite/ObjectGroup.hpp>
-#include <tmxlite/LayerGroup.hpp>
 #include <tmxlite/TileLayer.hpp>
 #include <tmxlite/detail/Log.hpp>
 
 #include <SFML/Graphics.hpp>
 #include <SFML/Network.hpp>
 
+#include <cmath>
 #include <string>
 #include <vector>
-#include <cmath>
 
 namespace common {
-
 
 inline constexpr unsigned short SERVER_PORT = 54000;
 inline constexpr int MAX_PLAYERS = 32;
@@ -34,29 +33,26 @@ inline constexpr const char* MSG_WORLD = "world";
 using PlayerId = std::uint32_t;
 using Tick = std::uint32_t;
 
-enum class AttackKind : std::uint8_t {
-    None = 0,
-    Light,
-    Heavy,
-    Explosion,
-    Lightning
-};
+enum class AttackKind : std::uint8_t { None = 0, Light, Heavy, Explosion, Lightning };
+inline bool isSpell(AttackKind kind) {
+    return kind == AttackKind::Explosion || kind == AttackKind::Lightning;
+}
 
-struct AttackDesc {
+struct AttackDefinition {
     std::uint32_t startupTicks;
     std::uint32_t activeTicks;
     std::uint32_t recoveryTicks;
 
-    float range;
-    int damage;
-    int damageMin=0;
-    float castRange=0, coneDegrees=0;
-    double interval=0;
-    bool area=false;
+    float hitRadius;
+    int damageMax;
+    int damageMin = 0;
+    float castRange = 0, coneDegrees = 0;
+    double pulseIntervalSeconds = 0;
+    bool area = false;
 };
 
 struct ServerSettings;
-AttackDesc attackDescription(AttackKind kind,const ServerSettings& settings);
+AttackDefinition attackDescription(AttackKind kind, const ServerSettings& settings);
 
 struct AttackState {
     AttackKind kind = AttackKind::None;
@@ -87,8 +83,8 @@ struct InputCommand {
     bool spellPressed = false;
     sf::Vector2f spellTarget{};
     sf::Vector2f cursor{};
-    bool hasCursor=false;
-    bool movementFacing=false;
+    bool hasCursor = false;
+    bool movementFacing = false;
     bool heavyHeld = false;
     bool heavyPressed = false;
     bool heavyReleased = false;
@@ -96,8 +92,8 @@ struct InputCommand {
 
 struct CombatDebugState {
     AttackKind attack = AttackKind::None;
-    Tick age = 0;
-    sf::Vector2f direction{0.70710678f,-0.70710678f};
+    Tick elapsedTicks = 0;
+    sf::Vector2f direction{0.70710678f, -0.70710678f};
     bool hit = false;
     std::int32_t target = -1;
 };
@@ -111,18 +107,18 @@ struct DamageEvent {
 inline constexpr std::size_t DamageHistorySize = 8;
 enum class KillCause : std::uint8_t { Hit, Light, Heavy, Floor, Bounds, Spell, Lightning };
 struct KillEvent {
-    std::uint32_t sequence=0;
-    std::int32_t killer=-1;
-    PlayerId victim=0;
-    std::int32_t killerTeam=-1,victimTeam=-1;
-    std::string killerName,victimName;
-    KillCause cause=KillCause::Hit;
+    std::uint32_t sequence = 0;
+    std::int32_t killer = -1;
+    PlayerId victim = 0;
+    std::int32_t killerTeam = -1, victimTeam = -1;
+    std::string killerName, victimName;
+    KillCause cause = KillCause::Hit;
 };
-inline constexpr std::size_t KillHistorySize=32;
+inline constexpr std::size_t KillHistorySize = 32;
 
 struct PlayerState {
-    std::uint8_t character=6;
-    std::int32_t team=-1;
+    std::uint8_t character = 6;
+    std::int32_t team = -1;
     bool connected = false;
     bool alive = true;
     sf::Vector2f pos{-140.f, 620.f};
@@ -153,22 +149,20 @@ bool readInputCmd(sf::Packet& packet, common::PlayerId& id, common::InputCommand
 void writePlayerState(sf::Packet& packet, const PlayerState& player);
 bool readPlayerState(sf::Packet& packet, PlayerState& player);
 
-void writeWorldPacket(sf::Packet& packet,
-                      const std::vector<PlayerState>& players, const std::vector<KillEvent>& kills = {});
+void writeWorldPacket(sf::Packet& packet, const std::vector<PlayerState>& players,
+                      const std::vector<KillEvent>& kills = {});
 
-bool readWorldPacket(sf::Packet& packet,
-                     std::vector<PlayerState>& players, std::vector<KillEvent>* kills = nullptr);
+bool readWorldPacket(sf::Packet& packet, std::vector<PlayerState>& players,
+                     std::vector<KillEvent>* kills = nullptr);
 
-
-template<typename T>
-T distance(const sf::Vector2<T>& p1, const sf::Vector2<T>& p2) {
+template <typename T> T distance(const sf::Vector2<T>& p1, const sf::Vector2<T>& p2) {
     // Calculate the difference between coordinates
     T dx = p2.x - p1.x;
     T dy = p2.y - p1.y;
 
     // Use std::hypot (C++11) or std::sqrt(dx*dx + dy*dy)
     // std::hypot is generally more robust against overflow
-    return std::hypot(dx, dy); 
+    return std::hypot(dx, dy);
 }
 
 } // namespace common

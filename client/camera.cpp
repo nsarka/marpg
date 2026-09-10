@@ -3,8 +3,7 @@
 #include <algorithm>
 #include <cmath>
 
-Camera::Camera(const sf::Vector2f& size)
-    : m_view({0.f, 0.f}, size) {}
+Camera::Camera(const sf::Vector2f& size) : m_view({0.f, 0.f}, size) {}
 
 void Camera::setSize(const sf::Vector2f& size) {
     m_view.setSize(size);
@@ -95,14 +94,13 @@ sf::Vector2f Camera::size() const {
     return m_view.getSize();
 }
 
-sf::Vector2f Camera::applyDeadZone(const sf::Vector2f& currentCenter,
-                                     const sf::Vector2f& target) const {
+sf::Vector2f Camera::applyDeadZone(const sf::Vector2f& currentCenter, const sf::Vector2f& target) const {
     const sf::Vector2f hz = *m_deadZoneHalfExtents;
     sf::Vector2f desired = currentCenter;
 
-    const float left   = currentCenter.x - hz.x;
-    const float right  = currentCenter.x + hz.x;
-    const float top    = currentCenter.y - hz.y;
+    const float left = currentCenter.x - hz.x;
+    const float right = currentCenter.x + hz.x;
+    const float top = currentCenter.y - hz.y;
     const float bottom = currentCenter.y + hz.y;
 
     if (target.x < left) {
@@ -134,21 +132,15 @@ sf::Vector2f Camera::clampCenterToBounds(const sf::Vector2f& desiredCenter) cons
     if (bounds.size.x <= m_view.getSize().x) {
         result.x = bounds.position.x + bounds.size.x * 0.5f;
     } else {
-        result.x = std::clamp(
-            desiredCenter.x,
-            bounds.position.x + halfView.x,
-            bounds.position.x + bounds.size.x - halfView.x
-        );
+        result.x = std::clamp(desiredCenter.x, bounds.position.x + halfView.x,
+                              bounds.position.x + bounds.size.x - halfView.x);
     }
 
     if (bounds.size.y <= m_view.getSize().y) {
         result.y = bounds.position.y + bounds.size.y * 0.5f;
     } else {
-        result.y = std::clamp(
-            desiredCenter.y,
-            bounds.position.y + halfView.y,
-            bounds.position.y + bounds.size.y - halfView.y
-        );
+        result.y = std::clamp(desiredCenter.y, bounds.position.y + halfView.y,
+                              bounds.position.y + bounds.size.y - halfView.y);
     }
 
     return result;

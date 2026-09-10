@@ -9,40 +9,27 @@
 // Struct stream operators (templated operators are defined in the header, not just declared)
 // ============================================================
 
-std::ostream& operator<<(std::ostream& os, const sf::Vector2f& v)
-{
+std::ostream& operator<<(std::ostream& os, const sf::Vector2f& v) {
     os << "(" << v.x << ", " << v.y << ")";
     return os;
 }
 
-std::ostream& operator<<(std::ostream& os, const common::PlayerState& p)
-{
+std::ostream& operator<<(std::ostream& os, const common::PlayerState& p) {
     os << "PlayerState{"
-       << "connected=" << std::boolalpha << p.connected
-       << ", alive=" << std::boolalpha << p.alive
-       << ", pos=" << p.pos
-       << ", vel=" << p.vel
-       << ", name=\"" << p.name << "\""
-       << ", health=" << p.health
-       << ", score=" << p.score
-       << "}";
+       << "connected=" << std::boolalpha << p.connected << ", alive=" << std::boolalpha << p.alive
+       << ", pos=" << p.pos << ", vel=" << p.vel << ", name=\"" << p.name << "\""
+       << ", health=" << p.health << ", score=" << p.score << "}";
 
     return os;
 }
 
-std::ostream& operator<<(std::ostream& os, const common::InputCommand& cmd)
-{
+std::ostream& operator<<(std::ostream& os, const common::InputCommand& cmd) {
     os << "InputCommand{"
-       << "sequence=" << cmd.sequence
-       << ", move=" << cmd.move
-       << ", sprint=" << std::boolalpha << cmd.sprint
-       << ", lightHeld=" << std::boolalpha << cmd.lightHeld
-       << ", lightPressed=" << std::boolalpha << cmd.lightPressed
-       << ", lightReleased=" << std::boolalpha << cmd.lightReleased
-       << ", heavyHeld=" << std::boolalpha << cmd.heavyHeld
-       << ", heavyPressed=" << std::boolalpha << cmd.heavyPressed
-       << ", heavyReleased=" << std::boolalpha << cmd.heavyReleased
-       << "}";
+       << "sequence=" << cmd.sequence << ", move=" << cmd.move << ", sprint=" << std::boolalpha << cmd.sprint
+       << ", lightHeld=" << std::boolalpha << cmd.lightHeld << ", lightPressed=" << std::boolalpha
+       << cmd.lightPressed << ", lightReleased=" << std::boolalpha << cmd.lightReleased
+       << ", heavyHeld=" << std::boolalpha << cmd.heavyHeld << ", heavyPressed=" << std::boolalpha
+       << cmd.heavyPressed << ", heavyReleased=" << std::boolalpha << cmd.heavyReleased << "}";
 
     return os;
 }
@@ -53,60 +40,47 @@ namespace common {
 // Logger implementation
 // ============================================================
 
-Logger::Logger(std::ostream& out)
-    : out_(out)
-{
-}
+Logger::Logger(std::ostream& out) : out_(out) {}
 
-Logger::LogLine::LogLine(Logger& logger, Level level)
-    : logger_(logger),
-      level_(level)
-{
-}
+Logger::LogLine::LogLine(Logger& logger, Level level) : logger_(logger), level_(level) {}
 
 Logger::LogLine::LogLine(LogLine&& other) noexcept
-    : logger_(other.logger_),
-      level_(other.level_),
-      stream_(std::move(other.stream_)),
-      committed_(other.committed_)
-{
+    : logger_(other.logger_), level_(other.level_), stream_(std::move(other.stream_)),
+      committed_(other.committed_) {
     other.committed_ = true;
 }
 
-Logger::LogLine::~LogLine()
-{
+Logger::LogLine::~LogLine() {
     if (!committed_) {
         logger_.write_line(level_, stream_.str());
     }
 }
 
-Logger::LogLine Logger::info()
-{
+Logger::LogLine Logger::info() {
     return LogLine(*this, Level::Info);
 }
 
-Logger::LogLine Logger::warn()
-{
+Logger::LogLine Logger::warn() {
     return LogLine(*this, Level::Warn);
 }
 
-Logger::LogLine Logger::error()
-{
+Logger::LogLine Logger::error() {
     return LogLine(*this, Level::Error);
 }
 
-const char* Logger::level_to_string(Level level)
-{
+const char* Logger::level_to_string(Level level) {
     switch (level) {
-        case Level::Info:  return "INFO";
-        case Level::Warn:  return "WARN";
-        case Level::Error: return "ERROR";
+    case Level::Info:
+        return "INFO";
+    case Level::Warn:
+        return "WARN";
+    case Level::Error:
+        return "ERROR";
     }
     return "UNKNOWN";
 }
 
-std::string Logger::make_timestamp()
-{
+std::string Logger::make_timestamp() {
     using clock = std::chrono::system_clock;
 
     const auto now = clock::now();
@@ -120,28 +94,18 @@ std::string Logger::make_timestamp()
     localtime_r(&time_t_now, &local_tm);
 #endif
 
-    const auto ms =
-        std::chrono::duration_cast<std::chrono::milliseconds>(
-            now.time_since_epoch()) % 1000;
+    const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()) % 1000;
 
     std::ostringstream oss;
 
-    oss << std::put_time(&local_tm, "%Y-%m-%d %H:%M:%S")
-        << "."
-        << std::setfill('0') << std::setw(3) << ms.count();
+    oss << std::put_time(&local_tm, "%Y-%m-%d %H:%M:%S") << "." << std::setfill('0') << std::setw(3)
+        << ms.count();
 
     return oss.str();
 }
 
-void Logger::write_line(Level level, const std::string& message)
-{
-    out_ << "["
-         << make_timestamp()
-         << "] ["
-         << level_to_string(level)
-         << "] "
-         << message
-         << '\n';
+void Logger::write_line(Level level, const std::string& message) {
+    out_ << "[" << make_timestamp() << "] [" << level_to_string(level) << "] " << message << '\n';
 }
 
 } // namespace common

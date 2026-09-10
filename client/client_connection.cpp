@@ -1,17 +1,13 @@
-#include "build_version.hpp"
 #include "client_connection.hpp"
+#include "build_version.hpp"
 
 namespace {
 
-static bool sendPacket(sf::UdpSocket& socket,
-                       sf::Packet& packet,
-                       const sf::IpAddress& ip,
-                       unsigned short port,
-                       const char* context) {
+static bool sendPacket(sf::UdpSocket& socket, sf::Packet& packet, const sf::IpAddress& ip,
+                       unsigned short port, const char* context) {
     const sf::Socket::Status status = socket.send(packet, ip, port);
     if (status != sf::Socket::Status::Done) {
-        std::cerr << context << " failed with socket status "
-                  << static_cast<int>(status) << '\n';
+        std::cerr << context << " failed with socket status " << static_cast<int>(status) << '\n';
         return false;
     }
     return true;
@@ -19,12 +15,12 @@ static bool sendPacket(sf::UdpSocket& socket,
 
 } // namespace
 
+ClientConnection::ClientConnection(common::Logger& logger)
+    : logger(logger), serverIp_(sf::IpAddress::LocalHost) {}
 
-ClientConnection::ClientConnection(common::Logger& logger) : logger(logger), serverIp_(sf::IpAddress::LocalHost) {}
-
-
-common::PlayerId ClientConnection::connectToServer(const std::string serverText, const std::string myName, unsigned short port, std::uint32_t requestedTeam) {
-    serverPort_=port;
+common::PlayerId ClientConnection::connectToServer(const std::string serverText, const std::string myName,
+                                                   unsigned short port, std::uint32_t requestedTeam) {
+    serverPort_ = port;
     logger.log_info("Connecting to ", serverText, " as ", myName);
 
     const std::optional<sf::IpAddress> maybeIp = sf::IpAddress::resolve(serverText);
@@ -44,57 +40,73 @@ common::PlayerId ClientConnection::connectToServer(const std::string serverText,
     int myId = -2;
     logger.log_info("Waiting for server...");
     sf::Clock timeout, retry;
-    bool firstAttempt=true;
-    while (myId == -2 && timeout.getElapsedTime()<sf::seconds(10)) {
-        if (firstAttempt || retry.getElapsedTime()>=sf::milliseconds(500)) {
+    bool firstAttempt = true;
+    while (myId == -2 && timeout.getElapsedTime() < sf::seconds(10)) {
+        if (firstAttempt || retry.getElapsedTime() >= sf::milliseconds(500)) {
             sf::Packet join;
-            join << std::string(common::MSG_JOIN) << myName << requestedTeam << std::string(common::BuildCommit);
-            if (!sendPacket(udp_socket_,join,serverIp_,serverPort_,"join send")) return -1;
-            firstAttempt=false;
+            join << std::string(common::MSG_JOIN) << myName << requestedTeam
+                 << std::string(common::BuildCommit);
+            if (!sendPacket(udp_socket_, join, serverIp_, serverPort_, "join send"))
+                return -1;
+            firstAttempt = false;
             retry.restart();
         }
         sf::Packet packet;
         std::optional<sf::IpAddress> senderIp;
-        unsigned short senderPort=0;
-        while (udp_socket_.receive(packet,senderIp,senderPort)==sf::Socket::Status::Done) {
-            if (senderIp!=serverIp_ || senderPort!=serverPort_) continue;
+        unsigned short senderPort = 0;
+        while (udp_socket_.receive(packet, senderIp, senderPort) == sf::Socket::Status::Done) {
+            if (senderIp != serverIp_ || senderPort != serverPort_)
+                continue;
             std::string type;
             int assignedId;
-            if(!(packet >> type))continue;
-            if(type=="version_mismatch") {
-                std::string serverCommit;if(!(packet>>serverCommit))continue;
-                connectionError_="Version mismatch. Please redownload MARPG.\nClient: "+std::string(common::BuildCommit).substr(0,7)+
-                    "   Server: "+serverCommit.substr(0,7)+
-                    "\nDownload: github.com/nsarka/marpg/releases/latest\nExtract the new ZIP into a new folder and run client.bat.";
-                logger.log_error(connectionError_);return -1;
+            if (!(packet >> type))
+                continue;
+            if (type == "version_mismatch") {
+                std::string serverCommit;
+                if (!(packet >> serverCommit))
+                    continue;
+                connectionError_ = "Version mismatch. Please redownload MARPG.\nClient: " +
+                                   std::string(common::BuildCommit).substr(0, 7) +
+                                   "   Server: " + serverCommit.substr(0, 7) +
+                                   "\nDownload: github.com/nsarka/marpg/releases/latest\nExtract the new ZIP "
+                                   "into a new folder and run client.bat.";
+                logger.log_error(connectionError_);
+                return -1;
             }
-            if(type=="server_shutdown") {
+            if (type == "server_shutdown") {
                 logger.log_error("Server is shutting down.");
                 return -1;
             }
-            if (type==common::MSG_JOIN_ACK && (packet >> assignedId) &&
-                assignedId>=-1 && assignedId<common::MAX_PLAYERS) {
-                if(assignedId<0){myId=assignedId;break;}
-                std::uint32_t version=0;
+            if (type == common::MSG_JOIN_ACK && (packet >> assignedId) && assignedId >= -1 &&
+                assignedId < common::MAX_PLAYERS) {
+                if (assignedId < 0) {
+                    myId = assignedId;
+                    break;
+                }
+                std::uint32_t version = 0;
                 common::ServerSettings settings;
                 std::string serverCommit;
-                if(!(packet >> version) || version!=common::ProtocolVersion ||
-                   !(packet>>serverCommit) || serverCommit!=common::BuildCommit || !common::readSettings(packet,settings)) {
-                    connectionError_="Client and server versions do not match.\nPlease redownload MARPG from:\ngithub.com/nsarka/marpg/releases/latest";
-                    logger.log_error("Incompatible server configuration/protocol. Rebuild server and client together.");
+                if (!(packet >> version) || version != common::ProtocolVersion || !(packet >> serverCommit) ||
+                    serverCommit != common::BuildCommit || !common::readSettings(packet, settings)) {
+                    connectionError_ = "Client and server versions do not match.\nPlease redownload MARPG "
+                                       "from:\ngithub.com/nsarka/marpg/releases/latest";
+                    logger.log_error(
+                        "Incompatible server configuration/protocol. Rebuild server and client together.");
                     return -1;
                 }
-                settings_=settings;
-                logger.log_info("Received server settings: ",settings.slots," total slots (",settings.slots-settings.bots," human), ",settings.teams," teams");
-                myId=assignedId;
+                settings_ = settings;
+                logger.log_info("Received server settings: ", settings.slots, " total slots (",
+                                settings.slots - settings.bots, " human), ", settings.teams, " teams");
+                myId = assignedId;
                 break;
             }
         }
         sf::sleep(sf::milliseconds(10));
     }
     if (myId == -2) {
-        logger.log_error("No join reply from ",serverText,":",serverPort_,
-                         " after 10 seconds. Check the server, IP address, and Windows/WSL firewall or return UDP traffic.");
+        logger.log_error("No join reply from ", serverText, ":", serverPort_,
+                         " after 10 seconds. Check the server, IP address, and Windows/WSL firewall or "
+                         "return UDP traffic.");
         return -1;
     }
 
@@ -109,36 +121,46 @@ common::PlayerId ClientConnection::connectToServer(const std::string serverText,
     return myId_;
 }
 
-ClientConnection::~ClientConnection() { leaveServer(); }
+ClientConnection::~ClientConnection() {
+    leaveServer();
+}
 
 void ClientConnection::leaveServer() {
-    if (myId_>=common::MAX_PLAYERS || shuttingDown()) return;
-    sf::Clock timeout,retry;
-    bool first=true,acknowledged=false;
-    while (!acknowledged && timeout.getElapsedTime()<sf::milliseconds(300)) {
-        if (first || retry.getElapsedTime()>=sf::milliseconds(75)) {
+    if (myId_ >= common::MAX_PLAYERS || shuttingDown())
+        return;
+    sf::Clock timeout, retry;
+    bool first = true, acknowledged = false;
+    while (!acknowledged && timeout.getElapsedTime() < sf::milliseconds(300)) {
+        if (first || retry.getElapsedTime() >= sf::milliseconds(75)) {
             sf::Packet leave;
             leave << std::string("leave") << myId_;
-            sendPacket(udp_socket_,leave,serverIp_,serverPort_,"leave send");
-            first=false; retry.restart();
+            sendPacket(udp_socket_, leave, serverIp_, serverPort_, "leave send");
+            first = false;
+            retry.restart();
         }
         sf::Packet packet;
         std::optional<sf::IpAddress> sender;
-        unsigned short port=0;
-        while (udp_socket_.receive(packet,sender,port)==sf::Socket::Status::Done) {
+        unsigned short port = 0;
+        while (udp_socket_.receive(packet, sender, port) == sf::Socket::Status::Done) {
             std::string type;
             common::PlayerId id;
-            if (sender==serverIp_ && port==serverPort_ && (packet >> type >> id) &&
-                type=="leave_ack" && id==myId_) { acknowledged=true; break; }
-            if (timeout.getElapsedTime()>=sf::milliseconds(300)) break;
+            if (sender == serverIp_ && port == serverPort_ && (packet >> type >> id) && type == "leave_ack" &&
+                id == myId_) {
+                acknowledged = true;
+                break;
+            }
+            if (timeout.getElapsedTime() >= sf::milliseconds(300))
+                break;
         }
-        if (!acknowledged) sf::sleep(sf::milliseconds(5));
+        if (!acknowledged)
+            sf::sleep(sf::milliseconds(5));
     }
-    myId_=static_cast<common::PlayerId>(-1);
+    myId_ = static_cast<common::PlayerId>(-1);
     attackOutbox_.clear();
 }
 
-void ClientConnection::pumpNetwork(std::vector<common::PlayerState>& newStates, std::vector<common::PlayerId>& joinedPlayers) {
+void ClientConnection::pumpNetwork(std::vector<common::PlayerState>& newStates,
+                                   std::vector<common::PlayerId>& joinedPlayers) {
     while (true) {
         sf::Packet packet;
         std::optional<sf::IpAddress> senderIp;
@@ -148,22 +170,26 @@ void ClientConnection::pumpNetwork(std::vector<common::PlayerState>& newStates, 
             break;
         }
 
-        if (senderIp!=serverIp_ || senderPort!=serverPort_) continue;
+        if (senderIp != serverIp_ || senderPort != serverPort_)
+            continue;
         std::string type;
         packet >> type;
-        if(type=="ping") {
-            common::PlayerId id;std::uint32_t sequence;
-            if(packet>>id>>sequence) {
-                sf::Packet pong;pong<<std::string("pong")<<id<<sequence;
-                sendPacket(udp_socket_,pong,serverIp_,serverPort_,"pong");
+        if (type == "ping") {
+            common::PlayerId id;
+            std::uint32_t sequence;
+            if (packet >> id >> sequence) {
+                sf::Packet pong;
+                pong << std::string("pong") << id << sequence;
+                sendPacket(udp_socket_, pong, serverIp_, serverPort_, "pong");
             }
             continue;
         }
-        if (type=="server_shutdown") {
-            sf::Packet ack;ack << std::string("shutdown_ack") << myId_;
-            sendPacket(udp_socket_,ack,serverIp_,serverPort_,"shutdown ack");
-            if(!shuttingDown()) {
-                shutdownReason_="Server is shutting down.";
+        if (type == "server_shutdown") {
+            sf::Packet ack;
+            ack << std::string("shutdown_ack") << myId_;
+            sendPacket(udp_socket_, ack, serverIp_, serverPort_, "shutdown ack");
+            if (!shuttingDown()) {
+                shutdownReason_ = "Server is shutting down.";
                 logger.log_error(shutdownReason_);
                 attackOutbox_.clear();
             }
@@ -171,50 +197,57 @@ void ClientConnection::pumpNetwork(std::vector<common::PlayerState>& newStates, 
         }
         if (type == common::MSG_ATTACK_ACK) {
             std::uint32_t sequence;
-            if (packet >> sequence) attackOutbox_.acknowledge(sequence);
+            if (packet >> sequence)
+                attackOutbox_.acknowledge(sequence);
             continue;
         }
 
         if (type == common::MSG_WORLD_PART) {
-            auto assembled=worldAssembler_.accept(packet);
-            if (!assembled) continue;
-            packet=std::move(*assembled);
-            if (!(packet >> type)) continue;
+            auto assembled = worldAssembler_.accept(packet);
+            if (!assembled)
+                continue;
+            packet = std::move(*assembled);
+            if (!(packet >> type))
+                continue;
         }
         if (type == common::MSG_WORLD) {
             if (!common::readWorldPacket(packet, newStates, &killEvents_)) {
                 logger.log_error("Error reading new world states");
                 continue;
             }
-            hasWorld_=true;
+            hasWorld_ = true;
             lastWorld_.restart();
-            warnedMissingWorld_=false;
-            if (myId_<newStates.size() && !newStates[myId_].alive) attackOutbox_.clear();
+            warnedMissingWorld_ = false;
+            if (myId_ < newStates.size() && !newStates[myId_].alive)
+                attackOutbox_.clear();
         }
 
         // Repeated world snapshots are the authoritative join/leave notification.
-
     }
-    if(!shuttingDown() && lastWorld_.getElapsedTime()>=sf::seconds(10)) {
-        shutdownReason_="Connection to the server was lost.";
+    if (!shuttingDown() && lastWorld_.getElapsedTime() >= sf::seconds(10)) {
+        shutdownReason_ = "Connection to the server was lost.";
         logger.log_error(shutdownReason_);
         attackOutbox_.clear();
     }
-    if (!shuttingDown() && !warnedMissingWorld_ && lastWorld_.getElapsedTime()>=sf::seconds(3)) {
-        logger.log_error("No complete world update for 3 seconds. Update both server and client; check return UDP traffic/firewall if this persists.");
-        warnedMissingWorld_=true;
+    if (!shuttingDown() && !warnedMissingWorld_ && lastWorld_.getElapsedTime() >= sf::seconds(3)) {
+        logger.log_error("No complete world update for 3 seconds. Update both server and client; check "
+                         "return UDP traffic/firewall if this persists.");
+        warnedMissingWorld_ = true;
     }
 }
 
-void ClientConnection::sendInput(common::PlayerId &id, common::InputCommand &cmd) {
-    if(shuttingDown())return;
-    const auto nowMs=static_cast<std::uint32_t>(attackClock_.getElapsedTime().asMilliseconds());
-    if(cmd.spellPressed)attackOutbox_.enqueue(cmd.spellKind,cmd.spellTarget,nowMs);
+void ClientConnection::sendInput(common::PlayerId& id, common::InputCommand& cmd) {
+    if (shuttingDown())
+        return;
+    const auto nowMs = static_cast<std::uint32_t>(attackClock_.getElapsedTime().asMilliseconds());
+    if (cmd.spellPressed)
+        attackOutbox_.enqueue(cmd.spellKind, cmd.spellTarget, nowMs);
     if (cmd.lightPressed || cmd.heavyPressed)
-        attackOutbox_.enqueue(cmd.lightPressed ? common::AttackKind::Light : common::AttackKind::Heavy,cmd.aim,nowMs);
+        attackOutbox_.enqueue(cmd.lightPressed ? common::AttackKind::Light : common::AttackKind::Heavy,
+                              cmd.aim, nowMs);
     for (const auto& request : attackOutbox_.requests(nowMs)) {
-        auto attack=common::attackPacket(id,request);
-        sendPacket(udp_socket_,attack,serverIp_,serverPort_,"attack send");
+        auto attack = common::attackPacket(id, request);
+        sendPacket(udp_socket_, attack, serverIp_, serverPort_, "attack send");
     }
     sf::Packet packet;
     common::writeInputCmd(packet, id, cmd);

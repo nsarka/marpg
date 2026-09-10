@@ -14,10 +14,9 @@
 
 std::ostream& operator<<(std::ostream& os, const sf::Vector2f& v);
 
-template <typename T>
-std::ostream& operator<<(std::ostream& os, const sf::Rect<T>& rect)
-{
-    os << "(x=" << rect.position.x << ", y=" << rect.position.y << ", w= " << rect.size.x << ", h=" << rect.size.y << ")";
+template <typename T> std::ostream& operator<<(std::ostream& os, const sf::Rect<T>& rect) {
+    os << "(x=" << rect.position.x << ", y=" << rect.position.y << ", w= " << rect.size.x
+       << ", h=" << rect.size.y << ")";
     return os;
 }
 
@@ -43,23 +42,17 @@ namespace common {
     logger.log_error("Snapshot: ", playertest);
 */
 
-class Logger
-{
-public:
-    enum class Level {
-        Info,
-        Warn,
-        Error
-    };
+class Logger {
+  public:
+    enum class Level { Info, Warn, Error };
 
     explicit Logger(std::ostream& out = std::cout);
 
     // --------------------------------------------------------
     // Streaming log line helper
     // --------------------------------------------------------
-    class LogLine
-    {
-    public:
+    class LogLine {
+      public:
         LogLine(Logger& logger, Level level);
         ~LogLine();
 
@@ -68,22 +61,19 @@ public:
 
         LogLine(LogLine&& other) noexcept;
 
-        template <typename T>
-        LogLine& operator<<(const T& value)
-        {
+        template <typename T> LogLine& operator<<(const T& value) {
             stream_ << value;
             return *this;
         }
 
         using Manip = std::ostream& (*)(std::ostream&);
 
-        LogLine& operator<<(Manip manip)
-        {
+        LogLine& operator<<(Manip manip) {
             stream_ << manip;
             return *this;
         }
 
-    private:
+      private:
         Logger& logger_;
         Level level_;
         std::ostringstream stream_;
@@ -97,25 +87,19 @@ public:
     // --------------------------------------------------------
     // Convenience fold-based logging
     // --------------------------------------------------------
-    template <typename... Args>
-    void log_info(Args&&... args)
-    {
+    template <typename... Args> void log_info(Args&&... args) {
         write_fold(Level::Info, std::forward<Args>(args)...);
     }
 
-    template <typename... Args>
-    void log_warn(Args&&... args)
-    {
+    template <typename... Args> void log_warn(Args&&... args) {
         write_fold(Level::Warn, std::forward<Args>(args)...);
     }
 
-    template <typename... Args>
-    void log_error(Args&&... args)
-    {
+    template <typename... Args> void log_error(Args&&... args) {
         write_fold(Level::Error, std::forward<Args>(args)...);
     }
 
-private:
+  private:
     std::ostream& out_;
 
     static const char* level_to_string(Level level);
@@ -123,9 +107,7 @@ private:
 
     void write_line(Level level, const std::string& message);
 
-    template <typename... Args>
-    void write_fold(Level level, Args&&... args)
-    {
+    template <typename... Args> void write_fold(Level level, Args&&... args) {
         std::ostringstream oss;
         (oss << ... << std::forward<Args>(args));
         write_line(level, oss.str());

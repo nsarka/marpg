@@ -3,9 +3,11 @@
 #include <iostream>
 namespace {
 volatile std::sig_atomic_t stopRequested = 0;
-void requestStop(int) { stopRequested = 1; }
+void requestStop(int) {
+    stopRequested = 1;
+}
 } // namespace
-int main(int argc, char **) {
+int main(int argc, char**) {
     if (argc != 1) {
         std::cerr << "Server does not accept command-line arguments. Edit server.toml instead.\n";
         return 1;
@@ -36,7 +38,7 @@ int main(int argc, char **) {
                 sf::sleep(sf::milliseconds(1));
         }
         connections.shutdown();
-    } catch (const std::exception &error) {
+    } catch (const std::exception& error) {
         logger.log_error(error.what());
         return 1;
     }

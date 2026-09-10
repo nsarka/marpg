@@ -9,9 +9,9 @@ struct GamePlayer {
     sf::Clock lastInputTime;
     bool human = false;
 };
-inline std::vector<common::PlayerState> states(const std::vector<GamePlayer> &players) {
+inline std::vector<common::PlayerState> states(const std::vector<GamePlayer>& players) {
     std::vector<common::PlayerState> result;
-    for (const auto &p : players)
+    for (const auto& p : players)
         result.push_back(p.state);
     return result;
 }

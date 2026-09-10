@@ -23,7 +23,7 @@
 */
 
 class Camera {
-public:
+  public:
     Camera() = default;
     explicit Camera(const sf::Vector2f& size);
 
@@ -52,12 +52,11 @@ public:
     sf::Vector2f center() const;
     sf::Vector2f size() const;
 
-private:
+  private:
     sf::Vector2f clampCenterToBounds(const sf::Vector2f& desiredCenter) const;
-    sf::Vector2f applyDeadZone(const sf::Vector2f& currentCenter,
-                               const sf::Vector2f& target) const;
+    sf::Vector2f applyDeadZone(const sf::Vector2f& currentCenter, const sf::Vector2f& target) const;
 
-private:
+  private:
     sf::View m_view;
     float m_zoom = 1.f;
     float m_followSharpness = 10.f;

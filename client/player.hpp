@@ -30,10 +30,12 @@ class Player : public sf::Drawable {
 
     explicit Player(common::PlayerState initialState = {});
 
-    void setSettings(const common::ServerSettings &settings) { settings_ = settings; }
-    void setCharacterAnimations(const ResourceManager::CharacterAnimations &animations);
+    void setSettings(const common::ServerSettings& settings) {
+        settings_ = settings;
+    }
+    void setCharacterAnimations(const ResourceManager::CharacterAnimations& animations);
 
-    void setFont(const sf::Font &font, unsigned int characterSize = 16);
+    void setFont(const sf::Font& font, unsigned int characterSize = 16);
     void setNameColor(sf::Color color);
     void setSpriteScale(sf::Vector2f scale);
     void setOriginToFeet(float xFraction = common::CharacterFeetX, float yFraction = common::CharacterFeetY);
@@ -41,16 +43,20 @@ class Player : public sf::Drawable {
     void setWalkSpeed(float speed);
     void setRunSpeed(float speed);
 
-    void setTint(const sf::Color &color);
+    void setTint(const sf::Color& color);
 
     void setOutlineEnabled(bool enabled);
-    void setOutlineColor(const sf::Color &color);
+    void setOutlineColor(const sf::Color& color);
     void setOutlineThickness(float pixels);
-    void setOutlineShader(sf::Shader *shader);
-    void setOcclusionShader(sf::Shader *shader) { m_occlusionShader = shader; }
+    void setOutlineShader(sf::Shader* shader);
+    void setOcclusionShader(sf::Shader* shader) {
+        m_occlusionShader = shader;
+    }
 
-    void setCombatIdle(bool value) { m_inCombatIdle = value; }
-    void applySnapshot(const common::PlayerState &snapshot);
+    void setCombatIdle(bool value) {
+        m_inCombatIdle = value;
+    }
+    void applySnapshot(const common::PlayerState& snapshot);
     void teleportTo(sf::Vector2f position);
 
     void update(float dtSeconds);
@@ -58,7 +64,7 @@ class Player : public sf::Drawable {
     void playOneShot(Anim anim);
     void setFacingFromVector(sf::Vector2f dir);
 
-    common::PlayerState &state();
+    common::PlayerState& state();
     sf::Vector2f renderPosition() const;
     Facing8 facing() const;
     Anim currentAnimation() const;
@@ -71,7 +77,7 @@ class Player : public sf::Drawable {
 
     void updateNameTextPosition();
 
-    void draw(sf::RenderTarget &target, sf::RenderStates states) const override;
+    void draw(sf::RenderTarget& target, sf::RenderStates states) const override;
 
   private:
     common::ServerSettings settings_;
@@ -97,6 +103,6 @@ class Player : public sf::Drawable {
     bool m_outlineEnabled = false;
     sf::Color m_outlineColor = sf::Color(255, 60, 60, 220);
     float m_outlineThickness = 2.f;
-    sf::Shader *m_occlusionShader = nullptr; // non-owning
-    sf::Shader *m_outlineShader = nullptr;   // non-owning
+    sf::Shader* m_occlusionShader = nullptr; // non-owning
+    sf::Shader* m_outlineShader = nullptr;   // non-owning
 };

@@ -12,7 +12,7 @@
 Player::Player(common::PlayerState initialState)
     : m_state(std::move(initialState)), m_renderPos(m_state.pos), m_targetPos(m_state.pos) {}
 
-void Player::setCharacterAnimations(const ResourceManager::CharacterAnimations &animations) {
+void Player::setCharacterAnimations(const ResourceManager::CharacterAnimations& animations) {
     animation_.setAnimations(animations);
     refreshCurrentFrame();
 }
@@ -31,7 +31,7 @@ void Player::refreshOriginFromCurrentFrame() {
 void Player::refreshCurrentFrame() {
     if (!animation_.ready())
         return;
-    const ResourceManager::Clip &clip = animation_.clip();
+    const ResourceManager::Clip& clip = animation_.clip();
     if (clip.frames.empty() || !clip.texture) {
         return;
     }
@@ -50,12 +50,14 @@ void Player::refreshCurrentFrame() {
     updateNameTextPosition();
 }
 
-void Player::setFont(const sf::Font &font, unsigned int characterSize) {
+void Player::setFont(const sf::Font& font, unsigned int characterSize) {
     nameplate_.setFont(font, characterSize);
     updateNameTextPosition();
 }
 
-void Player::setNameColor(sf::Color color) { nameplate_.setColor(color); }
+void Player::setNameColor(sf::Color color) {
+    nameplate_.setColor(color);
+}
 
 void Player::setSpriteScale(sf::Vector2f scale) {
     if (m_sprite) {
@@ -71,30 +73,42 @@ void Player::setOriginToFeet(float xFraction, float yFraction) {
     updateNameTextPosition();
 }
 
-void Player::setInterpolationSharpness(float sharpness) { m_interpSharpness = sharpness; }
+void Player::setInterpolationSharpness(float sharpness) {
+    m_interpSharpness = sharpness;
+}
 
-void Player::setWalkSpeed(float speed) { m_walkSpeed = speed; }
+void Player::setWalkSpeed(float speed) {
+    m_walkSpeed = speed;
+}
 
-void Player::setRunSpeed(float speed) { m_runSpeed = speed; }
+void Player::setRunSpeed(float speed) {
+    m_runSpeed = speed;
+}
 
-void Player::setTint(const sf::Color &color) {
+void Player::setTint(const sf::Color& color) {
     if (m_sprite) {
         m_sprite->setColor(color);
     }
 }
 
-void Player::setOutlineEnabled(bool enabled) { m_outlineEnabled = enabled; }
+void Player::setOutlineEnabled(bool enabled) {
+    m_outlineEnabled = enabled;
+}
 
-void Player::setOutlineColor(const sf::Color &color) {
+void Player::setOutlineColor(const sf::Color& color) {
     m_outlineColor = color;
     m_outlineColor.a = static_cast<std::uint8_t>(color.a * 0.2f);
 }
 
-void Player::setOutlineThickness(float pixels) { m_outlineThickness = pixels; }
+void Player::setOutlineThickness(float pixels) {
+    m_outlineThickness = pixels;
+}
 
-void Player::setOutlineShader(sf::Shader *shader) { m_outlineShader = shader; }
+void Player::setOutlineShader(sf::Shader* shader) {
+    m_outlineShader = shader;
+}
 
-void Player::applySnapshot(const common::PlayerState &snapshot) {
+void Player::applySnapshot(const common::PlayerState& snapshot) {
     const bool teleported = snapshot.teleportSequence != m_state.teleportSequence;
     const bool respawned = (!m_state.connected || !m_state.alive) && snapshot.alive;
     animation_.observe(m_state, snapshot);
@@ -138,21 +152,35 @@ void Player::update(float dtSeconds) {
     updateNameTextPosition();
 }
 
-bool Player::isAlive() const { return m_state.alive; }
+bool Player::isAlive() const {
+    return m_state.alive;
+}
 
-bool Player::isConnected() const { return m_state.connected; }
+bool Player::isConnected() const {
+    return m_state.connected;
+}
 
-common::PlayerState &Player::state() { return m_state; }
+common::PlayerState& Player::state() {
+    return m_state;
+}
 
-sf::Vector2f Player::renderPosition() const { return m_renderPos; }
+sf::Vector2f Player::renderPosition() const {
+    return m_renderPos;
+}
 
-Player::Facing8 Player::facing() const { return animation_.facing(); }
+Player::Facing8 Player::facing() const {
+    return animation_.facing();
+}
 
-Player::Anim Player::currentAnimation() const { return animation_.current(); }
+Player::Anim Player::currentAnimation() const {
+    return animation_.current();
+}
 
-void Player::updateNameTextPosition() { nameplate_.update(m_state.name, m_renderPos); }
+void Player::updateNameTextPosition() {
+    nameplate_.update(m_state.name, m_renderPos);
+}
 
-void Player::draw(sf::RenderTarget &target, sf::RenderStates states) const {
+void Player::draw(sf::RenderTarget& target, sf::RenderStates states) const {
     if (!m_state.connected) {
         return;
     }
@@ -171,7 +199,7 @@ void Player::draw(sf::RenderTarget &target, sf::RenderStates states) const {
             sf::RenderStates outlineStates = states;
             outlineStates.shader = m_outlineShader;
 
-            const sf::Texture &tex = m_sprite->getTexture();
+            const sf::Texture& tex = m_sprite->getTexture();
             const auto size = tex.getSize();
 
             m_outlineShader->setUniform("texture", sf::Shader::CurrentTexture);

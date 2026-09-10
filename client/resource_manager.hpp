@@ -1,7 +1,7 @@
 #pragma once
 
-#include "common/logger.hpp"
 #include "common/animation_catalog.hpp"
+#include "common/logger.hpp"
 
 #include <SFML/Graphics/Font.hpp>
 #include <SFML/Graphics/Rect.hpp>
@@ -17,9 +17,8 @@
 #include <unordered_map>
 #include <vector>
 
-class ResourceManager
-{
-public:
+class ResourceManager {
+  public:
     struct Frame {
         sf::IntRect rect{};
         float durationSeconds = 0.1f;
@@ -45,15 +44,14 @@ public:
         const AnimSet& get(common::CharacterAnimation animation) const;
     };
 
-public:
+  public:
     explicit ResourceManager(common::Logger& logger);
 
     bool loadFont(const std::string& id, const std::filesystem::path& path);
     bool loadFragmentShader(const std::string& id, const std::filesystem::path& path);
 
     // Loads the fantasy player sheets (15 frames x 8 directions).
-    bool loadFantasyCharacter(const std::string& id,
-                                 const std::filesystem::path& assetRoot);
+    bool loadFantasyCharacter(const std::string& id, const std::filesystem::path& assetRoot);
 
     const sf::Font& getFont(const std::string& id) const;
     sf::Font& getFont(const std::string& id);
@@ -68,7 +66,7 @@ public:
     bool hasShader(const std::string& id) const;
     bool hasCharacterAnimations(const std::string& id) const;
 
-private:
+  private:
     common::Logger& m_logger;
 
     std::unordered_map<std::string, sf::Font> m_fonts;
