@@ -1,3 +1,4 @@
+#include "ui_font.hpp"
 #pragma once
 #include "common/settings.hpp"
 #include <SFML/Graphics.hpp>
@@ -21,7 +22,7 @@ inline void drawScoreboard(sf::RenderTarget& target,const sf::Font& font,
         });
     }
     const auto oldView=target.getView();
-    const float height=100.f+26.f*std::max(rows[0],rows[1]);
+    const float height=100.f+32.f*std::max(rows[0],rows[1]);
     const float scale=std::min(oldView.getSize().x/940.f,oldView.getSize().y/(height+40.f));
     sf::View view(sf::FloatRect({0,0},oldView.getSize()/scale));target.setView(view);
     const float left=(view.getSize().x-900.f)/2,top=(view.getSize().y-height)/2;
@@ -29,7 +30,7 @@ inline void drawScoreboard(sf::RenderTarget& target,const sf::Font& font,
         sf::RectangleShape rect({w,h});rect.setPosition({x,y});rect.setFillColor(color);target.draw(rect);
     };
     auto text=[&](sf::String value,float x,float y,unsigned size,sf::Color color,float maxWidth=1000.f){
-        sf::Text label(font,value,size);label.setFillColor(color);label.setStyle(sf::Text::Bold);
+        sf::Text label(font,value,uiFontSize(size));label.setFillColor(color);label.setStyle(sf::Text::Bold);
         while(label.getLocalBounds().size.x>maxWidth && value.getSize()>1) {
             value.erase(value.getSize()-1,1);label.setString(value+sf::String(U'…'));
         }
@@ -48,14 +49,14 @@ inline void drawScoreboard(sf::RenderTarget& target,const sf::Font& font,
         text("PLAYER",x,y[col],13,sf::Color(165,175,190));
         text("KILLS",x+240,y[col],13,sf::Color(165,175,190));
         text("DEATHS",x+295,y[col],13,sf::Color(165,175,190));
-        text("PING",x+365,y[col],13,sf::Color(165,175,190));y[col]+=24;
+        text("PING",x+365,y[col],13,sf::Color(165,175,190));y[col]+=30;
         for(auto id:teams[t]) {
             const auto& p=players[id];
-            if(id==local)box(x-6,y[col]-1,420,26,sf::Color(255,255,255,25));
+            if(id==local)box(x-6,y[col]-1,420,32,sf::Color(255,255,255,25));
             text(sf::String::fromUtf8(p.name.begin(),p.name.end())+(p.alive?"":" *DEAD*"),x,y[col],17,color,226);
             text(std::to_string(p.kills),x+252,y[col],17,sf::Color::White);
             text(std::to_string(p.deaths),x+313,y[col],17,sf::Color::White);
-            text(p.pingMs<0?"—":std::to_string(p.pingMs)+" ms",x+360,y[col],13,sf::Color(185,195,205),48);y[col]+=26;
+            text(p.pingMs<0?"—":std::to_string(p.pingMs)+" ms",x+360,y[col],13,sf::Color(185,195,205),48);y[col]+=32;
         }
         y[col]+=22;
     }

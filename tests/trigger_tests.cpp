@@ -10,7 +10,7 @@ int main(int argc,char** argv){
     check(triggers.outlines().size()==1,"Expected floor switch trigger");
     common::PlayerState player;
     player.connected=true;
-    player.pos={-512,1024}; // Demo switch tile (5,10), image footprint center (128,448).
+    player.pos={-512,1024}; // Center of the asset-free fixture damage region.
     triggers.update(1,player);
     check(player.health==98,"Entry must deal two damage immediately");
     for(int i=0;i<31;++i) triggers.update(1,player);
@@ -66,9 +66,7 @@ int main(int argc,char** argv){
     check(falling.health==0 && !falling.alive,"Missing floor must kill through normal damage path");
     triggers.update(3,falling);
     check(falling.health==0,"Missing floor must not damage dead players");
-    common::TriggerSystem sample;
-    sample.load((std::filesystem::path(argv[1]).parent_path()/"Sample.tmx").string());
-    check(!sample.hasFloor({1664,832}),"Empty floor tile inside map dimensions must be hazardous");
+    check(!triggers.hasFloor({1280,768}),"Empty floor tile inside map dimensions must be hazardous");
     common::CollisionWorld collision;
     collision.load(argv[1]);
     check(!collision.overlaps({-512,1024}),"Damage trigger must remain walkable");

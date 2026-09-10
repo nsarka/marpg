@@ -1,3 +1,4 @@
+#include "ui_font.hpp"
 #include "common/character_roster.hpp"
 #include "loading_connection.hpp"
 #include "common/common.hpp"
@@ -103,7 +104,7 @@ int main(int argc, char**) {
     window.setFramerateLimit(144);
 
     const std::filesystem::path assetRoot = "../assets/Fantasy tileset - 2D Isometric/Characters/Player";
-    const std::filesystem::path fontPath  = "../assets/fonts/arial.ttf";
+    const std::filesystem::path fontPath  = "../assets/fonts/PixelPurl.ttf";
     const std::filesystem::path fragPath  = "../shaders/sprite_outline.frag";
 
     ResourceManager resources(logger);
@@ -128,7 +129,7 @@ int main(int argc, char**) {
     common::PlayerId myId = client_conn.connectToServer(serverAddress, playerName, options.port, options.team);
     if(myId == -1) {
         if(!client_conn.connectionError().empty()) {
-            sf::Text message(resources.getFont("ui"),client_conn.connectionError()+"\n\nPress Escape or close this window to exit.",22);
+            sf::Text message(resources.getFont("ui"),client_conn.connectionError()+"\n\nPress Escape or close this window to exit.",uiFontSize(22));
             message.setPosition({30,60});
             while(window.isOpen() && !quitRequested) {
                 while(auto event=window.pollEvent()) {
@@ -181,7 +182,7 @@ int main(int argc, char**) {
     for (const auto& mapLayer : map.getLayers()) {
         if (mapLayer->getType() != tmx::Layer::Type::Object || mapLayer->getName() != "Labels") continue;
         for (const auto& object : mapLayer->getLayerAs<tmx::ObjectGroup>().getObjects()) {
-            sf::Text label(resources.getFont("ui"), object.getName(), 18);
+            sf::Text label(resources.getFont("ui"), object.getName(), uiFontSize(18));
             const auto p = object.getPosition();
             const float scale = float(map.getTileSize().x) / (2.f * map.getTileSize().y);
             label.setPosition({(p.x - p.y) * scale, (p.x + p.y) * 0.5f});
@@ -312,7 +313,7 @@ int main(int argc, char**) {
         if(client_conn.shuttingDown()) {
             if(!shutdownDisplay)shutdownDisplay.emplace();
             window.setView(window.getDefaultView());window.clear(sf::Color(24,28,35));
-            sf::Text message(resources.getFont("ui"),client_conn.shutdownReason()+"\nClosing game...",24);
+            sf::Text message(resources.getFont("ui"),client_conn.shutdownReason()+"\nClosing game...",uiFontSize(24));
             auto bounds=message.getLocalBounds();message.setOrigin(bounds.position+bounds.size*.5f);
             message.setPosition(window.getDefaultView().getSize()*.5f);message.setFillColor(sf::Color::White);
             window.draw(message);window.display();
@@ -540,7 +541,7 @@ int main(int argc, char**) {
             sf::Text legend(resources.getFont("ui"),
                 "Combat: amber windup | red active | green hit | gray recovery\n"
                 "Target lines: cyan clear | red wall blocked | gray outside arc\n"
-                "Attack zones and feet show server positions", 13);
+                "Attack zones and feet show server positions", uiFontSize(13));
             legend.setPosition({12,12});
             legend.setOutlineColor(sf::Color::Black);legend.setOutlineThickness(1.f);
             window.draw(legend);

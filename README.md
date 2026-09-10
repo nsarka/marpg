@@ -66,10 +66,8 @@ Run `ctest --test-dir build --output-on-failure` for C++ checks, `python3 tests/
 
 ## Wall collision
 
-The server loads collision polygons from the tile object groups in
-`assets/tiled/Demo.tsx`, placing them with the same isometric transform as the
-renderer. The original Sample level has 24 wall and 20 fence colliders. Floor tiles and
-the doorway opening remain walkable.
+The server loads collision polygons from the active fantasy map's tile object groups,
+using the same isometric transform as the renderer.
 
 Players use a 10-pixel foot radius. Swept movement prevents tunneling and slides
 along wall edges. Movement runs at 64 server ticks per second; missing inputs
@@ -84,40 +82,26 @@ Build and test with `cmake --build build` and
 `ctest --test-dir build --output-on-failure`. Run `server` and `client` from the
 `build` directory so their relative asset paths resolve.
 
-## Tileset demo level
+## Fantasy maps
 
-The default level is `assets/tiled/demo.tmx`, selected by `[server].map`.
-It uses a separate `Demo.tsx` so the original Sample level stays available.
-The gallery has labeled stations for every sample item: wall, doorway, window,
-fence, crate, curved wall, three stairs, floor switch, and the floor throughout.
-
-Solid exhibits have authored ground-footprint collision polygons. The doorway
-has two separate post colliders, leaving its opening clear. The curved wall
-uses four convex pieces. Floor and switch are walkable; stairs are solid display
-props until elevation movement is implemented. All shapes can be edited in Tiled.
-
-`ctest --test-dir build --output-on-failure` checks both maps and the demo's item
-coverage, colliders, spawn, doorway passage, and walkable switch. `python3 tests/run_network.py` verifies networked movement against the demo window and checks attack regression behavior.
+The default `assets/tiled/demo.tmx` showcases the fantasy pack; `arena.tmx` is the combat arena.
+Collision and trigger behavior is tested with independent fixtures and the fantasy maps.
 
 Controls: WASD sprints by default; hold either Shift key to walk. F1 toggles
 collision debug drawing: red obstacle polygons and green player foot circles.
 
-The Businessman sprite uses the padded frame's center `(128,128)` as its ground
-pivot, keeping its feet on the collision/debug center. Living players and bots
-collide using 10-pixel foot circles, with swept contact and sliding. Spawns are
-spaced apart and bot movement is capped to sprint speed. Against a fresh demo
-server, `python3 tests/player_collision_network.py` tests two clients sprinting
-head-on without overlapping or crossing.
+Characters share a feet pivot and 2x display scale. Living players and bots collide
+using 10-pixel foot circles, with swept contact and sliding.
 
 Players hidden by solid props render as a translucent black silhouette only on
 covered pixels. The wall mask follows image transparency (including doorway
 holes) and each image column's ground baseline; exposed parts stay full color.
 The graphics regression test checks partial coverage, foreground characters,
-mask orientation, and the actual demo wall/doorway textures.
+and mask orientation using generated textures.
 
-The floor switch has a non-solid `DamageTrigger` polygon in `Demo.tsx`. Each
-living player loses 2 health immediately on entry, then every 32 server ticks
-(0.5 seconds) while inside.
+Draw a rectangle or convex polygon with class `DamageTrigger` on the fantasy map's
+`Triggers` object layer. Damage starts immediately and repeats using `[trigger_damage]`
+settings in `server.toml`.
 Leaving resets that player's timer; reaching zero health marks the player dead.
 F1 draws trigger regions in amber. A decrease in the local player's replicated
 health produces a red screen flash that fades out over 0.35 seconds. Each
@@ -242,11 +226,11 @@ Client and server binaries embed the Git commit at build time. Connections requi
 
 ### Maps
 
-Set `map = "demo"` under `[server]` in `server.toml`. The value names a `.tmx` file in `assets/tiled` without its extension; use `map = "legacy_demo"` for the previous level. The server sends the map name at connection time, and clients must have the same map and referenced assets installed. Restart the server and reconnect after changing maps.
+Set `map = "demo"` under `[server]` in `server.toml`. The value names a `.tmx` file in `assets/tiled` without its extension; use `map = "arena"` for the combat arena. The server sends the map name at connection time, and clients must have the same map and referenced assets installed. Restart the server and reconnect after changing maps.
 
 `arena.tmx` is a 24×24 grass arena with crossing paths, ruined walls, trees, chests, and 20 safe spawn points in two clusters. Open it directly in Tiled. The tileset uses padded 256×256 artwork on a 128×64 isometric grid with a 12-pixel drawing offset; collision and wall masks use the same offset.
 
-The default `demo` is a walk-through asset gallery: 2,108 labeled exhibits, every fantasy environment image, animated props/effects/destructibles, and all 168 character animations cycling their eight directions. Exhibits are nonblocking so every item can be inspected. Twenty safe spawn points are near the entrance. Use `map = "arena"` for the playable fantasy combat arena, or `map = "legacy_demo"` for the original sample tiles. Regenerate the gallery with `python3 tools/generate_fantasy_demo.py`; its complete inventory is `assets/tiled/gallery/manifest.json`.
+The default `demo` is a walk-through asset gallery: 2,108 labeled exhibits, every fantasy environment image, animated props/effects/destructibles, and all 168 character animations cycling their eight directions. Exhibits are nonblocking so every item can be inspected. Twenty safe spawn points are near the entrance. Use `map = "arena"` for the playable fantasy combat arena. Regenerate the gallery with `python3 tools/generate_fantasy_demo.py`; its complete inventory is `assets/tiled/gallery/manifest.json`.
 
 Fantasy tile alignment uses the bottom-origin normalized pivot in `assets/tiled/fantasy_pivots.json`. The default `[0.5, 0.18]` gives a Tiled drawing offset of `(-64, 14)` on the 128x64 grid. Add static-image overrides by pack-relative filename, for example `"Environment/YourCliff.png": [0.5, 0.43]`, then rerun the gallery generator. Overrides generate separate tilesets with their own offsets; a 256px cliff with that pivot uses `(-64, 78)`. Original PNG padding is retained. Animation frame overrides are rejected to keep sequences together. Arena currently uses only the standard pivot.
 

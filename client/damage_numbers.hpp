@@ -1,3 +1,4 @@
+#include "ui_font.hpp"
 #pragma once
 #include "common/common.hpp"
 #include "common/attack_delivery.hpp"
@@ -46,7 +47,7 @@ public:
     static std::string label(const Number& number) { return "-" + std::to_string(number.amount); }
     void draw(sf::RenderTarget& target, const sf::Font& font) const {
         for (const auto& number : numbers_) {
-            sf::Text text(font,label(number),21);
+            sf::Text text(font,label(number),uiFontSize(21));
             text.setStyle(sf::Text::Bold);
             const auto tint=color(number);
             text.setFillColor(tint);

@@ -1,3 +1,4 @@
+#include "ui_font.hpp"
 #pragma once
 #include "common/common.hpp"
 #include "common/keybindings.hpp"
@@ -42,7 +43,7 @@ inline void drawAttackHud(sf::RenderTarget& target,const sf::Font& font,const co
         const bool selected=static_cast<unsigned>(player.combatDebug.attack)==i+1;
         constexpr std::array<unsigned,4> actions{5,6,9,10};
         const sf::String title=sf::String(names[i])+" ("+abilityBindingLabel(bindings.actions[actions[i]])+")";
-        sf::Text name(font,title,13);
+        sf::Text name(font,title,uiFontSize(13));
         if(name.getLocalBounds().size.x>width-16)name.setScale({(width-16)/name.getLocalBounds().size.x,1});name.setPosition({x+8,y+6});name.setFillColor(selected?sf::Color(255,200,70):sf::Color::White);target.draw(name);
         float ready=1;
         if(remaining>0) {

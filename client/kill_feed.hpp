@@ -1,3 +1,4 @@
+#include "ui_font.hpp"
 #pragma once
 #include "common/settings.hpp"
 #include "common/attack_delivery.hpp"
@@ -39,11 +40,11 @@ public:
         for(std::size_t i=0;i<entries_.size();++i) {
             const auto& entry=entries_[i];const auto& event=entry.event;const float fade=opacity(entry);
             auto tint=[&](sf::Color color){color.a=static_cast<std::uint8_t>(color.a*fade);return color;};
-            sf::Text weapon(font,cause(event.cause),18);weapon.setStyle(sf::Text::Bold);
+            sf::Text weapon(font,cause(event.cause),uiFontSize(18));weapon.setStyle(sf::Text::Bold);
             const float methodWidth=weapon.getLocalBounds().size.x;
             const float nameWidth=std::max(20.f,(limit-methodWidth-24)*.5f);
             auto makeName=[&](const std::string& name){
-                sf::Text text(font,sf::String::fromUtf8(name.begin(),name.end()),16);text.setStyle(sf::Text::Bold);
+                sf::Text text(font,sf::String::fromUtf8(name.begin(),name.end()),uiFontSize(16));text.setStyle(sf::Text::Bold);
                 auto original=text.getString();
                 if(text.getLocalBounds().size.x>nameWidth) {
                     while(original.getSize()>0) {

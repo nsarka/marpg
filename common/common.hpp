@@ -15,7 +15,6 @@
 
 namespace common {
 
-inline constexpr const char* LEVEL_PATH = "../assets/tiled/legacy_demo.tmx";
 
 inline constexpr unsigned short SERVER_PORT = 54000;
 inline constexpr int MAX_PLAYERS = 32;

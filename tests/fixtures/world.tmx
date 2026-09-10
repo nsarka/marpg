@@ -1,0 +1,9 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<map version="1.10" orientation="isometric" width="12" height="12" tilewidth="256" tileheight="128">
+  <layer name="Floor" width="12" height="12">
+    <data encoding="csv">1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1</data>
+  </layer>
+  <objectgroup name="Triggers">
+    <object id="1" name="Damage region" type="DamageTrigger" x="672" y="1312" width="64" height="64" />
+  </objectgroup>
+</map>

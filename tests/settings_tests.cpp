@@ -97,7 +97,7 @@ int main(int argc,char** argv){
     check(common::readSettings(packet,received) && received.spell.damageMax==17 && received.lightning.interval==.2 && !received.botAI && received.map=="arena" && received.name=="Custom Arena" && received.port==55001 && received.teams==3 && received.boundsInterval==.25 && received.honorTeamRequests,"Settings wire roundtrip failed");
     common::applySettings(settings);
     check(common::attackDescription(common::AttackKind::Jab).damage==27 && common::attackDescription(common::AttackKind::Hook).damage==40,"Combat ignores config");
-    common::TriggerSystem triggers;triggers.load((root/"assets/tiled/legacy_demo.tmx").string());
+    common::TriggerSystem triggers;triggers.load((root/"tests/fixtures/world.tmx").string());
     common::PlayerState player;player.connected=true;player.pos={-512,1024};
     triggers.update(0,player);check(player.health==93,"Configured trigger entry damage");
     for(int i=0;i<63;++i)triggers.update(0,player);check(player.health==93,"Trigger beat too early");

@@ -1,3 +1,4 @@
+#include "ui_font.hpp"
 #pragma once
 #include "common/combat_system.hpp"
 #include "player.hpp"
@@ -31,7 +32,7 @@ inline void drawCombatDebug(sf::RenderTarget& target, std::vector<Player>& playe
                 sf::CircleShape mark(4);mark.setOrigin({4,4});mark.setPosition(other.pos);mark.setFillColor(tint);target.draw(mark);
             }
             const std::string spellPhase=debug.hit?"DETONATED":phase;
-            sf::Text label(font,std::string(debug.attack==common::AttackKind::Lightning?"LIGHTNING ":"SPELL ")+spellPhase,12);label.setFillColor(color);
+            sf::Text label(font,std::string(debug.attack==common::AttackKind::Lightning?"LIGHTNING ":"SPELL ")+spellPhase,uiFontSize(12));label.setFillColor(color);
             label.setOutlineColor(sf::Color::Black);label.setOutlineThickness(1.f);
             label.setPosition(center+sf::Vector2f{-45,16});target.draw(label);
             continue;
@@ -67,7 +68,7 @@ inline void drawCombatDebug(sf::RenderTarget& target, std::vector<Player>& playe
             mark.setFillColor(lineColor);target.draw(mark);
         }
         const std::string label=std::string(debug.attack==common::AttackKind::Jab ? "JAB " : "HOOK ")+phase;
-        sf::Text text(font,label,12);text.setFillColor(color);
+        sf::Text text(font,label,uiFontSize(12));text.setFillColor(color);
         text.setOutlineColor(sf::Color::Black);text.setOutlineThickness(1.f);
         text.setPosition(state.pos+sf::Vector2f{-35,16});target.draw(text);
     }

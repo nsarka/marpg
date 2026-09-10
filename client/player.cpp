@@ -1,3 +1,4 @@
+#include "ui_font.hpp"
 #include "melee_animation.hpp"
 #include "common/settings.hpp"
 #include "player.hpp"
@@ -164,7 +165,7 @@ void Player::stepAnimation(float dtSeconds)
 
 void Player::setFont(const sf::Font& font, unsigned int characterSize)
 {
-    m_nameText.emplace(font, m_state.name, characterSize);
+    m_nameText.emplace(font, m_state.name, uiFontSize(characterSize));
     m_nameText->setFillColor(sf::Color::White);
     m_nameText->setOutlineColor(sf::Color(20, 23, 28));
     m_nameText->setOutlineThickness(1.f);
@@ -429,7 +430,7 @@ void Player::updateNameTextPosition()
     // Anchor overhead UI to the ground pivot, not transparent sprite padding.
     m_nameText->setPosition({
         m_renderPos.x - textBounds.position.x - textBounds.size.x * 0.5f,
-        m_renderPos.y - 100.f - textBounds.position.y - textBounds.size.y
+        m_renderPos.y - 112.f - textBounds.position.y - textBounds.size.y
     });
 }
 

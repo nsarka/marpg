@@ -10,7 +10,7 @@
 void check(bool ok,const char* message){if(!ok)throw std::runtime_error(message);}
 int main(int argc,char** argv){
     check(argc==2,"Project path required");std::filesystem::path root=argv[1];
-    common::TriggerSystem hazards;hazards.load((root/"assets/tiled/legacy_demo.tmx").string());
+    common::TriggerSystem hazards;hazards.load((root/"tests/fixtures/world.tmx").string());
     std::vector<common::PlayerState> players(common::MAX_PLAYERS);auto& killer=players[0];auto& victim=players[1];
     killer.connected=victim.connected=true;killer.name="Alice";victim.name="Bob";killer.team=0;victim.team=1;killer.lastAttack=common::AttackKind::Hook;
     common::KillHistory history;std::vector<common::PlayerState*> references;for(auto& player:players)references.push_back(&player);
@@ -42,7 +42,7 @@ int main(int argc,char** argv){
     for(unsigned i=0;i<40;++i){victim.alive=true;victim.health=1;common::applyDamage(victim,1,0,victim.pos);history.observe(references,hazards);}
     check(history.events().size()==common::KillHistorySize,"Server kill history must be bounded");
     check(killer.kills==42 && victim.deaths==44,"Totals must outlive bounded kill history and respawns");
-    sf::Font font;check(font.openFromFile(root/"assets/fonts/arial.ttf"),"Font missing");
+    sf::Font font;check(font.openFromFile(root/"assets/fonts/PixelPurl.ttf"),"Font missing");
     KillFeed preview;preview.observe({},0);
     common::KillEvent first{1,0,1,0,1,"Rick","Bot 2",common::KillCause::Hook};
     common::KillEvent second{2,1,0,1,0,"Bot 4","Rick",common::KillCause::Jab};
