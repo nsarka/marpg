@@ -15,9 +15,11 @@ int main(int argc, char** argv) {
             .string();
     tmx::Map map;
     check(map.load(path), "Fantasy map missing");
+    unsigned environmentSets = 0;
     for (const auto& tileset : map.getTilesets()) {
-        if (tileset.getName() == "Gallery floor" || tileset.getName() == "Fantasy pack gallery" ||
-            tileset.getName() == "Fantasy") {
+        if (tileset.getImagePath().empty()) {
+            ++environmentSets;
+            check(tileset.getName().rfind("Fantasy - ", 0) == 0, "Unexpected environment tileset");
             check(static_cast<std::int32_t>(tileset.getTileOffset().x) == -64 &&
                       tileset.getTileOffset().y == 14,
                   "Fantasy authored pivot offset incorrect");
@@ -28,6 +30,7 @@ int main(int argc, char** argv) {
                   "Fantasy pivot misses ground center");
         }
     }
+    check(environmentSets == 10, "Map must reference the fantasy category tilesets");
     if (gallery) {
         unsigned characterSets = 0;
         for (const auto& set : map.getTilesets()) {

@@ -10,6 +10,9 @@ class WorldScene {
     sf::Texture lightShadows_, stairShadows_;
     std::vector<std::unique_ptr<MapLayer>> ground_, structures_;
     WallOcclusion wallOcclusion_;
+    std::map<const MapLayer*, std::pair<std::size_t, sf::FloatRect>> roofs_;
+    std::set<std::size_t> hiddenRoofs_;
+    sf::Vector2f tileSize_;
     sf::FloatRect bounds_;
     std::vector<sf::ConvexShape> collisionDebugShapes;
     std::vector<sf::Text> levelLabels;
@@ -19,6 +22,7 @@ class WorldScene {
                const common::TriggerSystem& triggers, const sf::Font& font)
         : lighting_(world.data()), wallOcclusion_(world.data(), world.tileLayer("Walls")) {
         const auto& map = world.data();
+        tileSize_ = sf::Vector2f(float(map.getTileSize().x), float(map.getTileSize().y));
         bool foreground = false;
         for (std::size_t i = 0; i < map.getLayers().size(); ++i) {
             const auto& layer = map.getLayers()[i];
@@ -31,6 +35,8 @@ class WorldScene {
             auto rendered = std::make_unique<MapLayer>(map, i, &lighting_);
             if (layer->getName() == "Floor")
                 bounds_ = rendered->getGlobalBounds();
+            if (const auto region = common::roofRegion(*layer))
+                roofs_.emplace(rendered.get(), std::make_pair(i, *region));
             if (foreground && layer->getName() != "Walls")
                 wallOcclusion_.addLayer(map, i);
             (foreground ? structures_ : ground_).push_back(std::move(rendered));
@@ -88,8 +94,23 @@ class WorldScene {
         for (auto& layer : structures_)
             layer->update(dt);
     }
+    void setViewerPosition(sf::Vector2f position) {
+        hiddenRoofs_.clear();
+        const auto x = (position.x - tileSize_.x * .5f) / tileSize_.x;
+        const auto y = position.y / tileSize_.y;
+        for (const auto& [layer, roof] : roofs_)
+            if (roof.second.contains({x + y, y - x}))
+                hiddenRoofs_.insert(roof.first);
+    }
+    std::size_t hiddenRoofCount() const {
+        std::set<std::pair<float, float>> regions;
+        for (const auto& [layer, roof] : roofs_)
+            if (hiddenRoofs_.count(roof.first))
+                regions.emplace(roof.second.position.x, roof.second.position.y);
+        return regions.size();
+    }
     void prepareOcclusion(sf::Vector2u size, const sf::View& view, sf::Shader& shader) {
-        wallOcclusion_.update(size, view);
+        wallOcclusion_.update(size, view, hiddenRoofs_);
         shader.setUniform("wallDepth", wallOcclusion_.texture());
         shader.setUniform("renderSize", sf::Glsl::Vec2(size));
     }
@@ -98,8 +119,12 @@ class WorldScene {
             target.draw(*layer);
     }
     void drawStructures(sf::RenderTarget& target) const {
-        for (const auto& layer : structures_)
+        for (const auto& layer : structures_) {
+            const auto roof = roofs_.find(layer.get());
+            if (roof != roofs_.end() && hiddenRoofs_.count(roof->second.first))
+                continue;
             target.draw(*layer);
+        }
         for (const auto& label : levelLabels)
             target.draw(label);
     }

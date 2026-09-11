@@ -1,6 +1,6 @@
 [server]
 # Map filename in assets/tiled, without .tmx (case-sensitive).
-map = "farms"
+map = "city"
 # Time attacks are blocked after each hit; 0 disables the delay.
 damage_stun_seconds = 0.5
 # Delay from death to respawn.
@@ -16,7 +16,7 @@ slots = 32
 teams = 2
 bots = 9
 # Set false to keep bots idle. They can still take damage and respawn.
-bot_ai = true
+bot_ai = false
 friendly_fire = false
 # Honor valid client team requests even when they unbalance the teams.
 honor_team_requests = true

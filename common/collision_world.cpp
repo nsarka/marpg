@@ -1,6 +1,8 @@
 #include "collision_world.hpp"
 #include "common/tile_alignment.hpp"
+#include "loaded_map.hpp"
 #include "map_geometry.hpp"
+#include "roof_region.hpp"
 #include <algorithm>
 #include <cmath>
 #include <limits>
@@ -47,9 +49,8 @@ void CollisionWorld::addPolygon(std::vector<sf::Vector2f> points) {
 }
 
 void CollisionWorld::load(const std::string& mapPath, bool triggersOnly) {
-    tmx::Map map;
-    if (!map.load(mapPath))
-        throw std::runtime_error("Cannot load collision map: " + mapPath);
+    LoadedMap loaded(mapPath);
+    const auto& map = loaded.data();
     load(map, triggersOnly);
 }
 
@@ -59,7 +60,7 @@ void CollisionWorld::load(const tmx::Map& map, bool triggersOnly) {
     CollisionWorld loaded;
     auto tileSize = map.getTileSize();
     for (const auto& layer : map.getLayers()) {
-        if (layer->getType() != tmx::Layer::Type::Tile)
+        if (layer->getType() != tmx::Layer::Type::Tile || !layerCollisionEnabled(*layer))
             continue;
         const auto& tiles = layer->getLayerAs<tmx::TileLayer>().getTiles();
         const auto width = layer->getSize().x;

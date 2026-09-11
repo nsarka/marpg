@@ -1,6 +1,7 @@
 #pragma once
 #include "collision_world.hpp"
 #include "common.hpp"
+#include "loaded_map.hpp"
 #include "trigger_regions.hpp"
 #include <algorithm>
 #include <cmath>
@@ -24,9 +25,8 @@ class TeleportSystem {
     explicit TeleportSystem(std::shared_ptr<TriggerRegions> regions = std::make_shared<TriggerRegions>())
         : regions_(std::move(regions)) {}
     void load(const std::string& path) {
-        tmx::Map map;
-        if (!map.load(path))
-            throw std::runtime_error("Cannot load teleport map: " + path);
+        LoadedMap loaded(path);
+        const auto& map = loaded.data();
         load(map);
     }
     void load(const tmx::Map& map) {

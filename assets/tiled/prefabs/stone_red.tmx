@@ -1,0 +1,79 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<map version="1.10" tiledversion="1.12.2" orientation="isometric" renderorder="right-down" width="4" height="4" tilewidth="128" tileheight="64" infinite="0" nextlayerid="6" nextobjectid="29">
+  <tileset firstgid="1" source="../fantasy_ground.tsx" />
+  <tileset firstgid="455" source="../fantasy_walls.tsx" />
+  <tileset firstgid="871" source="../fantasy_roofs.tsx" />
+  <tileset firstgid="1099" source="../fantasy_doors.tsx" />
+  <tileset firstgid="1131" source="../fantasy_vegetation.tsx" />
+  <tileset firstgid="1313" source="../fantasy_stone.tsx" />
+  <tileset firstgid="1389" source="../fantasy_props.tsx" />
+  <tileset firstgid="1813" source="../fantasy_animated_objects.tsx" />
+  <tileset firstgid="1921" source="../fantasy_portals.tsx" />
+  <tileset firstgid="1965" source="../fantasy_effects.tsx" />
+  <layer id="1" name="Floor" width="4" height="4">
+    <data encoding="csv">
+2,2,2,2,
+2,2,2,2,
+2,2,2,2,
+2,2,2,2
+</data>
+  </layer>
+  <layer id="2" name="Paving" width="4" height="4">
+    <data encoding="csv">
+218,218,218,218,
+218,218,218,218,
+218,218,218,218,
+218,218,218,218
+</data>
+  </layer>
+  <layer id="3" name="Walls" width="4" height="4">
+    <data encoding="csv">
+612,612,612,612,
+614,0,0,611,
+0,0,0,0,
+613,613,613,613
+</data>
+  </layer>
+  <layer id="4" name="SmallProps" width="4" height="4">
+    <data encoding="csv">
+0,0,0,0,
+0,1389,0,0,
+0,0,0,0,
+0,0,0,0
+</data>
+  </layer>
+  <objectgroup id="5" name="Roof" draworder="index">
+    <properties>
+      <property name="collision" type="bool" value="false" />
+      <property name="roof_region" value="0 0 4 4" />
+    </properties>
+    <object id="1" gid="911" x="47.0" y="-139.0" width="256" height="256" />
+    <object id="2" gid="911" x="111.0" y="-139.0" width="256" height="256" />
+    <object id="3" gid="911" x="47.0" y="117.0" width="256" height="256" />
+    <object id="4" gid="911" x="111.0" y="117.0" width="256" height="256" />
+    <object id="5" gid="918" x="-10.0" y="-82.0" width="256" height="256" />
+    <object id="6" gid="918" x="-10.0" y="174.0" width="256" height="256" />
+    <object id="7" gid="918" x="-10.0" y="-146.0" width="256" height="256" />
+    <object id="8" gid="918" x="-10.0" y="110.0" width="256" height="256" />
+    <object id="9" gid="915" x="47.0" y="-203.0" width="256" height="256" />
+    <object id="10" gid="915" x="47.0" y="53.0" width="256" height="256" />
+    <object id="11" gid="915" x="175.0" y="-139.0" width="256" height="256" />
+    <object id="12" gid="915" x="175.0" y="117.0" width="256" height="256" />
+    <object id="13" gid="938" x="0.0" y="-64.0" width="256" height="256" />
+    <object id="14" gid="938" x="0.0" y="0.0" width="256" height="256" />
+    <object id="15" gid="938" x="0.0" y="64.0" width="256" height="256" />
+    <object id="16" gid="938" x="0.0" y="128.0" width="256" height="256" />
+    <object id="17" gid="938" x="0.0" y="-128.0" width="256" height="256" />
+    <object id="18" gid="938" x="0.0" y="-64.0" width="256" height="256" />
+    <object id="19" gid="938" x="0.0" y="0.0" width="256" height="256" />
+    <object id="20" gid="938" x="0.0" y="64.0" width="256" height="256" />
+    <object id="21" gid="935" x="64.0" y="-128.0" width="256" height="256" />
+    <object id="22" gid="935" x="64.0" y="-64.0" width="256" height="256" />
+    <object id="23" gid="935" x="64.0" y="0.0" width="256" height="256" />
+    <object id="24" gid="935" x="64.0" y="64.0" width="256" height="256" />
+    <object id="25" gid="935" x="192.0" y="-64.0" width="256" height="256" />
+    <object id="26" gid="935" x="192.0" y="0.0" width="256" height="256" />
+    <object id="27" gid="935" x="192.0" y="64.0" width="256" height="256" />
+    <object id="28" gid="935" x="192.0" y="128.0" width="256" height="256" />
+  </objectgroup>
+</map>

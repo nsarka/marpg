@@ -1,5 +1,6 @@
 #pragma once
 #include "collision_world.hpp"
+#include "loaded_map.hpp"
 #include "settings.hpp"
 #include "trigger_system.hpp"
 #include <algorithm>
@@ -12,9 +13,8 @@ class TeamSpawns {
   public:
     void load(const std::string& path, unsigned teams, const CollisionWorld& walls,
               const TriggerSystem& triggers) {
-        tmx::Map map;
-        if (!map.load(path))
-            throw std::runtime_error("Cannot load spawn map");
+        LoadedMap loaded(path);
+        const auto& map = loaded.data();
         load(map, teams, walls, triggers);
     }
     void load(const tmx::Map& map, unsigned teams, const CollisionWorld& walls,

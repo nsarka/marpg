@@ -2,8 +2,8 @@
 #include <tmxlite/Tileset.hpp>
 
 namespace common {
-// Older maps were authored against the engine's centered-image convention.
-// New pivot-authored tilesets use Tiled's tile-layer bottom-left anchoring.
+// Convert bottom-left tile-layer anchoring to the renderer's centered-image coordinates.
+// Tilesets without this property use centered-image anchoring.
 inline float tileAlignmentCorrection(const tmx::Tileset& set, float imageWidth, float mapWidth) {
     for (const auto& property : set.getProperties())
         if (property.getName() == "tile_layer_alignment" &&

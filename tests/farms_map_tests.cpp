@@ -18,6 +18,7 @@ int main(int argc, char** argv) {
     const auto root = std::filesystem::path(argv[1]);
     common::LoadedMap world((root / "assets/tiled/farms.tmx").string());
     const auto& map = world.data();
+    check(map.getTilesets().size() == 10, "Farms category tilesets missing");
     common::CollisionWorld walls;
     walls.load(map);
     common::TriggerSystem triggers;

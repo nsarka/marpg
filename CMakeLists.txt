@@ -18,7 +18,7 @@ FetchContent_Declare(SFML
     SYSTEM
 )
 
-# tmxlite's CMake is older; CMake 4.x needs this for subprojects
+# Set the policy baseline required to configure tmxlite with CMake 4.x
 set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
 
 set(TMXLITE_STATIC_LIB TRUE CACHE BOOL "" FORCE)
@@ -33,6 +33,7 @@ FetchContent_Declare(tmxlite
 FetchContent_MakeAvailable(SFML tmxlite)
 
 add_library(common STATIC
+    common/map_composition.cpp
     common/collision_world.cpp
     common/settings.cpp
     common/state_codec.cpp
@@ -40,6 +41,8 @@ add_library(common STATIC
     common/common.cpp
     common/logger.cpp
 )
+
+target_include_directories(common PRIVATE "${tmxlite_SOURCE_DIR}/tmxlite/src/detail")
 
 file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/generated")
 add_custom_target(build_version
@@ -80,6 +83,10 @@ target_link_libraries(client PRIVATE
 )
 include(CTest)
 if(BUILD_TESTING)
+    add_executable(map_composition_tests tests/map_composition_tests.cpp)
+    target_include_directories(map_composition_tests PRIVATE "${tmxlite_SOURCE_DIR}/tmxlite/src/detail")
+    target_link_libraries(map_composition_tests PRIVATE common)
+    add_test(NAME map_composition COMMAND map_composition_tests ${CMAKE_CURRENT_SOURCE_DIR})
     add_executable(shutdown_probe tests/shutdown_probe.cpp client/client_connection.cpp)
     target_link_libraries(shutdown_probe PRIVATE common)
     add_executable(kill_feed_tests tests/kill_feed_tests.cpp)
@@ -148,6 +155,9 @@ if(BUILD_TESTING)
 endif()
 
 if(BUILD_TESTING)
+    add_executable(city_map_tests tests/city_map_tests.cpp)
+    target_link_libraries(city_map_tests PRIVATE common)
+    add_test(NAME city_map COMMAND city_map_tests ${CMAKE_CURRENT_SOURCE_DIR})
     add_executable(farms_map_tests tests/farms_map_tests.cpp)
     target_link_libraries(farms_map_tests PRIVATE common)
     add_test(NAME farms_map COMMAND farms_map_tests ${CMAKE_CURRENT_SOURCE_DIR})

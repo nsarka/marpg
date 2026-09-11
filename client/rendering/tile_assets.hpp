@@ -1,8 +1,10 @@
 #pragma once
 #include "tile_visual.hpp"
+#include <set>
 namespace map_detail {
 class TileAssets {
     TileLighting* lighting_ = nullptr;
+    float roofScale_ = 1;
     using TextureResource = std::map<std::string, std::unique_ptr<sf::Texture>>;
     TextureResource m_textureResource;
     sf::Vector2u m_mapTileSize{};
@@ -38,7 +40,7 @@ class TileAssets {
         return *raw;
     }
 
-    void registerAtlasTileset(const tmx::Tileset& tileset) {
+    void registerAtlasTileset(const tmx::Tileset& tileset, const std::set<std::uint32_t>& used) {
         const auto atlasPath = tileset.getImagePath();
         if (atlasPath.empty()) {
             return;
@@ -62,6 +64,8 @@ class TileAssets {
 
         for (std::uint32_t localID = 0; localID < tileset.getTileCount(); ++localID) {
             const std::uint32_t gid = tileset.getFirstGID() + localID;
+            if (!used.count(gid))
+                continue;
             const std::uint32_t col = localID % columns;
             const std::uint32_t row = localID / columns;
 
@@ -80,17 +84,22 @@ class TileAssets {
                 common::applyCharacterTileLayout(visual.texSize, sf::Vector2f(m_mapTileSize), visual.drawSize,
                                                  visual.offset);
 
+            visual.drawSize *= roofScale_;
+            visual.offset.x *= roofScale_;
+            visual.offset.y = (visual.offset.y + m_mapTileSize.y * .5f) * roofScale_ - m_mapTileSize.y * .5f;
             m_tileVisuals[gid] = visual;
         }
     }
 
-    void registerCollectionTileset(const tmx::Tileset& tileset) {
+    void registerCollectionTileset(const tmx::Tileset& tileset, const std::set<std::uint32_t>& used) {
         for (const auto& tile : tileset.getTiles()) {
             if (tile.imagePath.empty()) {
                 continue;
             }
 
             const std::uint32_t gid = tileset.getFirstGID() + tile.ID;
+            if (!used.count(gid))
+                continue;
 
             sf::Texture& texture = loadTextureOrFallback(tile.imagePath, &tileset);
             const auto textureSize = texture.getSize();
@@ -129,11 +138,17 @@ class TileAssets {
                 common::applyCharacterTileLayout(visual.texSize, sf::Vector2f(m_mapTileSize), visual.drawSize,
                                                  visual.offset);
 
+            visual.drawSize *= roofScale_;
+            visual.offset.x *= roofScale_;
+            visual.offset.y = (visual.offset.y + m_mapTileSize.y * .5f) * roofScale_ - m_mapTileSize.y * .5f;
             m_tileVisuals[gid] = visual;
         }
     }
 
   public:
+    void setRoofScale(float scale) {
+        roofScale_ = scale;
+    }
     void configure(sf::Vector2u size, std::shared_ptr<sf::Shader> shader, TileLighting& lighting) {
         lighting_ = &lighting;
         m_mapTileSize = size;
@@ -142,11 +157,11 @@ class TileAssets {
     const auto& visuals() const {
         return m_tileVisuals;
     }
-    void registerTilesetVisuals(const tmx::Tileset& tileset) {
+    void registerTilesetVisuals(const tmx::Tileset& tileset, const std::set<std::uint32_t>& used) {
         if (!tileset.getImagePath().empty()) {
-            registerAtlasTileset(tileset);
+            registerAtlasTileset(tileset, used);
         } else {
-            registerCollectionTileset(tileset);
+            registerCollectionTileset(tileset, used);
         }
     }
 };

@@ -1,10 +1,12 @@
 #include "common/map_geometry.hpp"
+#include "common/roof_region.hpp"
 #include "common/tile_alignment.hpp"
 #pragma once
 #include <SFML/Graphics.hpp>
 #include <algorithm>
 #include <cmath>
 #include <memory>
+#include <set>
 #include <stdexcept>
 #include <tmxlite/Map.hpp>
 #include <tmxlite/TileLayer.hpp>
@@ -22,6 +24,7 @@ class WallOcclusion {
         auto tileSize = map.getTileSize();
         const auto width = layer->getSize().x;
         const auto offset = layer->getOffset();
+        const float scale = common::roofScale(*layer);
         for (std::size_t i = 0; i < tiles.size(); ++i) {
             const tmx::Tileset::Tile* tile = nullptr;
             sf::Vector2f tileOffset{};
@@ -68,9 +71,11 @@ class WallOcclusion {
             }
             const float x = float(i % width), y = float(i / width);
             const sf::Vector2f mapSize(float(tileSize.x), float(tileSize.y));
-            const auto origin =
-                common::tileImagePosition(common::tileToWorld(x, y, mapSize), mapSize, sf::Vector2f(size),
-                                          tileOffset + sf::Vector2f(float(offset.x), float(offset.y)));
+            const auto origin = common::tileImagePosition(
+                common::tileToWorld(x, y, mapSize), mapSize, sf::Vector2f(size) * scale,
+                sf::Vector2f(tileOffset.x * scale,
+                             (tileOffset.y + mapSize.y * .5f) * scale - mapSize.y * .5f) +
+                    sf::Vector2f(float(offset.x), float(offset.y)));
             // The lower silhouette envelope bridges overhead doorway gaps.
             std::vector<sf::Vector2f> hull;
             for (unsigned col = 0; col < size.x; ++col) {
@@ -98,7 +103,7 @@ class WallOcclusion {
                     ++segment;
                 auto a = hull[segment], b = hull[segment + 1];
                 float baseline = a.y + (float(col) - a.x) * (b.y - a.y) / (b.x - a.x);
-                int depth = std::clamp(int(std::round(origin.y + baseline)) + 32768, 0, 65535);
+                int depth = std::clamp(int(std::round(origin.y + baseline * scale)) + 32768, 0, 65535);
                 for (unsigned row = 0; row < size.y; ++row) {
                     if (image.getPixel({col, row}).a > 25)
                         mask.setPixel({col, row}, sf::Color(depth / 256, depth % 256, 0, 255));
@@ -107,19 +112,23 @@ class WallOcclusion {
             auto texture = std::make_unique<sf::Texture>();
             if (!texture->loadFromImage(mask))
                 throw std::runtime_error("Cannot create wall depth mask");
-            entries_.push_back({std::move(texture), origin, origin.y + hull.back().y});
+            entries_.push_back(
+                {std::move(texture), origin, origin.y + hull.back().y * scale, layerIndex, scale});
         }
         std::stable_sort(entries_.begin(), entries_.end(),
                          [](const auto& a, const auto& b) { return a.depth < b.depth; });
     }
-    void update(sf::Vector2u size, const sf::View& view) {
+    void update(sf::Vector2u size, const sf::View& view, const std::set<std::size_t>& hidden = {}) {
         if (mask_.getSize() != size && !mask_.resize(size))
             throw std::runtime_error("Cannot resize wall depth target");
         mask_.clear(sf::Color::Transparent);
         mask_.setView(view);
         for (const auto& entry : entries_) {
+            if (hidden.count(entry.layer))
+                continue;
             sf::Sprite sprite(*entry.texture);
             sprite.setPosition(entry.position);
+            sprite.setScale({entry.scale, entry.scale});
             mask_.draw(sprite);
         }
         mask_.display();
@@ -133,6 +142,8 @@ class WallOcclusion {
         std::unique_ptr<sf::Texture> texture;
         sf::Vector2f position;
         float depth;
+        std::size_t layer;
+        float scale;
     };
     std::vector<Entry> entries_;
     sf::RenderTexture mask_;

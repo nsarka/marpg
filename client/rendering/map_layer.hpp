@@ -1,4 +1,5 @@
 #pragma once
+#include "common/roof_region.hpp"
 #include "map_chunk.hpp"
 #include "tile_assets.hpp"
 class MapLayer final : public sf::Drawable {
@@ -42,6 +43,7 @@ class MapLayer final : public sf::Drawable {
 
         const auto& layer = layers[idx]->getLayerAs<tmx::TileLayer>();
         m_assets.configure(m_mapTileSize, m_lightingShader, tileLighting);
+        m_assets.setRoofScale(common::roofScale(*layers[idx]));
         createChunks(map, layer);
 
         // Approximate screen-space bounds for an isometric diamond map.
@@ -172,8 +174,20 @@ class MapLayer final : public sf::Drawable {
             maxID = i->getFirstGID();
         }
 
+        std::set<std::uint32_t> usedTiles;
+        for (const auto& tile : layerTiles)
+            if (tile.ID)
+                usedTiles.insert(tile.ID);
+        // A placed animated tile also needs every frame, even when those frames
+        // are not individually painted on this layer.
         for (const auto* tileset : usedTileSets) {
-            m_assets.registerTilesetVisuals(*tileset);
+            for (const auto& tile : tileset->getTiles()) {
+                if (!usedTiles.count(tileset->getFirstGID() + tile.ID))
+                    continue;
+                for (const auto& frame : tile.animation.frames)
+                    usedTiles.insert(frame.tileID); // tmxlite has already converted this to a global ID.
+            }
+            m_assets.registerTilesetVisuals(*tileset, usedTiles);
         }
 
         const auto bounds = map.getBounds();

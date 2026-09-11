@@ -394,6 +394,7 @@ int main(int argc, char**) {
         // ---------------------------------------------------------------------
         // Draw
         // ---------------------------------------------------------------------
+        scene.setViewerPosition(players[myId].renderPosition());
         scene.prepareOcclusion(window.getSize(), camera.view(), resources.getShader("player_occlusion"));
         window.clear(sf::Color(30, 34, 42));
 

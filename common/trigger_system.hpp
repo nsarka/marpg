@@ -2,6 +2,7 @@
 #include "collision_world.hpp"
 #include "common.hpp"
 #include "damage.hpp"
+#include "loaded_map.hpp"
 #include "settings.hpp"
 #include "teleport_system.hpp"
 #include <algorithm>
@@ -23,9 +24,8 @@ class TriggerSystem {
         return *regions_;
     }
     void load(const std::string& mapPath, const ServerSettings& settings = ServerSettings{}) {
-        tmx::Map map;
-        if (!map.load(mapPath))
-            throw std::runtime_error("Cannot load trigger map: " + mapPath);
+        LoadedMap loaded(mapPath);
+        const auto& map = loaded.data();
         load(map, settings);
     }
     void load(const tmx::Map& map, const ServerSettings& settings = ServerSettings{}) {

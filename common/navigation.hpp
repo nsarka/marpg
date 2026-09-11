@@ -1,4 +1,5 @@
 #pragma once
+#include "loaded_map.hpp"
 #include "trigger_system.hpp"
 #include <array>
 #include <limits>
@@ -11,9 +12,8 @@ class Navigation {
     static constexpr float Spacing = 24.f;
     Navigation(const std::string& mapPath, const CollisionWorld& walls, const TriggerSystem& hazards)
         : walls_(walls), hazards_(hazards) {
-        tmx::Map map;
-        if (!map.load(mapPath))
-            throw std::runtime_error("Cannot load navigation map");
+        LoadedMap loaded(mapPath);
+        const auto& map = loaded.data();
         initialize(map);
     }
     Navigation(const tmx::Map& map, const CollisionWorld& walls, const TriggerSystem& hazards)
