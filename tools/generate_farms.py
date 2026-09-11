@@ -2,7 +2,9 @@
 """Rebuild the two-farm, three-route map. Regeneration replaces manual farms edits."""
 from pathlib import Path
 import random
-from map_authoring import write, set_pivot, image_tile, csv_layer
+from map_authoring import write, csv_layer
+from refresh_prefab_previews import refresh
+from fantasy_categories import CATEGORIES
 import xml.etree.ElementTree as E
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -11,15 +13,24 @@ PACK = ROOT / 'assets/Fantasy tileset - 2D Isometric'
 W, H = 64, 40
 rng = random.Random(2718)
 
-from fantasy_tileset import build
-catalog=build(ROOT)
-lookup=catalog.lookup
+# Read authored tilesets without overwriting collision edits.
+if not all((OUT / f'fantasy_{category}.tsx').exists() for category in CATEGORIES):
+    from fantasy_tileset import build
+    build(ROOT)
+lookup, sets, first = {}, [], 1
+for category in CATEGORIES:
+    filename = f'fantasy_{category}.tsx'
+    tileset = E.parse(OUT / filename).getroot()
+    sets.append((first, filename))
+    for tile in tileset.findall('tile'):
+        source = tile.find('image').get('source').split('2D Isometric/', 1)[1]
+        lookup[source] = first + int(tile.get('id'))
+    first += max(int(tile.get('id')) for tile in tileset.findall('tile')) + 1
 ids={Path(source).stem:gid for source,gid in lookup.items() if source.startswith('Environment/')}
 ids['Windmill']=lookup['Animations/Animated Tiles/WindMill1/0001.png']
 floor_start=ids['Ground A2_E']
 roof_start=ids['Roof A3_E'];roof_id=0
-sets=catalog.sets
-layers = {name: [0] * (W * H) for name in ['Floor', 'GroundDetails', 'Walls', 'Roofs']}
+layers = {name: [0] * (W * H) for name in ['Floor', 'GroundDetails', 'Paving', 'Walls', 'Roofs', 'Portals']}
 layers['Floor'] = [floor_start] * (W * H)
 def put(layer, x, y, tile): layers[layer][y * W + x] = tile
 
@@ -57,19 +68,51 @@ for base in (0, 43):
                      (base+4,25,'Misc E1_E')]:
         put('Walls',x,y,ids[name])
 
+# Forest hamlets: clear only the rooms, courtyards and narrow access paths.
+houses = [(24, 11, 'timber_brown'), (36, 11, 'stone_red'),
+          (24, 25, 'log_yellow'), (36, 25, 'stone_blue')]
+def clearing(x, y, paved=False):
+    put('Walls', x, y, 0)
+    put('GroundDetails', x, y, 0)
+    put('Floor', x, y, ids['Ground A1_E'])
+    if paved:
+        put('Paving', x, y, ids['Ground H1_E'])
+
+for x0, y0, prefab in houses:
+    for y in range(y0-1, y0+5):
+        for x in range(x0-1, x0+5):
+            clearing(x, y)
+for cy, route_start, route_end in [(13, 7, 20), (27, 20, 33)]:
+    for y in range(route_start, route_end+1):
+        clearing(32, y)
+    for x in range(23, 41):
+        clearing(x, cy)
+    for y in range(cy-2, cy+3):
+        for x in range(30, 35):
+            clearing(x, y, paved=True)
+    put('GroundDetails', 32, cy, ids['Stone A6_E'])
+    put('Portals', 32, cy, lookup['Animations/Props/PortalIdle/0033.png'])
+    # Decorations stay on the courtyard edges, leaving every approach open.
+    for x, y, name in [(30,cy-2,'Misc B26_N'), (34,cy+2,'Misc A8_E')]:
+        put('Walls', x, y, ids[name])
+
 m = E.Element('map', version='1.10', tiledversion='1.12.2', orientation='isometric',
               renderorder='right-down', width=str(W), height=str(H), tilewidth='128',
-              tileheight='64', infinite='0', nextlayerid='8', nextobjectid='33')
+              tileheight='64', infinite='0')
 for first, filename in sets: E.SubElement(m,'tileset',firstgid=str(first),source=filename)
 windmills=[gid if gid==ids['Windmill'] else 0 for gid in layers['Walls']]
 layers['Walls']=[0 if gid==ids['Windmill'] else gid for gid in layers['Walls']]
-for lid,(name,data) in enumerate(layers.items(),1):
-    layer=csv_layer(m,lid,name,W,H,data)
+layer_id = 1
+for name,data in layers.items():
+    layer=csv_layer(m,layer_id,name,W,H,data)
+    layer_id += 1
     if name=='Walls':
-        extra=csv_layer(m,7,'Walls - windmills',W,H,windmills)
+        extra=csv_layer(m,layer_id,'Walls - windmills',W,H,windmills)
+        layer_id += 1
         extra.set('offsetx','-128');extra.set('offsety','46')
     if name=='Roofs':layer.set('offsety','-96')
-spawns = E.SubElement(m,'objectgroup',id='5',name='Spawns')
+spawns = E.SubElement(m,'objectgroup',id=str(layer_id),name='Spawns')
+layer_id += 1
 # Sixteen points per farm allow every supported team count; two teams cluster by farm.
 for i in range(32):
     x = (5 if i < 16 else 48) + i % 4
@@ -77,6 +120,22 @@ for i in range(32):
     assert layers['Walls'][y*W+x] == 0
     obj = E.SubElement(spawns,'object',id=str(i+1),name=f'Farm {1+i//16} spawn {1+i%16}',x=str(x*64+64),y=str(y*64))
     E.SubElement(obj,'point')
-E.SubElement(m,'objectgroup',id='6',name='Triggers')
+triggers = E.SubElement(m,'objectgroup',id=str(layer_id),name='Triggers')
+layer_id += 1
+for object_id, cy, name, destination in [(33,13,'north_courtyard','south_courtyard'),
+                                        (34,27,'south_courtyard','north_courtyard')]:
+    obj=E.SubElement(triggers,'object',id=str(object_id),name=name,type='Teleport',
+                     x=str(32*64+12),y=str(cy*64+12),width='40',height='40')
+    props=E.SubElement(obj,'properties')
+    E.SubElement(props,'property',name='destination',value=destination)
+instances = E.SubElement(m,'objectgroup',id=str(layer_id),name='Prefabs')
+layer_id += 1
+for object_id, (x,y,prefab) in enumerate(houses,35):
+    obj=E.SubElement(instances,'object',id=str(object_id),name=prefab,x=str(x*64),y=str(y*64))
+    E.SubElement(obj,'point')
+    props=E.SubElement(obj,'properties')
+    E.SubElement(props,'property',name='prefab',type='file',value=f'prefabs/{prefab}.tmx')
+m.set('nextlayerid',str(layer_id));m.set('nextobjectid','39')
 write(m, OUT / 'farms.tmx')
-print('Created farms: 64x40, two farms, three routes, 32 safe spawn points.')
+refresh(OUT / 'farms.tmx')
+print('Created farms: 64x40, two farms, three routes, four forest houses, linked portal courtyards, 32 safe spawn points.')

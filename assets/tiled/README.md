@@ -31,9 +31,20 @@ windmill layer offset of (-128, 46) and a raised roof layer offset of (0, -96).
 
 `tools/fantasy_categories.py` defines the categories, and
 `tools/fantasy_collisions.py` defines reproducible collision profiles.
-`python3 tools/fantasy_tileset.py` regenerates the category TSX files. Map generators
-also regenerate them, so incorporate manual tileset edits into the authoring code
-before regeneration. Normal editing in Tiled does not require these scripts.
+`python3 tools/fantasy_tileset.py` regenerates the category TSX files. The demo generator
+also regenerates them, so incorporate manual tileset edits into the authoring code
+before regeneration. City and farms read the authored category tilesets. Normal editing in Tiled does not require these scripts.
+
+## Farms
+
+`farms.tmx` has two farms joined by three main roads. Each forest belt contains
+two prefab houses, narrow dirt access paths, and a paved courtyard. Animated
+portals named `north_courtyard` and `south_courtyard` connect the courtyards in
+both directions. Their `Teleport` regions are authored on the `Triggers` layer.
+
+`python3 tools/generate_farms.py` regenerates the map and its collapsible prefab
+previews. It reads the existing category tilesets and house prefabs; regeneration
+replaces manual edits to the map.
 
 ## City
 
@@ -69,7 +80,7 @@ The preview command adds one locked, collapsible group per house. Its
 instances always come from their source files. Rerun the command after moving a
 marker or editing a prefab. Do not edit the generated previews. Save or close the
 map in Tiled before running the command to avoid overwriting unsaved edits.
-The city generator refreshes its previews automatically.
+The city and farms generators refresh their previews automatically.
 
 To make another house, duplicate a map in `prefabs/`, edit its tile layers, and
 move/add tile objects in its Roof layer. Use Tiled's **Insert Tile** object tool;
@@ -88,3 +99,19 @@ for the game, and prefab references can be nested (cycles are rejected).
 `Floor`, `GroundDetails`, `Paving`, `Walls`, and `SmallProps` tiles merge into the
 host layers by name; nonempty prefab tiles replace host tiles at those cells.
 Other layers retain their order and offsets. Keep shared layers at matching offsets.
+
+## Scenery depth
+
+Ground layers below `Walls` draw in their authored order. Tiles on `Walls` and
+subsequent foreground layers sort together by their ground Y coordinate, so trees,
+wall segments and props overlap according to their location. Layer order breaks
+equal-depth ties. Animation frames keep the placement's depth.
+
+An optional numeric `sort_offset_y` property on a tile or layer adjusts its depth
+in world pixels: positive values draw farther forward, negative values farther
+back. Tile and layer adjustments add together. Sprite height and tileset drawing
+offsets do not determine depth; layer translation does affect the ground position.
+
+Pieces sharing a `roof_region` sort as one assembly at the front of that footprint,
+retaining their authored order and hiding together. Large roofs that span objects
+on several sides may need separate roof regions; a single group has one depth.

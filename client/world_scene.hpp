@@ -1,6 +1,7 @@
 #pragma once
 #include "client/rendering/map_layer.hpp"
 #include "common/loaded_map.hpp"
+#include "common/scenery_depth.hpp"
 #include "common/trigger_system.hpp"
 #include "ui_font.hpp"
 #include "wall_occlusion.hpp"
@@ -13,6 +14,16 @@ class WorldScene {
     std::map<const MapLayer*, std::pair<std::size_t, sf::FloatRect>> roofs_;
     std::set<std::size_t> hiddenRoofs_;
     sf::Vector2f tileSize_;
+    struct SceneryPiece {
+        MapLayer* layer;
+        unsigned x, y;
+    };
+    struct SceneryEntry {
+        float depth;
+        std::size_t layerIndex;
+        std::vector<SceneryPiece> pieces;
+    };
+    std::vector<SceneryEntry> scenery_;
     sf::FloatRect bounds_;
     std::vector<sf::ConvexShape> collisionDebugShapes;
     std::vector<sf::Text> levelLabels;
@@ -24,6 +35,7 @@ class WorldScene {
         const auto& map = world.data();
         tileSize_ = sf::Vector2f(float(map.getTileSize().x), float(map.getTileSize().y));
         bool foreground = false;
+        std::map<std::array<float, 4>, std::size_t> roofGroups;
         for (std::size_t i = 0; i < map.getLayers().size(); ++i) {
             const auto& layer = map.getLayers()[i];
             if (layer->getType() != tmx::Layer::Type::Tile)
@@ -32,15 +44,37 @@ class WorldScene {
                 foreground = true;
             if (!layer->getVisible())
                 continue;
-            auto rendered = std::make_unique<MapLayer>(map, i, &lighting_);
+            auto rendered = std::make_unique<MapLayer>(map, i, &lighting_, foreground);
             if (layer->getName() == "Floor")
                 bounds_ = rendered->getGlobalBounds();
             if (const auto region = common::roofRegion(*layer))
                 roofs_.emplace(rendered.get(), std::make_pair(i, *region));
+            if (foreground) {
+                const auto& tiles = layer->getLayerAs<tmx::TileLayer>().getTiles();
+                const auto region = common::roofRegion(*layer);
+                for (unsigned cell = 0; cell < tiles.size(); ++cell) {
+                    if (!tiles[cell].ID)
+                        continue;
+                    const float depth = common::sceneryDepth(map, *layer, cell, tiles[cell].ID);
+                    const SceneryPiece piece{rendered.get(), cell % map.getTileCount().x,
+                                             cell / map.getTileCount().x};
+                    if (region) {
+                        const std::array<float, 4> key{region->position.x, region->position.y, region->size.x,
+                                                       region->size.y};
+                        auto [group, inserted] = roofGroups.emplace(key, scenery_.size());
+                        if (inserted)
+                            scenery_.push_back({depth, i, {}});
+                        scenery_[group->second].pieces.push_back(piece);
+                    } else
+                        scenery_.push_back({depth, i, {piece}});
+                }
+            }
             if (foreground && layer->getName() != "Walls")
                 wallOcclusion_.addLayer(map, i);
             (foreground ? structures_ : ground_).push_back(std::move(rendered));
         }
+        std::stable_sort(scenery_.begin(), scenery_.end(),
+                         [](const auto& a, const auto& b) { return a.depth < b.depth; });
         for (const auto& points : collision.outlines()) {
             sf::ConvexShape shape(points.size());
             for (std::size_t i = 0; i < points.size(); ++i)
@@ -119,11 +153,11 @@ class WorldScene {
             target.draw(*layer);
     }
     void drawStructures(sf::RenderTarget& target) const {
-        for (const auto& layer : structures_) {
-            const auto roof = roofs_.find(layer.get());
-            if (roof != roofs_.end() && hiddenRoofs_.count(roof->second.first))
+        for (const auto& entry : scenery_) {
+            if (hiddenRoofs_.count(entry.layerIndex))
                 continue;
-            target.draw(*layer);
+            for (const auto& piece : entry.pieces)
+                piece.layer->drawTile(target, piece.x, piece.y);
         }
         for (const auto& label : levelLabels)
             target.draw(label);

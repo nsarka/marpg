@@ -249,7 +249,7 @@ Set `[server] teams = 0` for free-for-all: everyone is an opponent, bots target 
 
 `common/loaded_map.hpp` owns one parsed Tiled map per world. Collision, triggers, spawns, and navigation consume it. Client-only rendering lives in `client/rendering/`; shared map geometry remains in `common`.
 
-`client/world_scene.hpp` owns map layers, lighting, height-field textures, and occlusion. Visible tile layers retain their Tiled order: layers before `Walls` are drawn beneath spell windups; `Walls` and subsequent layers are drawn above them. New ground-detail and structure layers do not require changes to the client loop. Lighting is initialized once for each scene.
+`client/world_scene.hpp` owns map layers, lighting, height-field textures, and occlusion. Ground layers before `Walls` retain their Tiled order beneath spell windups. Tiles on `Walls` and subsequent layers sort together by ground depth, with layer order breaking ties. Roof assemblies preserve their internal order. New ground-detail and structure layers do not require changes to the client loop. Lighting is initialized once for each scene.
 
 `server/game_simulation.hpp` owns gameplay state, bot AI, movement, combat, respawns, and kill history. `server/connection_manager.hpp` owns UDP endpoints, sequence validation, keepalive, joining/leaving, snapshots, and shutdown delivery. `server/server.cpp` coordinates the fixed simulation clock and network cadence.
 

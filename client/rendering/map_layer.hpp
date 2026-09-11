@@ -4,8 +4,8 @@
 #include "tile_assets.hpp"
 class MapLayer final : public sf::Drawable {
   public:
-    MapLayer(const tmx::Map& map, std::size_t idx, TileLighting* lighting = nullptr)
-        : ownedLighting_(lighting ? nullptr : std::make_unique<TileLighting>(map)),
+    MapLayer(const tmx::Map& map, std::size_t idx, TileLighting* lighting = nullptr, bool depthSorted = false)
+        : depthSorted_(depthSorted), ownedLighting_(lighting ? nullptr : std::make_unique<TileLighting>(map)),
           tileLighting(lighting ? *lighting : *ownedLighting_) {
         if (tileLighting.enabled) {
             m_lightingShader = std::make_shared<sf::Shader>();
@@ -128,7 +128,14 @@ class MapLayer final : public sf::Drawable {
         }
     }
 
+    void drawTile(sf::RenderTarget& target, unsigned x, unsigned y) {
+        sf::Vector2u local;
+        const auto& chunk = getChunkAndTransform(x, y, local);
+        chunk->drawTile(target, local.x, local.y);
+    }
+
   private:
+    bool depthSorted_;
     std::unique_ptr<TileLighting> ownedLighting_;
     TileLighting& tileLighting;
     using Chunk = map_detail::Chunk;
@@ -212,9 +219,9 @@ class MapLayer final : public sf::Drawable {
                     tileCount.y = m_mapTileCount.y - startTile.y;
                 }
 
-                m_chunks.emplace_back(std::make_unique<Chunk>(layer, m_assets.visuals(), startTile, tileCount,
-                                                              m_mapTileSize, map.getTileCount().x,
-                                                              map.getAnimatedTiles(), tileLighting));
+                m_chunks.emplace_back(std::make_unique<Chunk>(
+                    layer, m_assets.visuals(), startTile, tileCount, m_mapTileSize, map.getTileCount().x,
+                    map.getAnimatedTiles(), tileLighting, depthSorted_));
             }
         }
     }

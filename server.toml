@@ -1,6 +1,6 @@
 [server]
 # Map filename in assets/tiled, without .tmx (case-sensitive).
-map = "city"
+map = "farms"
 # Time attacks are blocked after each hit; 0 disables the delay.
 damage_stun_seconds = 0.5
 # Delay from death to respawn.

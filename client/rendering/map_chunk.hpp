@@ -10,10 +10,10 @@ class Chunk final : public sf::Drawable {
     Chunk(const tmx::TileLayer& layer, const std::map<std::uint32_t, TileVisual>& tileVisuals,
           const sf::Vector2u& startTile, const sf::Vector2u& tileCount, const sf::Vector2u& tileSize,
           std::size_t rowSize, const std::map<std::uint32_t, tmx::Tileset::Tile>& animTiles,
-          TileLighting& lighting)
-        : tileLighting(lighting), m_tileVisuals(tileVisuals), m_animTiles(animTiles), m_startTile(startTile),
-          m_chunkTileCount(tileCount), m_mapTileSize(tileSize),
-          m_chunkScreenOrigin(tileToScreen(startTile.x, startTile.y, tileSize)) {
+          TileLighting& lighting, bool individualTiles = false)
+        : individualTiles_(individualTiles), tileLighting(lighting), m_tileVisuals(tileVisuals),
+          m_animTiles(animTiles), m_startTile(startTile), m_chunkTileCount(tileCount),
+          m_mapTileSize(tileSize), m_chunkScreenOrigin(tileToScreen(startTile.x, startTile.y, tileSize)) {
         m_layerOpacity = static_cast<std::uint8_t>(layer.getOpacity() * 255.f);
 
         const auto offset = layer.getOffset();
@@ -73,6 +73,21 @@ class Chunk final : public sf::Drawable {
             }
         }
         return true;
+    }
+
+    void drawTile(sf::RenderTarget& target, std::int32_t x, std::int32_t y) const {
+        const auto index = calcIndexFrom(x, y);
+        if (index < 0 || std::size_t(index) >= individual_.size() || !individual_[index])
+            return;
+        const auto& view = target.getView();
+        if (view.getRotation() == sf::degrees(0)) {
+            const sf::FloatRect visible(view.getCenter() - view.getSize() * .5f, view.getSize());
+            if (!visible.findIntersection(individualBounds_[index]))
+                return;
+        }
+        sf::RenderStates states;
+        states.transform.translate(m_chunkScreenOrigin + m_layerOffset);
+        target.draw(*individual_[index], states);
     }
 
   private:
@@ -282,6 +297,11 @@ class Chunk final : public sf::Drawable {
     }
 
     void generateTiles(bool registerAnimation = false) {
+        if (individualTiles_) {
+            individual_.clear();
+            individual_.resize(m_chunkTileIDs.size());
+            individualBounds_.resize(m_chunkTileIDs.size());
+        }
         if (registerAnimation) {
             m_activeAnimations.clear();
         }
@@ -351,6 +371,14 @@ class Chunk final : public sf::Drawable {
                 doFlips(tile.flipFlags, &quad[0].texCoords, &quad[1].texCoords, &quad[2].texCoords,
                         &quad[3].texCoords, &quad[4].texCoords, &quad[5].texCoords);
 
+                if (individualTiles_) {
+                    auto piece = std::make_unique<ChunkArray>(*visual.texture, visual.normal, visual.height,
+                                                              visual.stair, tile.flipFlags,
+                                                              visual.lightingShader, tileLighting);
+                    piece->addTile(quad);
+                    individual_[idx] = std::move(piece);
+                    individualBounds_[idx] = {worldTopLeft + m_layerOffset, visual.drawSize};
+                }
                 getOrCreateChunkArray(visual, tile.flipFlags).addTile(quad);
                 ++idx;
             }
@@ -365,6 +393,9 @@ class Chunk final : public sf::Drawable {
         }
     }
 
+    bool individualTiles_;
+    std::vector<ChunkArray::Ptr> individual_;
+    std::vector<sf::FloatRect> individualBounds_;
     std::uint8_t m_layerOpacity = 255;
     sf::Vector2f m_layerOffset{0.f, 0.f};
 

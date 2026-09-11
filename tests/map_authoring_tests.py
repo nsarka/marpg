@@ -12,6 +12,7 @@ with tempfile.TemporaryDirectory(prefix='marpg-authoring-') as directory:
     project = Path(directory)
     (project / 'tools').mkdir()
     (project / 'assets/tiled').mkdir(parents=True)
+    shutil.copytree(root/'assets/tiled/prefabs',project/'assets/tiled/prefabs')
     pack = 'Fantasy tileset - 2D Isometric'
     (project / 'assets' / pack).symlink_to(root / 'assets' / pack, target_is_directory=True)
     shutil.copy(root / 'assets/tiled/fantasy_pivots.json', project / 'assets/tiled')

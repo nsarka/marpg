@@ -1,5 +1,6 @@
 #include "common/map_geometry.hpp"
 #include "common/roof_region.hpp"
+#include "common/scenery_depth.hpp"
 #include "common/tile_alignment.hpp"
 #pragma once
 #include <SFML/Graphics.hpp>
@@ -112,8 +113,8 @@ class WallOcclusion {
             auto texture = std::make_unique<sf::Texture>();
             if (!texture->loadFromImage(mask))
                 throw std::runtime_error("Cannot create wall depth mask");
-            entries_.push_back(
-                {std::move(texture), origin, origin.y + hull.back().y * scale, layerIndex, scale});
+            entries_.push_back({std::move(texture), origin, common::sceneryDepth(map, *layer, i, tiles[i].ID),
+                                layerIndex, scale});
         }
         std::stable_sort(entries_.begin(), entries_.end(),
                          [](const auto& a, const auto& b) { return a.depth < b.depth; });
