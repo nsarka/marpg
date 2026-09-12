@@ -22,16 +22,20 @@ class GameSimulation {
     common::TeamSpawns spawns;
     std::vector<GamePlayer> players{common::MAX_PLAYERS};
     common::KillHistory killHistory;
-    GameSimulation(common::ServerSettings rules, common::Logger& log)
-        : logger(log), world(common::mapPath(rules)), settings(std::move(rules)) {
-        collision.load(world.data());
-        triggers.load(world.data(), settings);
+    GameSimulation(common::ServerSettings rules, common::Logger& log,
+                   common::LoadProgress* progress = nullptr)
+        : logger(log), world(common::mapPath(rules), progress), settings(std::move(rules)) {
+        collision.load(world.data(), false, progress);
+        common::loading(progress, "Building triggers");
+        triggers.load(world.data(), settings, progress);
+        common::loading(progress, "Preparing spawn points");
         spawns.load(world.data(), settings.teams, collision, triggers);
         if (settings.botAI && settings.bots > 0) {
-            navigation = std::make_unique<common::Navigation>(world.data(), collision, triggers);
+            navigation = std::make_unique<common::Navigation>(world.data(), collision, triggers, progress);
             botAI = std::make_unique<common::BotAI>(*navigation, collision, std::random_device{}(), settings);
         }
         for (unsigned i = 0; i < settings.bots; ++i) {
+            common::loading(progress, "Spawning bots", i, settings.bots);
             auto team = common::smallestTeam(states(players), settings.teams);
             auto spawn = spawns.choose(team, states(players), collision, triggers);
             if (!spawn) {

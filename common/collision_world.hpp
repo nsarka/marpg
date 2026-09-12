@@ -1,5 +1,6 @@
 #include <tmxlite/Map.hpp>
 #pragma once
+#include "load_progress.hpp"
 
 #include <SFML/System/Vector2.hpp>
 #include <string>
@@ -10,8 +11,8 @@ namespace common {
 class CollisionWorld {
   public:
     static constexpr float PlayerRadius = 10.f;
-    void load(const std::string& mapPath, bool triggersOnly = false);
-    void load(const tmx::Map& map, bool triggersOnly = false);
+    void load(const std::string& mapPath, bool triggersOnly = false, LoadProgress* progress = nullptr);
+    void load(const tmx::Map& map, bool triggersOnly = false, LoadProgress* progress = nullptr);
     void addPolygon(std::vector<sf::Vector2f> points);
     sf::Vector2f move(sf::Vector2f position, sf::Vector2f displacement, float radius = PlayerRadius,
                       const std::vector<sf::Vector2f>& playerCenters = {}) const;

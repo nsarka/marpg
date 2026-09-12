@@ -1,4 +1,5 @@
 #pragma once
+#include "common/load_progress.hpp"
 
 #include "common/animation_catalog.hpp"
 #include "common/logger.hpp"
@@ -51,7 +52,8 @@ class ResourceManager {
     bool loadFragmentShader(const std::string& id, const std::filesystem::path& path);
 
     // Loads the fantasy player sheets (15 frames x 8 directions).
-    bool loadFantasyCharacter(const std::string& id, const std::filesystem::path& assetRoot);
+    bool loadFantasyCharacter(const std::string& id, const std::filesystem::path& assetRoot,
+                              common::LoadProgress* progress = nullptr);
 
     const sf::Font& getFont(const std::string& id) const;
     sf::Font& getFont(const std::string& id);

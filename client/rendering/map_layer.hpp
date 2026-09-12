@@ -1,10 +1,12 @@
 #pragma once
+#include "common/load_progress.hpp"
 #include "common/roof_region.hpp"
 #include "map_chunk.hpp"
 #include "tile_assets.hpp"
 class MapLayer final : public sf::Drawable {
   public:
-    MapLayer(const tmx::Map& map, std::size_t idx, TileLighting* lighting = nullptr, bool depthSorted = false)
+    MapLayer(const tmx::Map& map, std::size_t idx, TileLighting* lighting = nullptr, bool depthSorted = false,
+             common::LoadProgress* progress = nullptr)
         : depthSorted_(depthSorted), ownedLighting_(lighting ? nullptr : std::make_unique<TileLighting>(map)),
           tileLighting(lighting ? *lighting : *ownedLighting_) {
         if (tileLighting.enabled) {
@@ -44,7 +46,7 @@ class MapLayer final : public sf::Drawable {
         const auto& layer = layers[idx]->getLayerAs<tmx::TileLayer>();
         m_assets.configure(m_mapTileSize, m_lightingShader, tileLighting);
         m_assets.setRoofScale(common::roofScale(*layers[idx]));
-        createChunks(map, layer);
+        createChunks(map, layer, progress);
 
         // Approximate screen-space bounds for an isometric diamond map.
         const float halfW = static_cast<float>(m_mapTileSize.x) * 0.5f;
@@ -164,7 +166,7 @@ class MapLayer final : public sf::Drawable {
         return m_chunks[chunkX + chunkY * m_chunkCount.x];
     }
 
-    void createChunks(const tmx::Map& map, const tmx::TileLayer& layer) {
+    void createChunks(const tmx::Map& map, const tmx::TileLayer& layer, common::LoadProgress* progress) {
         const auto& tileSets = map.getTilesets();
         const auto& layerTiles = layer.getTiles();
 
@@ -187,14 +189,17 @@ class MapLayer final : public sf::Drawable {
                 usedTiles.insert(tile.ID);
         // A placed animated tile also needs every frame, even when those frames
         // are not individually painted on this layer.
+        std::size_t loadedSets = 0;
         for (const auto* tileset : usedTileSets) {
+            common::loading(progress, "Loading tile textures: " + layer.getName(), loadedSets++,
+                            usedTileSets.size());
             for (const auto& tile : tileset->getTiles()) {
                 if (!usedTiles.count(tileset->getFirstGID() + tile.ID))
                     continue;
                 for (const auto& frame : tile.animation.frames)
                     usedTiles.insert(frame.tileID); // tmxlite has already converted this to a global ID.
             }
-            m_assets.registerTilesetVisuals(*tileset, usedTiles);
+            m_assets.registerTilesetVisuals(*tileset, usedTiles, progress);
         }
 
         const auto bounds = map.getBounds();
@@ -207,6 +212,8 @@ class MapLayer final : public sf::Drawable {
 
         for (std::uint32_t chunkY = 0; chunkY < m_chunkCount.y; ++chunkY) {
             for (std::uint32_t chunkX = 0; chunkX < m_chunkCount.x; ++chunkX) {
+                common::loading(progress, "Building chunks: " + layer.getName(),
+                                chunkY * m_chunkCount.x + chunkX, m_chunkCount.x * m_chunkCount.y);
                 const sf::Vector2u startTile{chunkX * tilesPerChunkX, chunkY * tilesPerChunkY};
 
                 sf::Vector2u tileCount{tilesPerChunkX, tilesPerChunkY};

@@ -19,7 +19,9 @@ ClientConnection::ClientConnection(common::Logger& logger)
     : logger(logger), serverIp_(sf::IpAddress::LocalHost) {}
 
 common::PlayerId ClientConnection::connectToServer(const std::string serverText, const std::string myName,
-                                                   unsigned short port, std::uint32_t requestedTeam) {
+                                                   unsigned short port, std::uint32_t requestedTeam,
+                                                   common::LoadProgress* progress) {
+    common::loading(progress, "Connecting to server");
     serverPort_ = port;
     logger.log_info("Connecting to ", serverText, " as ", myName);
 
@@ -42,6 +44,7 @@ common::PlayerId ClientConnection::connectToServer(const std::string serverText,
     sf::Clock timeout, retry;
     bool firstAttempt = true;
     while (myId == -2 && timeout.getElapsedTime() < sf::seconds(10)) {
+        common::loading(progress, "Connecting to server");
         if (firstAttempt || retry.getElapsedTime() >= sf::milliseconds(500)) {
             sf::Packet join;
             join << std::string(common::MSG_JOIN) << myName << requestedTeam

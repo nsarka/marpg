@@ -1,4 +1,5 @@
 #pragma once
+#include "common/load_progress.hpp"
 #include "common/settings.hpp"
 #include <SFML/Graphics.hpp>
 #include <algorithm>
@@ -61,7 +62,8 @@ struct TileLighting {
     std::vector<HeightTile> heightTiles;
     const sf::Texture* stairMap = nullptr;
     unsigned stairCount = 0;
-    void buildHeightField(sf::Texture& texture, sf::Texture& stairs) {
+    void buildHeightField(sf::Texture& texture, sf::Texture& stairs,
+                          common::LoadProgress* progress = nullptr) {
         if (heightTiles.empty()) {
             shadowMap = nullptr;
             return;
@@ -80,7 +82,9 @@ struct TileLighting {
                                             [](const auto& t) { return t.stair != 0; }));
         sf::Image geometry({std::max(1u, stairCount), 2}, sf::Color::Transparent);
         unsigned stairIndex = 0;
+        std::size_t loadedTiles = 0;
         for (const auto& tile : heightTiles) {
+            common::loading(progress, "Building lighting height field", loadedTiles++, heightTiles.size());
             if (tile.stair) {
                 const unsigned x =
                     unsigned(std::round((tile.origin.x - shadowOrigin.x) / (size.x * 4.f) * 65535.f));

@@ -1,4 +1,5 @@
 #pragma once
+#include "common/load_progress.hpp"
 #include "tile_visual.hpp"
 #include <set>
 namespace map_detail {
@@ -91,7 +92,13 @@ class TileAssets {
         }
     }
 
-    void registerCollectionTileset(const tmx::Tileset& tileset, const std::set<std::uint32_t>& used) {
+    void registerCollectionTileset(const tmx::Tileset& tileset, const std::set<std::uint32_t>& used,
+                                   common::LoadProgress* progress) {
+        const auto total =
+            std::count_if(tileset.getTiles().begin(), tileset.getTiles().end(), [&](const auto& tile) {
+                return !tile.imagePath.empty() && used.count(tileset.getFirstGID() + tile.ID);
+            });
+        std::size_t completed = 0;
         for (const auto& tile : tileset.getTiles()) {
             if (tile.imagePath.empty()) {
                 continue;
@@ -101,6 +108,7 @@ class TileAssets {
             if (!used.count(gid))
                 continue;
 
+            common::loading(progress, "Loading textures: " + tileset.getName(), completed++, total);
             sf::Texture& texture = loadTextureOrFallback(tile.imagePath, &tileset);
             const auto textureSize = texture.getSize();
 
@@ -143,6 +151,7 @@ class TileAssets {
             visual.offset.y = (visual.offset.y + m_mapTileSize.y * .5f) * roofScale_ - m_mapTileSize.y * .5f;
             m_tileVisuals[gid] = visual;
         }
+        common::loading(progress, "Loading textures: " + tileset.getName(), total, total);
     }
 
   public:
@@ -157,11 +166,12 @@ class TileAssets {
     const auto& visuals() const {
         return m_tileVisuals;
     }
-    void registerTilesetVisuals(const tmx::Tileset& tileset, const std::set<std::uint32_t>& used) {
+    void registerTilesetVisuals(const tmx::Tileset& tileset, const std::set<std::uint32_t>& used,
+                                common::LoadProgress* progress = nullptr) {
         if (!tileset.getImagePath().empty()) {
             registerAtlasTileset(tileset, used);
         } else {
-            registerCollectionTileset(tileset, used);
+            registerCollectionTileset(tileset, used, progress);
         }
     }
 };

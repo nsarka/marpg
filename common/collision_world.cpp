@@ -48,13 +48,13 @@ void CollisionWorld::addPolygon(std::vector<sf::Vector2f> points) {
     polygons_.push_back(std::move(polygon));
 }
 
-void CollisionWorld::load(const std::string& mapPath, bool triggersOnly) {
-    LoadedMap loaded(mapPath);
+void CollisionWorld::load(const std::string& mapPath, bool triggersOnly, LoadProgress* progress) {
+    LoadedMap loaded(mapPath, progress);
     const auto& map = loaded.data();
-    load(map, triggersOnly);
+    load(map, triggersOnly, progress);
 }
 
-void CollisionWorld::load(const tmx::Map& map, bool triggersOnly) {
+void CollisionWorld::load(const tmx::Map& map, bool triggersOnly, LoadProgress* progress) {
     if (map.getOrientation() != tmx::Orientation::Isometric || map.isInfinite())
         throw std::runtime_error("Collision requires a finite isometric map");
     CollisionWorld loaded;
@@ -66,6 +66,9 @@ void CollisionWorld::load(const tmx::Map& map, bool triggersOnly) {
         const auto width = layer->getSize().x;
         const auto offset = layer->getOffset();
         for (std::size_t i = 0; i < tiles.size(); ++i) {
+            if (i % 128 == 0)
+                loading(progress, triggersOnly ? "Building damage geometry" : "Building collisions", i,
+                        tiles.size());
             if (!tiles[i].ID)
                 continue;
             const tmx::Tileset::Tile* tile = nullptr;
@@ -121,6 +124,8 @@ void CollisionWorld::load(const tmx::Map& map, bool triggersOnly) {
                 loaded.addPolygon(std::move(points));
             }
         }
+        loading(progress, triggersOnly ? "Building damage geometry" : "Building collisions", tiles.size(),
+                tiles.size());
     }
     *this = std::move(loaded);
 }

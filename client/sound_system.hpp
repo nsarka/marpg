@@ -1,4 +1,5 @@
 #pragma once
+#include "common/load_progress.hpp"
 #include "sound_events.hpp"
 #include <SFML/Audio.hpp>
 #include <algorithm>
@@ -10,7 +11,7 @@
 
 class SoundSystem {
   public:
-    explicit SoundSystem(const std::filesystem::path& directory) {
+    explicit SoundSystem(const std::filesystem::path& directory, common::LoadProgress* progress = nullptr) {
         std::error_code error;
         std::vector<std::filesystem::path> files;
         for (std::filesystem::directory_iterator it(directory, error), end; !error && it != end;
@@ -20,7 +21,9 @@ class SoundSystem {
         if (error)
             std::cerr << "Sound pack unavailable: " << error.message() << '\n';
         std::sort(files.begin(), files.end());
+        std::size_t loadedFiles = 0;
         for (const auto& path : files) {
+            common::loading(progress, "Loading sounds", loadedFiles++, files.size());
             const auto category = soundCategory(path.filename().string());
             if (!category)
                 continue;
@@ -30,6 +33,7 @@ class SoundSystem {
             else
                 std::cerr << "Cannot load sound: " << path << '\n';
         }
+        common::loading(progress, "Loading sounds", files.size(), files.size());
         for (const auto& bank : banks_)
             if (bank.buffers.empty())
                 std::cerr << "Sound effect group has no playable variants\n";

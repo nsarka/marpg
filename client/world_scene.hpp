@@ -30,8 +30,9 @@ class WorldScene {
 
   public:
     WorldScene(const common::LoadedMap& world, const common::CollisionWorld& collision,
-               const common::TriggerSystem& triggers, const sf::Font& font)
-        : lighting_(world.data()), wallOcclusion_(world.data(), world.tileLayer("Walls")) {
+               const common::TriggerSystem& triggers, const sf::Font& font,
+               common::LoadProgress* progress = nullptr)
+        : lighting_(world.data()), wallOcclusion_(world.data(), world.tileLayer("Walls"), progress) {
         const auto& map = world.data();
         tileSize_ = sf::Vector2f(float(map.getTileSize().x), float(map.getTileSize().y));
         bool foreground = false;
@@ -44,7 +45,7 @@ class WorldScene {
                 foreground = true;
             if (!layer->getVisible())
                 continue;
-            auto rendered = std::make_unique<MapLayer>(map, i, &lighting_, foreground);
+            auto rendered = std::make_unique<MapLayer>(map, i, &lighting_, foreground, progress);
             if (layer->getName() == "Floor")
                 bounds_ = rendered->getGlobalBounds();
             if (const auto region = common::roofRegion(*layer))
@@ -70,7 +71,7 @@ class WorldScene {
                 }
             }
             if (foreground && layer->getName() != "Walls")
-                wallOcclusion_.addLayer(map, i);
+                wallOcclusion_.addLayer(map, i, progress);
             (foreground ? structures_ : ground_).push_back(std::move(rendered));
         }
         std::stable_sort(scenery_.begin(), scenery_.end(),
@@ -113,7 +114,8 @@ class WorldScene {
                 levelLabels.push_back(std::move(label));
             }
         }
-        lighting_.buildHeightField(lightShadows_, stairShadows_);
+        common::loading(progress, "Building lighting height field");
+        lighting_.buildHeightField(lightShadows_, stairShadows_, progress);
         update(sf::Time::Zero);
     }
     const sf::FloatRect& bounds() const {

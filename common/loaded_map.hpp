@@ -1,4 +1,5 @@
 #pragma once
+#include "load_progress.hpp"
 #include "map_composition.hpp"
 #include <filesystem>
 #include <stdexcept>
@@ -8,12 +9,16 @@ class LoadedMap {
     tmx::Map map_;
 
   public:
-    explicit LoadedMap(const std::string& path) {
-        const auto composed = composeMap(path);
+    explicit LoadedMap(const std::string& path, LoadProgress* progress = nullptr) {
+        loading(progress, "Composing map");
+        const auto composed = composeMap(path, progress);
+        loading(progress, "Parsing map and tilesets");
         const bool loaded =
             composed.empty()
                 ? map_.load(path)
                 : map_.loadFromString(composed, std::filesystem::absolute(path).parent_path().string() + "/");
+        if (progress)
+            progress->check();
         if (!loaded)
             throw std::runtime_error("Cannot load map: " + path);
     }

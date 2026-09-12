@@ -32,6 +32,7 @@ struct Tileset {
     std::map<unsigned, std::pair<double, double>> sizes;
 };
 struct Composer {
+    LoadProgress* progress = nullptr;
     pugi::xml_document result;
     Node map;
     int width = 0, height = 0;
@@ -73,6 +74,7 @@ struct Composer {
     std::map<unsigned, unsigned> tilesets(Node source, const fs::path& dir) {
         std::map<unsigned, unsigned> gids;
         for (auto ref : source.children("tileset")) {
+            loading(progress, "Composing map");
             require(ref.attribute("source"), "composed maps require external tilesets");
             auto path = fs::weakly_canonical(dir / ref.attribute("source").value()).string();
             auto found = sets.find(path);
@@ -140,6 +142,7 @@ struct Composer {
     void process(Node source, const fs::path& dir, const std::map<unsigned, unsigned>& gids, int cx, int cy,
                  double dx = 0, double dy = 0) {
         for (auto node : source.children()) {
+            loading(progress, "Composing map");
             const std::string tag = node.name(), name = node.attribute("name").value();
             const double nx = dx + node.attribute("offsetx").as_double(),
                          ny = dy + node.attribute("offsety").as_double();
@@ -305,7 +308,8 @@ struct Composer {
     }
 };
 } // namespace
-std::string composeMap(const std::string& path) {
+std::string composeMap(const std::string& path, LoadProgress* progress) {
+    loading(progress, "Composing map");
     pugi::xml_document source;
     require(source.load_file(path.c_str()), "cannot read " + path);
     const auto root = source.child("map");
@@ -318,6 +322,7 @@ std::string composeMap(const std::string& path) {
     if (!needed)
         return {}; // Preserve tmxlite's full format support for ordinary maps.
     Composer composer;
+    composer.progress = progress;
     composer.load(path);
     // Tilesets must precede all layers, including references imported by prefabs.
     std::vector<Node> references;

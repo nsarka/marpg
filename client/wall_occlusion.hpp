@@ -3,6 +3,7 @@
 #include "common/scenery_depth.hpp"
 #include "common/tile_alignment.hpp"
 #pragma once
+#include "common/load_progress.hpp"
 #include <SFML/Graphics.hpp>
 #include <algorithm>
 #include <cmath>
@@ -16,10 +17,11 @@
 // This preserves doorway holes and permits partial character silhouettes.
 class WallOcclusion {
   public:
-    explicit WallOcclusion(const tmx::Map& map, std::size_t layerIndex) {
-        addLayer(map, layerIndex);
+    explicit WallOcclusion(const tmx::Map& map, std::size_t layerIndex,
+                           common::LoadProgress* progress = nullptr) {
+        addLayer(map, layerIndex, progress);
     }
-    void addLayer(const tmx::Map& map, std::size_t layerIndex) {
+    void addLayer(const tmx::Map& map, std::size_t layerIndex, common::LoadProgress* progress = nullptr) {
         const auto& layer = map.getLayers().at(layerIndex);
         const auto& tiles = layer->getLayerAs<tmx::TileLayer>().getTiles();
         auto tileSize = map.getTileSize();
@@ -27,6 +29,7 @@ class WallOcclusion {
         const auto offset = layer->getOffset();
         const float scale = common::roofScale(*layer);
         for (std::size_t i = 0; i < tiles.size(); ++i) {
+            common::loading(progress, "Building occlusion masks", i, tiles.size());
             const tmx::Tileset::Tile* tile = nullptr;
             sf::Vector2f tileOffset{};
             for (const auto& set : map.getTilesets()) {

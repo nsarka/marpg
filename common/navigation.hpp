@@ -1,4 +1,5 @@
 #pragma once
+#include "load_progress.hpp"
 #include "loaded_map.hpp"
 #include "trigger_system.hpp"
 #include <array>
@@ -10,69 +11,123 @@ namespace common {
 class Navigation {
   public:
     static constexpr float Spacing = 24.f;
-    Navigation(const std::string& mapPath, const CollisionWorld& walls, const TriggerSystem& hazards)
+    Navigation(const std::string& mapPath, const CollisionWorld& walls, const TriggerSystem& hazards,
+               LoadProgress* progress = nullptr)
         : walls_(walls), hazards_(hazards) {
-        LoadedMap loaded(mapPath);
+        LoadedMap loaded(mapPath, progress);
         const auto& map = loaded.data();
-        initialize(map);
+        initialize(map, progress);
     }
-    Navigation(const tmx::Map& map, const CollisionWorld& walls, const TriggerSystem& hazards)
+    Navigation(const tmx::Map& map, const CollisionWorld& walls, const TriggerSystem& hazards,
+               LoadProgress* progress = nullptr)
         : walls_(walls), hazards_(hazards) {
-        initialize(map);
+        initialize(map, progress);
     }
 
   private:
-    void initialize(const tmx::Map& map) {
-        for (const auto& layer : map.getLayers()) {
-            if (layer->getType() != tmx::Layer::Type::Tile || layer->getName() != "Floor")
-                continue;
-            auto size = layer->getSize();
-            auto tile = map.getTileSize();
-            auto offset = layer->getOffset();
-            origin_ = {float(offset.x) - (size.y - 1) * tile.x * .5f, float(offset.y)};
-            width_ = static_cast<int>(std::ceil((size.x + size.y) * tile.x * .5f / Spacing)) + 1;
-            height_ = static_cast<int>(std::ceil((size.x + size.y) * tile.y * .5f / Spacing)) + 1;
-        }
+    void initialize(const tmx::Map& map, LoadProgress* progress) {
+        const tmx::Layer* floor = nullptr;
+        for (const auto& layer : map.getLayers())
+            if (layer->getType() == tmx::Layer::Type::Tile && layer->getName() == "Floor") {
+                floor = layer.get();
+                break;
+            }
+        if (!floor)
+            throw std::runtime_error("Navigation requires a Floor layer");
+        const auto size = floor->getSize();
+        const auto tile = map.getTileSize();
+        const auto offset = floor->getOffset();
+        origin_ = {float(offset.x) - (size.y - 1) * tile.x * .5f, float(offset.y)};
+        width_ = static_cast<int>(std::ceil((size.x + size.y) * tile.x * .5f / Spacing)) + 1;
+        height_ = static_cast<int>(std::ceil((size.x + size.y) * tile.y * .5f / Spacing)) + 1;
         if (width_ <= 0 || height_ <= 0 || std::int64_t(width_) * height_ > 1000000)
             throw std::runtime_error("Invalid navigation dimensions");
-        nodes_.resize(width_ * height_);
-        for (int y = 0; y < height_; ++y)
-            for (int x = 0; x < width_; ++x) {
-                auto& node = nodes_[y * width_ + x];
-                node.position = origin_ + sf::Vector2f{float(x) * Spacing, float(y) * Spacing};
-                node.walkable = safePoint(node.position);
-                node.neighbors.fill(-1);
-            }
-        for (int y = 0; y < height_; ++y)
-            for (int x = 0; x < width_; ++x) {
-                auto& node = nodes_[y * width_ + x];
-                if (!node.walkable)
-                    continue;
-                int slot = 0;
-                for (int dy = -1; dy <= 1; ++dy)
-                    for (int dx = -1; dx <= 1; ++dx) {
-                        if (!dx && !dy)
-                            continue;
-                        int nx = x + dx, ny = y + dy;
-                        if (nx >= 0 && nx < width_ && ny >= 0 && ny < height_) {
-                            int index = ny * width_ + nx;
-                            if (nodes_[index].walkable && clear(node.position, nodes_[index].position))
-                                node.neighbors[slot] = index;
-                        }
-                        ++slot;
+
+        // Keep a compact node list only for occupied floor. The inexpensive grid
+        // lookup preserves the fixed lattice and its eight-neighbor connectivity.
+        std::vector<int> grid(width_ * height_, -1);
+        std::vector<int> cells;
+        const auto& floorTiles = floor->getLayerAs<tmx::TileLayer>().getTiles();
+        // Visit lattice samples under each painted diamond, not the surrounding
+        // empty rectangle. Adjacent diamonds share samples, so deduplicate them.
+        for (std::size_t i = 0; i < floorTiles.size(); ++i) {
+            if (i % 128 == 0)
+                loading(progress, "Navigation: occupied floor", i, floorTiles.size());
+            if (!floorTiles[i].ID)
+                continue;
+            const float topX = float(offset.x) + (float(i % size.x) - float(i / size.x) + 1.f) * tile.x * .5f;
+            const float topY = float(offset.y) + (float(i % size.x) + float(i / size.x)) * tile.y * .5f;
+            const int minX = std::max(0, int(std::ceil((topX - tile.x * .5f - origin_.x) / Spacing)));
+            const int maxX =
+                std::min(width_ - 1, int(std::floor((topX + tile.x * .5f - origin_.x) / Spacing)));
+            const int minY = std::max(0, int(std::ceil((topY - origin_.y) / Spacing)));
+            const int maxY = std::min(height_ - 1, int(std::floor((topY + tile.y - origin_.y) / Spacing)));
+            for (int y = minY; y <= maxY; ++y)
+                for (int x = minX; x <= maxX; ++x) {
+                    const int cell = y * width_ + x;
+                    if (grid[cell] != -1)
+                        continue;
+                    const auto position = origin_ + sf::Vector2f{float(x) * Spacing, float(y) * Spacing};
+                    if (!hazards_.hasFloor(position))
+                        continue;
+                    grid[cell] = -2;
+                    cells.push_back(cell);
+                }
+        }
+        std::sort(cells.begin(), cells.end());
+        nodes_.reserve(cells.size());
+        for (int cell : cells) {
+            grid[cell] = int(nodes_.size());
+            Node node;
+            node.position =
+                origin_ + sf::Vector2f{float(cell % width_) * Spacing, float(cell / width_) * Spacing};
+            node.neighbors.fill(-1);
+            nodes_.push_back(node);
+        }
+        loading(progress, "Navigation: occupied floor", floorTiles.size(), floorTiles.size());
+        for (std::size_t i = 0; i < nodes_.size(); ++i) {
+            if (i % 32 == 0)
+                loading(progress, "Navigation: walkable nodes", i, nodes_.size());
+            nodes_[i].walkable = safePoint(nodes_[i].position);
+        }
+        loading(progress, "Navigation: walkable nodes", nodes_.size(), nodes_.size());
+        for (std::size_t i = 0; i < nodes_.size(); ++i) {
+            if (i % 16 == 0)
+                loading(progress, "Navigation: connections", i, nodes_.size());
+            auto& node = nodes_[i];
+            if (!node.walkable)
+                continue;
+            const int x = cells[i] % width_, y = cells[i] / width_;
+            int slot = 0;
+            for (int dy = -1; dy <= 1; ++dy)
+                for (int dx = -1; dx <= 1; ++dx) {
+                    if (!dx && !dy)
+                        continue;
+                    const int nx = x + dx, ny = y + dy;
+                    if (nx >= 0 && ny >= 0 && nx < width_ && ny < height_) {
+                        const int next = grid[ny * width_ + nx];
+                        if (next >= 0 && nodes_[next].walkable && clear(node.position, nodes_[next].position))
+                            node.neighbors[slot] = next;
                     }
-            }
+                    ++slot;
+                }
+        }
+        loading(progress, "Navigation: connections", nodes_.size(), nodes_.size());
     }
 
   public:
+    std::size_t nodeCount() const {
+        return nodes_.size();
+    }
+    std::size_t gridCellCount() const {
+        return std::size_t(width_) * height_;
+    }
     bool safePoint(sf::Vector2f p) const {
-        if (walls_.overlaps(p))
-            return false;
         // Keep the whole footprint on floor and out of hazardous regions.
         for (auto offset : std::array<sf::Vector2f, 5>{{{0, 0}, {10, 0}, {-10, 0}, {0, 10}, {0, -10}}})
             if (hazards_.contains(p + offset))
                 return false;
-        return true;
+        return !walls_.overlaps(p);
     }
     bool clear(sf::Vector2f from, sf::Vector2f to) const {
         if ((walls_.move(from, to - from) - to).length() > .05f)

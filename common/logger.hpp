@@ -47,6 +47,9 @@ class Logger {
     enum class Level { Info, Warn, Error };
 
     explicit Logger(std::ostream& out = std::cout);
+    void flush() {
+        out_.flush();
+    }
 
     // --------------------------------------------------------
     // Streaming log line helper

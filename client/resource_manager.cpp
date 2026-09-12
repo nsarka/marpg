@@ -51,7 +51,8 @@ ResourceManager::CharacterAnimations::get(common::CharacterAnimation animation) 
     return set;
 }
 
-bool ResourceManager::loadFantasyCharacter(const std::string& id, const std::filesystem::path& assetRoot) {
+bool ResourceManager::loadFantasyCharacter(const std::string& id, const std::filesystem::path& assetRoot,
+                                           common::LoadProgress* progress) {
     try {
         CharacterAnimations animations;
         animations.directory = assetRoot;
@@ -61,10 +62,14 @@ bool ResourceManager::loadFantasyCharacter(const std::string& id, const std::fil
         // Prewarm gameplay clips; the rest of the pack is loaded on first use.
         using A = common::CharacterAnimation;
         for (auto animation :
-             {A::Idle, A::Walk, A::Run, A::Attack1, A::Attack4, A::Special1, A::TakeDamage, A::Die})
+             {A::Idle, A::Walk, A::Run, A::Attack1, A::Attack4, A::Special1, A::TakeDamage, A::Die}) {
+            common::loading(progress, "Loading character: " + id);
             animations.get(animation);
+        }
         m_characterAnimations[id] = std::move(animations);
         return true;
+    } catch (const common::LoadingCancelled&) {
+        throw;
     } catch (const std::exception& error) {
         m_logger.log_error("Cannot load character: ", error.what());
         return false;

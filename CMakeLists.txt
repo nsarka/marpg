@@ -30,7 +30,10 @@ FetchContent_Declare(tmxlite
     SOURCE_SUBDIR tmxlite
 )
 
+# Configure only tmxlite with release compiler settings.
+set(CMAKE_PROJECT_tmxlite_INCLUDE "${CMAKE_CURRENT_SOURCE_DIR}/cmake/TmxliteRelease.cmake")
 FetchContent_MakeAvailable(SFML tmxlite)
+unset(CMAKE_PROJECT_tmxlite_INCLUDE)
 
 add_library(common STATIC
     common/map_composition.cpp
@@ -95,6 +98,12 @@ if(BUILD_TESTING)
     add_executable(kill_feed_tests tests/kill_feed_tests.cpp)
     target_link_libraries(kill_feed_tests PRIVATE common)
     add_test(NAME kill_feed COMMAND kill_feed_tests ${CMAKE_CURRENT_SOURCE_DIR})
+    add_executable(loading_screen_tests tests/loading_screen_tests.cpp)
+    target_link_libraries(loading_screen_tests PRIVATE common SFML::Graphics)
+    add_test(NAME loading_screen COMMAND loading_screen_tests ${CMAKE_CURRENT_SOURCE_DIR})
+    add_executable(loading_tests tests/loading_tests.cpp)
+    target_link_libraries(loading_tests PRIVATE common)
+    add_test(NAME loading COMMAND loading_tests)
     add_executable(bot_ai_tests tests/bot_ai_tests.cpp)
     target_link_libraries(bot_ai_tests PRIVATE common)
     add_test(NAME bot_ai COMMAND bot_ai_tests ${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures/world.tmx)

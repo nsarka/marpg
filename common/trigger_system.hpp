@@ -23,18 +23,20 @@ class TriggerSystem {
     const TriggerRegions& regions() const {
         return *regions_;
     }
-    void load(const std::string& mapPath, const ServerSettings& settings = ServerSettings{}) {
-        LoadedMap loaded(mapPath);
+    void load(const std::string& mapPath, const ServerSettings& settings = ServerSettings{},
+              LoadProgress* progress = nullptr) {
+        LoadedMap loaded(mapPath, progress);
         const auto& map = loaded.data();
-        load(map, settings);
+        load(map, settings, progress);
     }
-    void load(const tmx::Map& map, const ServerSettings& settings = ServerSettings{}) {
+    void load(const tmx::Map& map, const ServerSettings& settings = ServerSettings{},
+              LoadProgress* progress = nullptr) {
         settings_ = settings;
         teleports_.load(map);
         boundsDamage_ = settings.boundsDamage;
         boundsInterval_ = damageInterval(settings.boundsIntervalSeconds);
         CollisionWorld regions;
-        regions.load(map, true);
+        regions.load(map, true, progress);
         bool foundFloor = false;
         for (const auto& layer : map.getLayers()) {
             if (layer->getType() != tmx::Layer::Type::Tile || layer->getName() != "Floor")

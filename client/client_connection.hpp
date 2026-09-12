@@ -1,4 +1,5 @@
 #pragma once
+#include "common/load_progress.hpp"
 
 #include "camera.hpp"
 #include "common/attack_delivery.hpp"
@@ -28,7 +29,8 @@ class ClientConnection {
     [[nodiscard]] common::PlayerId connectToServer(const std::string serverText = "127.0.0.1",
                                                    const std::string myName = "Rick",
                                                    unsigned short port = 54000,
-                                                   std::uint32_t requestedTeam = 0);
+                                                   std::uint32_t requestedTeam = 0,
+                                                   common::LoadProgress* progress = nullptr);
     ~ClientConnection();
     void leaveServer();
     const std::string& connectionError() const {

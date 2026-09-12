@@ -1,6 +1,6 @@
 [server]
 # Map filename in assets/tiled, without .tmx (case-sensitive).
-map = "farms"
+map = "demo"
 # Time attacks are blocked after each hit; 0 disables the delay.
 damage_stun_seconds = 0.5
 # Delay from death to respawn.
@@ -11,10 +11,10 @@ ip = "0.0.0.0"
 port = 54000
 # Total capacity (1-32). Human player slots = slots - bots.
 # With these defaults: 20 total slots - 10 bots = 10 human players.
-slots = 32
+slots = 5
 # Teams: 0 = free-for-all; 1 through slots = team mode.
 teams = 2
-bots = 9
+bots = 2
 # Set false to keep bots idle. They can still take damage and respawn.
 bot_ai = false
 friendly_fire = false

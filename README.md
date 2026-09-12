@@ -188,6 +188,8 @@ Press **E**, then **left-click** to cast an explosion using the uppercut animati
 
 Set `[server] bot_ai = false` in `server.toml` to keep bots idle. It defaults to `true`. Idle bots remain on their teams, can take damage, and respawn normally. Restart the server to apply this setting.
 
+Startup logs show each loading stage, work counts where available, and stage/total seconds. The client also shows a loading screen; press Escape or close the window to cancel. Ctrl+C cancels server loading. Cancellation is cooperative: an individual third-party file parse or image decode must return first. Navigation samples only occupied floor tiles; empty space has no graph nodes. Large floor areas can still take time to connect because edges are checked against wall geometry.
+
 Press **Q**, then **left-click** to place lightning. Configure Q with `[bindings] lightning = "Q"`. Lightning uses the carry animation and strikes its fixed target for three seconds, rolling 1–4 damage every third of a second. It follows the same self-damage, teammate and wall rules as the explosion.
 
 `[spell]` and `[lightning]` in `server.toml` configure `damage_min`, `damage_max` (positive health loss), `radius`, `range`, `windup_seconds` and `cooldown_seconds` (recovery after the effect). Lightning additionally uses `duration_seconds` and `damage_interval_seconds`. The server sends these settings to clients on connect. Restart the server and clients after editing.
