@@ -21,11 +21,12 @@ enum class Action {
     Debug,
     Explosion,
     Lightning,
+    Chat,
     Count
 };
 inline constexpr std::array<const char*, static_cast<std::size_t>(Action::Count)> BindingNames = {
-    "move_up", "move_down",  "move_left", "move_right", "walk",     "light",
-    "heavy",   "scoreboard", "debug",     "spell",      "lightning"};
+    "move_up", "move_down",  "move_left", "move_right", "walk",      "light",
+    "heavy",   "scoreboard", "debug",     "spell",      "lightning", "chat"};
 // Keyboard codes occupy the first range; mouse buttons follow them.
 inline int mouseBinding(sf::Mouse::Button button) {
     return int(sf::Keyboard::KeyCount) + int(button);
@@ -103,16 +104,18 @@ struct KeyBindings {
     std::vector<int>& operator[](Action action) {
         return actions[static_cast<std::size_t>(action)];
     }
-    std::array<std::vector<int>, 11> actions{{{parseBinding("w")},
-                                              {parseBinding("s")},
-                                              {parseBinding("a")},
-                                              {parseBinding("d")},
-                                              {parseBinding("lshift"), parseBinding("rshift")},
-                                              {parseBinding("mouse_left")},
-                                              {parseBinding("mouse_right")},
-                                              {parseBinding("tab")},
-                                              {parseBinding("f1")},
-                                              {parseBinding("e")},
-                                              {parseBinding("q")}}};
+    std::array<std::vector<int>, static_cast<std::size_t>(Action::Count)> actions{
+        {{parseBinding("w")},
+         {parseBinding("s")},
+         {parseBinding("a")},
+         {parseBinding("d")},
+         {parseBinding("lshift"), parseBinding("rshift")},
+         {parseBinding("mouse_left")},
+         {parseBinding("mouse_right")},
+         {parseBinding("tab")},
+         {parseBinding("f1")},
+         {parseBinding("e")},
+         {parseBinding("q")},
+         {parseBinding("enter")}}};
 };
 } // namespace common

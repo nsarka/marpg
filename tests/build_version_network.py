@@ -1,4 +1,5 @@
 """Check build identity rejection before slot allocation, using an isolated server."""
+from build_identity import protocol_version
 import pathlib, re, socket, struct, subprocess, tempfile, time
 root = pathlib.Path(__file__).resolve().parent.parent
 commit = re.search(r'"([0-9a-f]{40})"', (root/'build/generated/build_version.hpp').read_text())[1]
@@ -40,7 +41,7 @@ bots=0
                     assert read_string(body)[0]==commit
                 else:
                     assigned,protocol=struct.unpack_from('!iI',body)
-                    assert assigned==0 and protocol==7
+                    assert assigned==0 and protocol==protocol_version
                     assert read_string(body[8:])[0]==commit
             print('PASS: mismatched build rejected without consuming slot; matching build accepted with server hash')
         finally:

@@ -35,7 +35,7 @@ class BotAI {
             if (hit.amount <= 0 || !enemy(hit.source))
                 continue;
             bool claimed = false;
-            for (std::size_t other = 0; other < players.size() && other < settings_.bots; ++other)
+            for (std::size_t other = 0; other < players.size(); ++other)
                 if (other != id && players[other]->connected && players[other]->alive &&
                     brains_[other].target == hit.source) {
                     claimed = true;

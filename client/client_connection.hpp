@@ -1,5 +1,7 @@
 #pragma once
+#include "common/chat.hpp"
 #include "common/load_progress.hpp"
+#include "common/runtime_settings.hpp"
 
 #include "camera.hpp"
 #include "common/attack_delivery.hpp"
@@ -17,6 +19,7 @@
 #include <filesystem>
 #include <iostream>
 #include <optional>
+#include <utility>
 #include <vector>
 
 class ClientConnection {
@@ -52,9 +55,40 @@ class ClientConnection {
     void pumpNetwork(std::vector<common::PlayerState>& newStates,
                      std::vector<common::PlayerId>& joinedPlayers);
 
+    std::uint32_t worldVersion() const {
+        return runtime_.world;
+    }
+    bool worldReloadRequested() const {
+        return worldReloadRequested_;
+    }
+    void beginWorldLoad() {
+        worldReloadRequested_ = false;
+        attackOutbox_.clear();
+    }
+    void markWorldLoaded(std::uint32_t world);
+    bool isBot(common::PlayerId id) const {
+        return id < 32 && (runtime_.botMask & (std::uint32_t(1) << id));
+    }
+    bool sendChat(const std::string& text);
+    std::vector<common::ChatMessage> takeChatMessages() {
+        return std::exchange(chatMessages_, {});
+    }
+    bool takeChatFailure() {
+        return std::exchange(chatFailed_, false);
+    }
+
     void sendInput(common::PlayerId& id, common::InputCommand& cmd);
 
   private:
+    common::RuntimeSettings runtime_;
+    std::uint32_t loadedWorld_ = 1;
+    bool worldReloadRequested_ = false;
+    common::ChatOutbox chatOutbox_;
+    common::ChatInbox chatInbox_;
+    sf::Clock chatClock_;
+    std::uint32_t nextChatSequence_ = 0;
+    std::vector<common::ChatMessage> chatMessages_;
+    bool chatFailed_ = false;
     common::ServerSettings settings_;
     std::string connectionError_;
     common::Logger& logger;

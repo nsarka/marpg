@@ -183,7 +183,7 @@ ClientSettings loadClientSettings(const std::string& path) {
     keys(t, "client", {"name", "ip", "port", "team", "show_other_damage_numbers", "mouse_idle_seconds"});
     keys(t, "bindings",
          {"move_up", "move_down", "move_left", "move_right", "walk", "light", "heavy", "scoreboard", "debug",
-          "spell", "lightning"});
+          "spell", "lightning", "chat"});
     for (std::size_t i = 0; i < s.bindings.actions.size(); ++i) {
         const std::string action = BindingNames[i];
         const auto node = t["bindings"][action];

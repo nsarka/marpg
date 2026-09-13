@@ -1,5 +1,6 @@
 #include "attack_hud.hpp"
 #include "camera.hpp"
+#include "chat_ui.hpp"
 #include "client/rendering/map_layer.hpp"
 #include "client_connection.hpp"
 #include "combat_debug.hpp"
@@ -154,371 +155,402 @@ int main(int argc, char**) {
             return 1;
         }
         logger.log_info("Assigned player id ", myId);
-        const auto& settings = client_conn.serverSettings();
-        LoadingConnection loadingConnection(client_conn);
-
-        // -------------------------------------------------------------------------
-        // Level setup
-        // -------------------------------------------------------------------------
-        auto loadedWorld = loading.loadMap(common::mapPath(settings));
-        const auto& world = *loadedWorld;
-        const auto& map = world.data();
-        common::CollisionWorld collision;
-        collision.load(map, false, &progress);
-        progress.report("Building triggers");
-        common::TriggerSystem triggers;
-        triggers.load(map, settings, &progress);
-        progress.report("Preparing spawn points");
-        common::TeamSpawns teamSpawns;
-        teamSpawns.load(map, settings.teams, collision, triggers);
-        WorldScene scene(world, collision, triggers, resources.getFont("ui"), &progress);
-        progress.report("Preparing players");
-        logger.log_info("World bounds: ", scene.bounds());
-
-        // -------------------------------------------------------------------------
-        // Camera setup
-        // -------------------------------------------------------------------------
-        sf::FloatRect layerBounds = scene.bounds();
-        Camera camera({common::WINDOW_WIDTH, common::WINDOW_HEIGHT});
-        camera.setFollowSharpness(8.f);
-        camera.setDeadZone({60.f, 40.f});
-        camera.setWorldBounds(layerBounds);
-
-        // -------------------------------------------------------------------------
-        // Input manager setup
-        // -------------------------------------------------------------------------
         InputManager input{window, options.bindings};
-        input.setSettings(settings);
-
-        // -------------------------------------------------------------------------
-        // Players: Complete Player for everybody, and an extra PlayerState for running
-        // the local simulation for the client
-        // -------------------------------------------------------------------------
-        std::vector<Player> players{common::MAX_PLAYERS};
-        std::vector<common::PlayerId> joined_players; // pushed when a player joined later than me in order to
-                                                      // set his connected = true. popped after it gets set
-
-        // Initialize world based on what the server tells us the state is the first time
-        std::vector<common::PlayerState> newStates(common::MAX_PLAYERS);
-        loadingConnection.finish(newStates, joined_players);
-        client_conn.pumpNetwork(newStates, joined_players);
-        for (int i = 0; i < common::MAX_PLAYERS; i++) {
-            Player& p = players[i];
-            p.setSettings(settings);
-
-            p.state() = newStates[i];
-
-            p.setCharacterAnimations(
-                resources.getCharacterAnimations(common::CharacterNames[p.state().character]));
-            p.setFont(resources.getFont("ui"));
-            p.setSpriteScale({common::CharacterScale, common::CharacterScale});
-            p.setOriginToFeet();
-            p.setOcclusionShader(&resources.getShader("player_occlusion"));
-            p.setInterpolationSharpness(14.f);
-            p.setWalkSpeed(common::WALK_SPEED * 0.5f);
-            p.setRunSpeed((common::WALK_SPEED + common::RUN_SPEED) * 0.5f);
-            p.teleportTo(p.state().pos);
-
-            p.setOutlineEnabled(true);
-            p.setOutlineShader(&resources.getShader("sprite_outline"));
-            p.setOutlineColor(common::teamColor(p.state().team, settings.teams));
-            p.setOutlineThickness(.5f);
-        }
-
-        // -------------------------------------------------------------------------
-        // Timing
-        // -------------------------------------------------------------------------
-        progress.report("Loading sounds");
-        SoundSystem sounds("../assets/sound/Retro_Combat_FX", &progress);
-        progress.report("Loading spell effects");
-        sf::Clock frameClock;
-        sf::Clock mouseIdleClock;
-        auto previousMousePosition = sf::Mouse::getPosition(window);
-        float accumulator = 0.f;
-
-        SpellEffects spellEffects("../assets/sprites/Free Pixel Art Explosions/PNG/Explosion", settings);
-        DamageNumbers damageNumbers;
-        KillFeed killFeed;
-        std::optional<sf::Clock> shutdownDisplay;
-        float teleportFlash = 0.f;
-        constexpr float teleportFlashDuration = 0.22f;
-        float damageFlash = 0.f;
-        constexpr float damageFlashDuration = 0.35f;
-
-        // -------------------------------------------------------------------------
-        // Main loop
-        // -------------------------------------------------------------------------
-        progress.check();
-        progress.finish();
-        frameClock.restart();
+        ChatUI chat(options.bindings);
         while (window.isOpen() && !quitRequested) {
-            // ---------------------------------------------------------------------
-            // Render clock: real time between rendered frames
-            // ---------------------------------------------------------------------
-            const float renderDt = frameClock.restart().asSeconds();
-            accumulator += renderDt;
-            teleportFlash = std::max(0.f, teleportFlash - renderDt);
-            damageFlash = std::max(0.f, damageFlash - renderDt);
-            damageNumbers.update(renderDt);
-            killFeed.update(renderDt);
+            client_conn.beginWorldLoad();
+            input.clearAll();
+            chat.clearBubbles();
+            chat.input.consume(sf::Event::FocusLost{});
+            const auto settings = client_conn.serverSettings();
+            const auto worldVersion = client_conn.worldVersion();
+            LoadingConnection loadingConnection(client_conn);
 
-            // ---------------------------------------------------------------------
-            // Events
-            // ---------------------------------------------------------------------
-            input.updateSpellAvailability(newStates[myId]);
-            input.handleEvents();
-            if (!window.isOpen())
-                break;
+            // -------------------------------------------------------------------------
+            // Level setup
+            // -------------------------------------------------------------------------
+            auto loadedWorld = loading.loadMap(common::mapPath(settings));
+            const auto& world = *loadedWorld;
+            const auto& map = world.data();
+            common::CollisionWorld collision;
+            collision.load(map, false, &progress);
+            progress.report("Building triggers");
+            common::TriggerSystem triggers;
+            triggers.load(map, settings, &progress);
+            progress.report("Preparing spawn points");
+            common::TeamSpawns teamSpawns;
+            teamSpawns.load(map, settings.teams, collision, triggers);
+            WorldScene scene(world, collision, triggers, resources.getFont("ui"), &progress);
+            progress.report("Preparing players");
+            logger.log_info("World bounds: ", scene.bounds());
 
-            // ---------------------------------------------------------------------
-            // Network
-            // ---------------------------------------------------------------------
+            // -------------------------------------------------------------------------
+            // Camera setup
+            // -------------------------------------------------------------------------
+            sf::FloatRect layerBounds = scene.bounds();
+            Camera camera({common::WINDOW_WIDTH, common::WINDOW_HEIGHT});
+            camera.setFollowSharpness(8.f);
+            camera.setDeadZone({60.f, 40.f});
+            camera.setWorldBounds(layerBounds);
+
+            // -------------------------------------------------------------------------
+            // Input manager setup
+            // -------------------------------------------------------------------------
+            input.setSettings(settings);
+
+            // -------------------------------------------------------------------------
+            // Players: Complete Player for everybody, and an extra PlayerState for running
+            // the local simulation for the client
+            // -------------------------------------------------------------------------
+            std::vector<Player> players{common::MAX_PLAYERS};
+            std::vector<common::PlayerId>
+                joined_players; // pushed when a player joined later than me in order to
+                                // set his connected = true. popped after it gets set
+
+            // Initialize world based on what the server tells us the state is the first time
+            std::vector<common::PlayerState> newStates(common::MAX_PLAYERS);
+            loadingConnection.finish(newStates, joined_players);
+            client_conn.markWorldLoaded(worldVersion);
             client_conn.pumpNetwork(newStates, joined_players);
-            if (client_conn.shuttingDown()) {
-                if (!shutdownDisplay)
-                    shutdownDisplay.emplace();
-                window.setView(window.getDefaultView());
-                window.clear(sf::Color(24, 28, 35));
-                sf::Text message(resources.getFont("ui"), client_conn.shutdownReason() + "\nClosing game...",
-                                 uiFontSize(24));
-                auto bounds = message.getLocalBounds();
-                message.setOrigin(bounds.position + bounds.size * .5f);
-                message.setPosition(window.getDefaultView().getSize() * .5f);
-                message.setFillColor(sf::Color::White);
-                window.draw(message);
-                window.display();
-                if (shutdownDisplay->getElapsedTime() >= sf::seconds(2))
-                    window.close();
-                continue;
-            }
-            const auto mousePosition = sf::Mouse::getPosition(window);
-            if (mousePosition != previousMousePosition) {
-                previousMousePosition = mousePosition;
-                mouseIdleClock.restart();
-            }
-            const bool movementFacing =
-                mouseIdleClock.getElapsedTime().asSeconds() >= options.mouseIdleSeconds;
-            damageNumbers.observe(newStates, myId, options.showOtherDamageNumbers);
-            if (client_conn.hasWorldSnapshot())
-                killFeed.observe(client_conn.killEvents(), myId);
-            input.updateSpellAvailability(newStates[myId]);
-            spellEffects.observe(newStates, renderDt);
-            if (!newStates[myId].alive)
-                input.cancelCombatInput();
-            sounds.observe(newStates, newStates[myId].pos);
-            while (joined_players.size() > 0) {
-                const common::PlayerId p = joined_players.back();
-                joined_players.pop_back();
-                players[p].state().connected = true;
-            }
-
-            // ---------------------------------------------------------------------
-            // Fixed simulation clock
-            // ---------------------------------------------------------------------
-            while (accumulator >= common::TICK_DT) {
-                accumulator -= common::TICK_DT;
-
-                // Build, send, then simulate the local player's input command
-                common::InputCommand input_cmd =
-                    input.buildCommand(players[myId].renderPosition(), camera.view(), collision);
-                input_cmd.movementFacing = movementFacing;
-                if (input_cmd.spellPressed)
-                    spellEffects.predictCast(myId, newStates[myId], input_cmd.spellKind,
-                                             input_cmd.spellTarget);
-                client_conn.sendInput(myId, input_cmd);
-
-                for (int i = 0; i < common::MAX_PLAYERS; i++) {
-                    auto& p = players[i];
-                    if (!newStates[i].connected) {
-                        p.state().connected = false;
-                        continue;
-                    }
-                    if (!p.state().connected)
-                        p.teleportTo(newStates[i].pos);
-                    if (i == myId && newStates[i].connected && newStates[i].health < p.state().health)
-                        damageFlash = damageFlashDuration;
-                    if (i == myId && !p.isAlive() && newStates[i].alive)
-                        camera.snapTo(newStates[i].pos);
-                    if (i == myId && p.state().connected &&
-                        newStates[i].teleportSequence != p.state().teleportSequence) {
-                        teleportFlash = teleportFlashDuration;
-                        camera.snapTo(newStates[i].pos);
-                        input.cancelCombatInput();
-                    }
-                    if (p.state().character != newStates[i].character)
-                        p.setCharacterAnimations(
-                            resources.getCharacterAnimations(common::CharacterNames[newStates[i].character]));
-                    p.applySnapshot(newStates[i]);
-                    p.setOutlineColor(common::teamColor(p.state().team, settings.teams));
-                    // logger.log_info("Player ", i, "'s state: ", p.state());
-                }
-            }
-
-            // ---------------------------------------------------------------------
-            // Render/update phase
-            //
-            // This uses RENDER DT, not fixed simulation dt.
-            // It is for:
-            // - visual smoothing/interpolation
-            // - animation
-            // - camera smoothing
-            // ---------------------------------------------------------------------
             for (int i = 0; i < common::MAX_PLAYERS; i++) {
-                auto& p = players[i];
-                if (!p.state().connected) {
+                Player& p = players[i];
+                p.setSettings(settings);
+
+                p.state() = newStates[i];
+
+                p.setCharacterAnimations(
+                    resources.getCharacterAnimations(common::CharacterNames[p.state().character]));
+                p.setFont(resources.getFont("ui"));
+                p.setSpriteScale({common::CharacterScale, common::CharacterScale});
+                p.setOriginToFeet();
+                p.setOcclusionShader(&resources.getShader("player_occlusion"));
+                p.setInterpolationSharpness(14.f);
+                p.setWalkSpeed(common::WALK_SPEED * 0.5f);
+                p.setRunSpeed((common::WALK_SPEED + common::RUN_SPEED) * 0.5f);
+                p.teleportTo(p.state().pos);
+
+                p.setOutlineEnabled(true);
+                p.setOutlineShader(&resources.getShader("sprite_outline"));
+                p.setOutlineColor(common::teamColor(p.state().team, settings.teams));
+                p.setOutlineThickness(.5f);
+            }
+
+            // -------------------------------------------------------------------------
+            // Timing
+            // -------------------------------------------------------------------------
+            progress.report("Loading sounds");
+            SoundSystem sounds("../assets/sound/Retro_Combat_FX", &progress);
+            progress.report("Loading spell effects");
+            sf::Clock frameClock;
+            sf::Clock mouseIdleClock;
+            auto previousMousePosition = sf::Mouse::getPosition(window);
+            float accumulator = 0.f;
+
+            SpellEffects spellEffects("../assets/sprites/Free Pixel Art Explosions/PNG/Explosion", settings);
+            DamageNumbers damageNumbers;
+            KillFeed killFeed;
+            std::optional<sf::Clock> shutdownDisplay;
+            float teleportFlash = 0.f;
+            constexpr float teleportFlashDuration = 0.22f;
+            float damageFlash = 0.f;
+            constexpr float damageFlashDuration = 0.35f;
+
+            // -------------------------------------------------------------------------
+            // Main loop
+            // -------------------------------------------------------------------------
+            progress.check();
+            progress.finish();
+            frameClock.restart();
+            while (window.isOpen() && !quitRequested) {
+                // ---------------------------------------------------------------------
+                // Render clock: real time between rendered frames
+                // ---------------------------------------------------------------------
+                const float renderDt = frameClock.restart().asSeconds();
+                accumulator += renderDt;
+                teleportFlash = std::max(0.f, teleportFlash - renderDt);
+                damageFlash = std::max(0.f, damageFlash - renderDt);
+                damageNumbers.update(renderDt);
+                killFeed.update(renderDt);
+
+                // ---------------------------------------------------------------------
+                // Events
+                // ---------------------------------------------------------------------
+                input.updateSpellAvailability(newStates[myId]);
+                input.handleEvents([&](const sf::Event& event) { return chat.input.consume(event); });
+                if (auto message = chat.input.takeSubmitted())
+                    if (!chat.localCommand(*message) && !client_conn.sendChat(*message))
+                        chat.deliveryFailed();
+                if (!window.isOpen())
+                    break;
+
+                // ---------------------------------------------------------------------
+                // Network
+                // ---------------------------------------------------------------------
+                client_conn.pumpNetwork(newStates, joined_players);
+                if (client_conn.worldReloadRequested())
+                    break;
+                chat.update(renderDt, newStates);
+                for (const auto& message : client_conn.takeChatMessages())
+                    chat.add(message);
+                if (client_conn.takeChatFailure())
+                    chat.deliveryFailed();
+                if (client_conn.shuttingDown()) {
+                    if (!shutdownDisplay)
+                        shutdownDisplay.emplace();
+                    window.setView(window.getDefaultView());
+                    window.clear(sf::Color(24, 28, 35));
+                    sf::Text message(resources.getFont("ui"),
+                                     client_conn.shutdownReason() + "\nClosing game...", uiFontSize(24));
+                    auto bounds = message.getLocalBounds();
+                    message.setOrigin(bounds.position + bounds.size * .5f);
+                    message.setPosition(window.getDefaultView().getSize() * .5f);
+                    message.setFillColor(sf::Color::White);
+                    window.draw(message);
+                    window.display();
+                    if (shutdownDisplay->getElapsedTime() >= sf::seconds(2))
+                        window.close();
                     continue;
                 }
+                const auto mousePosition = sf::Mouse::getPosition(window);
+                if (mousePosition != previousMousePosition) {
+                    previousMousePosition = mousePosition;
+                    mouseIdleClock.restart();
+                }
+                const bool movementFacing =
+                    mouseIdleClock.getElapsedTime().asSeconds() >= options.mouseIdleSeconds;
+                damageNumbers.observe(newStates, myId, options.showOtherDamageNumbers);
+                if (client_conn.hasWorldSnapshot())
+                    killFeed.observe(client_conn.killEvents(), myId);
+                input.updateSpellAvailability(newStates[myId]);
+                spellEffects.observe(newStates, renderDt);
+                if (!newStates[myId].alive)
+                    input.cancelCombatInput();
+                sounds.observe(newStates, newStates[myId].pos);
+                while (joined_players.size() > 0) {
+                    const common::PlayerId p = joined_players.back();
+                    joined_players.pop_back();
+                    players[p].state().connected = true;
+                }
 
-                // Adopt a fighting stance only near a living opponent.
-                p.setCombatIdle(false);
-                for (int j = 0; j < common::MAX_PLAYERS; j++) {
-                    auto& p_other = players[j];
-                    if (j == i || !p.state().alive || !p_other.state().connected || !p_other.state().alive ||
-                        p.state().health <= 0 || p_other.state().health <= 0) {
-                        continue;
-                    }
-                    if (settings.teams > 0 && p.state().team == p_other.state().team) {
-                        continue;
-                    }
-                    if (common::distance(p.state().pos, p_other.state().pos) < 150.f) {
-                        p.setCombatIdle(true);
-                        break;
+                // ---------------------------------------------------------------------
+                // Fixed simulation clock
+                // ---------------------------------------------------------------------
+                while (accumulator >= common::TICK_DT) {
+                    accumulator -= common::TICK_DT;
+
+                    // Build, send, then simulate the local player's input command
+                    common::InputCommand input_cmd =
+                        input.buildCommand(players[myId].renderPosition(), camera.view(), collision);
+                    input_cmd.movementFacing = movementFacing;
+                    if (input_cmd.spellPressed)
+                        spellEffects.predictCast(myId, newStates[myId], input_cmd.spellKind,
+                                                 input_cmd.spellTarget);
+                    client_conn.sendInput(myId, input_cmd);
+
+                    for (int i = 0; i < common::MAX_PLAYERS; i++) {
+                        auto& p = players[i];
+                        if (!newStates[i].connected) {
+                            p.state().connected = false;
+                            continue;
+                        }
+                        if (!p.state().connected)
+                            p.teleportTo(newStates[i].pos);
+                        if (i == myId && newStates[i].connected && newStates[i].health < p.state().health)
+                            damageFlash = damageFlashDuration;
+                        if (i == myId && !p.isAlive() && newStates[i].alive)
+                            camera.snapTo(newStates[i].pos);
+                        if (i == myId && p.state().connected &&
+                            newStates[i].teleportSequence != p.state().teleportSequence) {
+                            teleportFlash = teleportFlashDuration;
+                            camera.snapTo(newStates[i].pos);
+                            input.cancelCombatInput();
+                        }
+                        if (p.state().character != newStates[i].character)
+                            p.setCharacterAnimations(resources.getCharacterAnimations(
+                                common::CharacterNames[newStates[i].character]));
+                        p.applySnapshot(newStates[i]);
+                        p.setOutlineColor(common::teamColor(p.state().team, settings.teams));
+                        // logger.log_info("Player ", i, "'s state: ", p.state());
                     }
                 }
 
-                if (i == myId && window.hasFocus() && p.isAlive()) {
-                    const auto cursor =
-                        window.mapPixelToCoords(sf::Mouse::getPosition(window), camera.view());
-                    const auto& debug = p.state().combatDebug;
-                    const bool spellWindup =
-                        (common::isSpell(debug.attack)) &&
-                        debug.elapsedTicks < common::attackDescription(debug.attack, settings).startupTicks;
-                    const auto delta = spellWindup      ? p.state().spellPosition - p.renderPosition()
-                                       : movementFacing ? p.state().vel
-                                                        : cursor - p.renderPosition();
-                    if (delta.length() > .001f)
-                        p.state().facing = delta.normalized();
-                }
-                p.update(renderDt);
-            }
-
-            if (Player* target = chooseCameraTarget(players, myId)) {
-                camera.follow(target->renderPosition());
-            } else {
-                camera.clearFollowTarget();
-            }
-
-            camera.update(renderDt);
-            window.setView(camera.view());
-
-            // ---------------------------------------------------------------------
-            // Draw
-            // ---------------------------------------------------------------------
-            scene.setViewerPosition(players[myId].renderPosition());
-            scene.prepareOcclusion(window.getSize(), camera.view(), resources.getShader("player_occlusion"));
-            window.clear(sf::Color(30, 34, 42));
-
-            scene.lighting().lights.clear();
-            for (std::size_t i = 0; i < players.size(); ++i)
-                if (players[i].state().connected && players[i].state().alive)
-                    scene.lighting().addLight(players[i].renderPosition(), i < settings.bots
-                                                                               ? options.lighting.bot
-                                                                               : options.lighting.player);
-            spellEffects.addLights(scene.lighting(), options.lighting);
-
-            scene.update(sf::seconds(renderDt));
-            scene.drawGround(window);
-            spellEffects.drawWindups(window);
-            scene.drawStructures(window);
-
-            // Sort a separate view: player slots remain indexed by network ID.
-            // Render positions include interpolation, matching the visible feet.
-            std::vector<const Player*> characterDrawOrder;
-            characterDrawOrder.reserve(players.size());
-            for (const auto& player : players)
-                if (player.isConnected())
-                    characterDrawOrder.push_back(&player);
-            std::stable_sort(characterDrawOrder.begin(), characterDrawOrder.end(),
-                             [](const Player* a, const Player* b) {
-                                 return a->renderPosition().y < b->renderPosition().y;
-                             });
-            for (const auto* player : characterDrawOrder)
-                window.draw(*player);
-
-            if (input.collisionDebugEnabled()) {
-                scene.drawDebug(window);
-                sf::CircleShape feet(common::CollisionWorld::PlayerRadius);
-                feet.setOrigin({common::CollisionWorld::PlayerRadius, common::CollisionWorld::PlayerRadius});
-                feet.setFillColor(sf::Color::Transparent);
-                feet.setOutlineColor(sf::Color(80, 255, 180));
-                feet.setOutlineThickness(1.5f);
-                for (auto& player : players) {
-                    if (!player.isConnected())
+                // ---------------------------------------------------------------------
+                // Render/update phase
+                //
+                // This uses RENDER DT, not fixed simulation dt.
+                // It is for:
+                // - visual smoothing/interpolation
+                // - animation
+                // - camera smoothing
+                // ---------------------------------------------------------------------
+                for (int i = 0; i < common::MAX_PLAYERS; i++) {
+                    auto& p = players[i];
+                    if (!p.state().connected) {
                         continue;
-                    feet.setPosition(player.state().pos);
-                    window.draw(feet);
-                }
-                drawCombatDebug(window, players, collision, resources.getFont("ui"), settings);
-                for (unsigned team = 0; team < teamSpawns.groups().size(); ++team)
-                    for (auto point : teamSpawns.groups()[team]) {
-                        sf::CircleShape marker(12);
-                        marker.setOrigin({12, 12});
-                        marker.setPosition(point);
-                        marker.setFillColor(sf::Color::Transparent);
-                        marker.setOutlineThickness(2);
-                        marker.setOutlineColor(common::teamColor(team, settings.teams));
-                        window.draw(marker);
                     }
-            }
 
-            spellEffects.draw(window);
-            if (input.spellReady()) {
-                const auto position = window.mapPixelToCoords(sf::Mouse::getPosition(window));
-                const auto spellRules = common::attackDescription(input.selectedSpell(), settings);
-                const float radius = spellRules.hitRadius;
-                sf::CircleShape area(radius);
-                area.setOrigin({radius, radius});
-                area.setPosition(position);
-                const bool valid = common::spellTargetValid(newStates[myId], input.selectedSpell(), position,
-                                                            collision, settings);
-                area.setFillColor(valid ? sf::Color(120, 90, 255, 35) : sf::Color(255, 60, 60, 35));
-                area.setOutlineColor(valid ? sf::Color(180, 140, 255) : sf::Color(255, 60, 60));
-                area.setOutlineThickness(2.f);
-                window.draw(area);
-            }
-            damageNumbers.draw(window, resources.getFont("ui"));
+                    // Adopt a fighting stance only near a living opponent.
+                    p.setCombatIdle(false);
+                    for (int j = 0; j < common::MAX_PLAYERS; j++) {
+                        auto& p_other = players[j];
+                        if (j == i || !p.state().alive || !p_other.state().connected ||
+                            !p_other.state().alive || p.state().health <= 0 || p_other.state().health <= 0) {
+                            continue;
+                        }
+                        if (settings.teams > 0 && p.state().team == p_other.state().team) {
+                            continue;
+                        }
+                        if (common::distance(p.state().pos, p_other.state().pos) < 150.f) {
+                            p.setCombatIdle(true);
+                            break;
+                        }
+                    }
 
-            // Draw HUD in screen space
-            window.setView(window.getDefaultView()); // back to screen-space
+                    if (i == myId && window.hasFocus() && p.isAlive()) {
+                        const auto cursor =
+                            window.mapPixelToCoords(sf::Mouse::getPosition(window), camera.view());
+                        const auto& debug = p.state().combatDebug;
+                        const bool spellWindup =
+                            (common::isSpell(debug.attack)) &&
+                            debug.elapsedTicks <
+                                common::attackDescription(debug.attack, settings).startupTicks;
+                        const auto delta = spellWindup      ? p.state().spellPosition - p.renderPosition()
+                                           : movementFacing ? p.state().vel
+                                                            : cursor - p.renderPosition();
+                        if (delta.length() > .001f)
+                            p.state().facing = delta.normalized();
+                    }
+                    p.update(renderDt);
+                }
 
-            if (input.collisionDebugEnabled()) {
-                sf::Text legend(resources.getFont("ui"),
-                                "Combat: amber windup | red active | green hit | gray recovery\n"
-                                "Target lines: cyan clear | red wall blocked | gray outside arc\n"
-                                "Attack zones and feet show server positions",
-                                uiFontSize(13));
-                legend.setPosition({12, 12});
-                legend.setOutlineColor(sf::Color::Black);
-                legend.setOutlineThickness(1.f);
-                window.draw(legend);
+                if (Player* target = chooseCameraTarget(players, myId)) {
+                    camera.follow(target->renderPosition());
+                } else {
+                    camera.clearFollowTarget();
+                }
+
+                camera.update(renderDt);
+                window.setView(camera.view());
+
+                // ---------------------------------------------------------------------
+                // Draw
+                // ---------------------------------------------------------------------
+                scene.setViewerPosition(players[myId].renderPosition());
+                scene.prepareOcclusion(window.getSize(), camera.view(),
+                                       resources.getShader("player_occlusion"));
+                window.clear(sf::Color(30, 34, 42));
+
+                scene.lighting().lights.clear();
+                for (std::size_t i = 0; i < players.size(); ++i)
+                    if (players[i].state().connected && players[i].state().alive)
+                        scene.lighting().addLight(players[i].renderPosition(),
+                                                  client_conn.isBot(static_cast<common::PlayerId>(i))
+                                                      ? options.lighting.bot
+                                                      : options.lighting.player);
+                spellEffects.addLights(scene.lighting(), options.lighting);
+
+                scene.update(sf::seconds(renderDt));
+                scene.drawGround(window);
+                spellEffects.drawWindups(window);
+                scene.drawStructures(window);
+
+                // Sort a separate view: player slots remain indexed by network ID.
+                // Render positions include interpolation, matching the visible feet.
+                std::vector<const Player*> characterDrawOrder;
+                characterDrawOrder.reserve(players.size());
+                for (const auto& player : players)
+                    if (player.isConnected())
+                        characterDrawOrder.push_back(&player);
+                std::stable_sort(characterDrawOrder.begin(), characterDrawOrder.end(),
+                                 [](const Player* a, const Player* b) {
+                                     return a->renderPosition().y < b->renderPosition().y;
+                                 });
+                for (const auto* player : characterDrawOrder)
+                    window.draw(*player);
+                for (std::size_t id = 0; id < players.size(); ++id)
+                    chat.drawAbove(window, resources.getFont("ui"), static_cast<common::PlayerId>(id),
+                                   newStates[id], players[id].renderPosition());
+
+                if (input.collisionDebugEnabled()) {
+                    scene.drawDebug(window);
+                    sf::CircleShape feet(common::CollisionWorld::PlayerRadius);
+                    feet.setOrigin(
+                        {common::CollisionWorld::PlayerRadius, common::CollisionWorld::PlayerRadius});
+                    feet.setFillColor(sf::Color::Transparent);
+                    feet.setOutlineColor(sf::Color(80, 255, 180));
+                    feet.setOutlineThickness(1.5f);
+                    for (auto& player : players) {
+                        if (!player.isConnected())
+                            continue;
+                        feet.setPosition(player.state().pos);
+                        window.draw(feet);
+                    }
+                    drawCombatDebug(window, players, collision, resources.getFont("ui"), settings);
+                    for (unsigned team = 0; team < teamSpawns.groups().size(); ++team)
+                        for (auto point : teamSpawns.groups()[team]) {
+                            sf::CircleShape marker(12);
+                            marker.setOrigin({12, 12});
+                            marker.setPosition(point);
+                            marker.setFillColor(sf::Color::Transparent);
+                            marker.setOutlineThickness(2);
+                            marker.setOutlineColor(common::teamColor(team, settings.teams));
+                            window.draw(marker);
+                        }
+                }
+
+                spellEffects.draw(window);
+                if (input.spellReady()) {
+                    const auto position = window.mapPixelToCoords(sf::Mouse::getPosition(window));
+                    const auto spellRules = common::attackDescription(input.selectedSpell(), settings);
+                    const float radius = spellRules.hitRadius;
+                    sf::CircleShape area(radius);
+                    area.setOrigin({radius, radius});
+                    area.setPosition(position);
+                    const bool valid = common::spellTargetValid(newStates[myId], input.selectedSpell(),
+                                                                position, collision, settings);
+                    area.setFillColor(valid ? sf::Color(120, 90, 255, 35) : sf::Color(255, 60, 60, 35));
+                    area.setOutlineColor(valid ? sf::Color(180, 140, 255) : sf::Color(255, 60, 60));
+                    area.setOutlineThickness(2.f);
+                    window.draw(area);
+                }
+                damageNumbers.draw(window, resources.getFont("ui"));
+
+                // Draw HUD in screen space
+                window.setView(window.getDefaultView()); // back to screen-space
+
+                if (input.collisionDebugEnabled()) {
+                    sf::Text legend(resources.getFont("ui"),
+                                    "Combat: amber windup | red active | green hit | gray recovery\n"
+                                    "Target lines: cyan clear | red wall blocked | gray outside arc\n"
+                                    "Attack zones and feet show server positions",
+                                    uiFontSize(13));
+                    legend.setPosition({12, 12});
+                    legend.setOutlineColor(sf::Color::Black);
+                    legend.setOutlineThickness(1.f);
+                    window.draw(legend);
+                }
+                if (teleportFlash > 0.f) {
+                    sf::RectangleShape flash(sf::Vector2f(window.getSize()));
+                    const float fade = teleportFlash / teleportFlashDuration;
+                    flash.setFillColor(
+                        sf::Color(150, 45, 235, static_cast<std::uint8_t>(95.f * fade * fade)));
+                    window.draw(flash);
+                }
+                if (damageFlash > 0.f) {
+                    sf::RectangleShape flash(sf::Vector2f(window.getSize()));
+                    const float fade = damageFlash / damageFlashDuration;
+                    flash.setFillColor(sf::Color(220, 15, 25, static_cast<std::uint8_t>(70.f * fade * fade)));
+                    window.draw(flash);
+                }
+                drawAttackHud(window, resources.getFont("ui"), newStates[myId], options.bindings, settings);
+                killFeed.draw(window, resources.getFont("ui"), settings);
+                chat.draw(window, resources.getFont("ui"), settings.teams);
+                if (input.keys().scoreboard)
+                    drawScoreboard(window, resources.getFont("ui"), newStates, myId, settings);
+                window.display();
             }
-            if (teleportFlash > 0.f) {
-                sf::RectangleShape flash(sf::Vector2f(window.getSize()));
-                const float fade = teleportFlash / teleportFlashDuration;
-                flash.setFillColor(sf::Color(150, 45, 235, static_cast<std::uint8_t>(95.f * fade * fade)));
-                window.draw(flash);
-            }
-            if (damageFlash > 0.f) {
-                sf::RectangleShape flash(sf::Vector2f(window.getSize()));
-                const float fade = damageFlash / damageFlashDuration;
-                flash.setFillColor(sf::Color(220, 15, 25, static_cast<std::uint8_t>(70.f * fade * fade)));
-                window.draw(flash);
-            }
-            drawAttackHud(window, resources.getFont("ui"), newStates[myId], options.bindings, settings);
-            killFeed.draw(window, resources.getFont("ui"), settings);
-            if (input.keys().scoreboard)
-                drawScoreboard(window, resources.getFont("ui"), newStates, myId, settings);
-            window.display();
+            if (!client_conn.worldReloadRequested())
+                break;
         }
 
     } catch (const common::LoadingCancelled&) {

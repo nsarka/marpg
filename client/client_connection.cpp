@@ -90,7 +90,8 @@ common::PlayerId ClientConnection::connectToServer(const std::string serverText,
                 common::ServerSettings settings;
                 std::string serverCommit;
                 if (!(packet >> version) || version != common::ProtocolVersion || !(packet >> serverCommit) ||
-                    serverCommit != common::BuildCommit || !common::readSettings(packet, settings)) {
+                    serverCommit != common::BuildCommit || !common::readSettings(packet, settings) ||
+                    !common::readRuntime(packet, runtime_)) {
                     connectionError_ = "Client and server versions do not match.\nPlease redownload MARPG "
                                        "from:\ngithub.com/nsarka/marpg/releases/latest";
                     logger.log_error(
@@ -98,6 +99,7 @@ common::PlayerId ClientConnection::connectToServer(const std::string serverText,
                     return -1;
                 }
                 settings_ = settings;
+                loadedWorld_ = runtime_.world;
                 logger.log_info("Received server settings: ", settings.slots, " total slots (",
                                 settings.slots - settings.bots, " human), ", settings.teams, " teams");
                 myId = assignedId;
@@ -198,6 +200,44 @@ void ClientConnection::pumpNetwork(std::vector<common::PlayerState>& newStates,
             }
             continue;
         }
+        if (type == common::MSG_RUNTIME_SETTINGS) {
+            common::RuntimeSettings incoming;
+            common::ServerSettings settings;
+            if (!common::readRuntime(packet, incoming) || !common::readSettings(packet, settings))
+                continue;
+            if (common::sequenceNewer(incoming.revision, runtime_.revision)) {
+                if (incoming.world != runtime_.world) {
+                    worldReloadRequested_ = true;
+                    attackOutbox_.clear();
+                    killEvents_.clear();
+                }
+                runtime_ = incoming;
+                settings_ = std::move(settings);
+            }
+            if (incoming.revision == runtime_.revision && loadedWorld_ == runtime_.world)
+                markWorldLoaded(loadedWorld_);
+            continue;
+        }
+        if (type == common::MSG_CHAT_SEND_ACK) {
+            std::uint32_t sequence;
+            if (packet >> sequence)
+                chatOutbox_.acknowledge(sequence);
+            continue;
+        }
+        if (type == common::MSG_CHAT) {
+            common::ChatMessage message;
+            if (!common::readChat(packet, message))
+                continue;
+            sf::Packet ack;
+            ack << std::string(common::MSG_CHAT_ACK) << myId_ << message.sequence;
+            sendPacket(udp_socket_, ack, serverIp_, serverPort_, "chat ack");
+            if (chatInbox_.accept(message.sequence)) {
+                if (chatMessages_.size() >= 128)
+                    chatMessages_.erase(chatMessages_.begin());
+                chatMessages_.push_back(std::move(message));
+            }
+            continue;
+        }
         if (type == common::MSG_ATTACK_ACK) {
             std::uint32_t sequence;
             if (packet >> sequence)
@@ -226,6 +266,13 @@ void ClientConnection::pumpNetwork(std::vector<common::PlayerState>& newStates,
         }
 
         // Repeated world snapshots are the authoritative join/leave notification.
+    }
+    if (!shuttingDown()) {
+        const auto now = chatClock_.getElapsedTime().asMilliseconds();
+        if (chatOutbox_.expire(now))
+            chatFailed_ = true;
+        for (auto& message : chatOutbox_.due(now))
+            sendPacket(udp_socket_, message, serverIp_, serverPort_, "chat send");
     }
     if (!shuttingDown() && lastWorld_.getElapsedTime() >= sf::seconds(10)) {
         shutdownReason_ = "Connection to the server was lost.";
@@ -257,4 +304,25 @@ void ClientConnection::sendInput(common::PlayerId& id, common::InputCommand& cmd
     if (!sendPacket(udp_socket_, packet, serverIp_, serverPort_, "send input cmd")) {
         logger.log_error("Error sending input command to server: ", cmd);
     }
+}
+
+bool ClientConnection::sendChat(const std::string& text) {
+    if (shuttingDown() || myId_ >= common::MAX_PLAYERS)
+        return false;
+    const auto clean = common::cleanChatText(text);
+    if (clean.empty())
+        return false;
+    const auto sequence = nextChatSequence_++;
+    sf::Packet packet;
+    packet << std::string(common::MSG_CHAT_SEND) << myId_ << sequence << clean;
+    return chatOutbox_.enqueue(sequence, std::move(packet), chatClock_.getElapsedTime().asMilliseconds());
+}
+
+void ClientConnection::markWorldLoaded(std::uint32_t world) {
+    if (world != runtime_.world)
+        return;
+    loadedWorld_ = world;
+    sf::Packet ack;
+    ack << std::string(common::MSG_RUNTIME_ACK) << myId_ << runtime_.revision;
+    sendPacket(udp_socket_, ack, serverIp_, serverPort_, "runtime ack");
 }

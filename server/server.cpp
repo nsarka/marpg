@@ -1,4 +1,6 @@
 #include "connection_manager.hpp"
+#include "console_input.hpp"
+#include "server_console.hpp"
 #include <csignal>
 #include <iomanip>
 #include <iostream>
@@ -40,9 +42,12 @@ int main(int argc, char**) {
                 lastTime = s.totalSeconds;
             },
             [] { return stopRequested != 0; });
-        GameSimulation simulation(common::loadServerSettings("../server.toml"), logger, &progress);
+        auto simulation =
+            std::make_unique<GameSimulation>(common::loadServerSettings("../server.toml"), logger, &progress);
         progress.report("Starting network");
-        ConnectionManager connections(simulation, logger);
+        ConnectionManager connections(*simulation, logger);
+        ConsoleInput consoleInput;
+        ServerConsole console(simulation, connections, logger);
         progress.finish();
         if (!stopRequested) {
             logger.log_info("Loading complete. Game started.");
@@ -53,9 +58,15 @@ int main(int argc, char**) {
         while (!stopRequested) {
             accumulator += frameClock.restart().asSeconds();
             connections.pump(stopRequested);
+            for (const auto& line : consoleInput.poll())
+                console.execute(line);
+            if (console.update()) {
+                accumulator = 0;
+                frameClock.restart();
+            }
             while (!stopRequested && accumulator >= common::TICK_DT) {
                 accumulator -= common::TICK_DT;
-                simulation.step();
+                simulation->step();
             }
             if (snapshotClock.getElapsedTime() >= sf::seconds(1.f / 30.f)) {
                 snapshotClock.restart();

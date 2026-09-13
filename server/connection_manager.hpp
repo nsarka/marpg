@@ -1,5 +1,8 @@
 #pragma once
 #include "build_version.hpp"
+#include "common/chat.hpp"
+#include "common/runtime_settings.hpp"
+#include "common/slash_command.hpp"
 #include "common/world_transport.hpp"
 #include "game_simulation.hpp"
 #include <SFML/Network.hpp>
@@ -23,23 +26,44 @@ class ConnectionManager {
         sf::Clock lastHeard, pingClock;
         std::uint32_t pingSequence = 0;
         bool pingPending = false;
+        std::uint32_t runtimeAck = 0, loadedWorld = 1;
+        sf::Clock runtimeRetry;
+        common::ChatInbox chatInbox;
+        common::ChatOutbox chatOutbox;
     };
-    GameSimulation& simulation;
-    const common::ServerSettings& settings;
-    std::vector<GamePlayer>& players;
+    GameSimulation* simulation;
+    common::RuntimeSettings runtime;
     common::Logger& logger;
     sf::UdpSocket socket;
     std::vector<Peer> peers{common::MAX_PLAYERS};
-    std::uint32_t snapshotSequence = 0;
+    std::uint32_t snapshotSequence = 0, chatSequence = 0;
+    sf::Clock chatClock;
+    void deliverChat(const common::ChatMessage& message, std::optional<common::PlayerId> recipient = {}) {
+        if (recipient)
+            logger.log_info("[Chat to ", simulation->players[*recipient].state.name, "] ",
+                            common::chatLine(message));
+        else
+            logger.log_info("[Chat] ", common::chatLine(message));
+        logger.flush();
+        const auto now = chatClock.getElapsedTime().asMilliseconds();
+        for (unsigned i = 0; i < peers.size(); ++i)
+            if ((!recipient || *recipient == i) && simulation->players[i].state.connected && peers[i].ip)
+                peers[i].chatOutbox.enqueue(message.sequence, common::chatPacket(message), now);
+    }
     void disconnect(common::PlayerId id) {
-        logger.log_info("Player disconnected: ", id, " (", players[id].state.name, ")");
-        simulation.remove(id);
+        auto& players = simulation->players;
+        const auto name = players[id].state.name;
+        simulation->remove(id);
+        sendServerMessage(name + " left the game.", common::ChatKind::System);
         peers[id].lastInputSequence.reset();
+        peers[id].chatInbox = {};
+        peers[id].chatOutbox = {};
+        // Retain the endpoint until slot reuse so repeated leave requests still get ACKed.
     }
 
   public:
-    ConnectionManager(GameSimulation& game, common::Logger& log)
-        : simulation(game), settings(game.settings), players(game.players), logger(log) {
+    ConnectionManager(GameSimulation& game, common::Logger& log) : simulation(&game), logger(log) {
+        const auto& settings = game.settings;
         const auto ip = sf::IpAddress::resolve(settings.ip);
         if (!ip)
             throw std::runtime_error("Invalid bind IP: " + settings.ip);
@@ -50,6 +74,8 @@ class ConnectionManager {
         std::cout.flush();
     }
     void pump(const volatile std::sig_atomic_t& stopRequested) {
+        const auto& settings = simulation->settings;
+        auto& players = simulation->players;
         sf::Packet packet;
         std::optional<sf::IpAddress> senderIp;
         unsigned short senderPort = 0;
@@ -99,10 +125,12 @@ class ConnectionManager {
                     if (!players[i].state.connected) {
                         assignedId = i;
                         logger.log_info("Assigned player id ", assignedId);
-                        if (!simulation.join(i, requestedName, requestedTeam)) {
+                        if (!simulation->join(i, requestedName, requestedTeam)) {
                             assignedId = -1;
                             break;
                         }
+                        peers[i] = Peer{};
+                        peers[i].loadedWorld = runtime.world;
                         peers[i].ip = *senderIp;
                         peers[i].port = senderPort;
                         break;
@@ -115,10 +143,14 @@ class ConnectionManager {
                 reply << std::string(common::MSG_JOIN_ACK) << assignedId << common::ProtocolVersion
                       << std::string(common::BuildCommit);
                 common::writeSettings(reply, settings);
+                runtime.botMask = simulation->botMask();
+                common::writeRuntime(reply, runtime);
 
                 // Only the requester receives its assignment, including full-server rejection.
                 sendPacket(socket, reply, *senderIp, senderPort, "join_ack send");
                 if (!repeatedJoin && assignedId >= 0) {
+                    sendServerMessage(players[assignedId].state.name + " joined the game.",
+                                      common::ChatKind::System);
                     sf::Packet joined;
                     joined << std::string("player_joined") << static_cast<common::PlayerId>(assignedId);
                     for (std::size_t i = 0; i < players.size(); ++i) {
@@ -138,6 +170,68 @@ class ConnectionManager {
                     logger.info() << "Rejected join from " << senderIp->toString() << ":" << senderPort
                                   << " (server full)\n";
                 }
+            } else if (type == common::MSG_CHAT_SEND || type == common::MSG_CHAT_ACK) {
+                common::PlayerId id;
+                std::uint32_t sequence;
+                if (!(packet >> id >> sequence) || id >= players.size())
+                    continue;
+                auto& peer = peers[id];
+                const auto& player = players[id].state;
+                if (!player.connected || peer.ip != senderIp || peer.port != senderPort)
+                    continue;
+                peer.lastHeard.restart();
+                if (type == common::MSG_CHAT_ACK) {
+                    peer.chatOutbox.acknowledge(sequence);
+                    continue;
+                }
+                std::string text;
+                if (!(packet >> text) || text.size() > common::ChatMaxBytes)
+                    continue;
+                sf::Packet ack;
+                ack << std::string(common::MSG_CHAT_SEND_ACK) << sequence;
+                sendPacket(socket, ack, *senderIp, senderPort, "chat request ack");
+                if (!peer.chatInbox.accept(sequence))
+                    continue;
+                if (const auto command = common::slashCommand(text)) {
+                    try {
+                        if (command->name == "team") {
+                            const auto team = command->argument == "auto"
+                                                  ? std::optional<unsigned>(0)
+                                                  : common::commandNumber(command->argument);
+                            if (!team)
+                                throw std::runtime_error("Usage: /team <number|auto>");
+                            sendServerMessage(simulation->changeTeam(id, *team), common::ChatKind::System,
+                                              id);
+                        } else if (command->name == "name") {
+                            const auto name = common::cleanChatText(command->argument);
+                            if (name.empty() || name.size() > 64 || name != command->argument)
+                                throw std::runtime_error("Usage: /name <name> (1-64 UTF-8 bytes)");
+                            const auto previous = player.name;
+                            players[id].state.name = name;
+                            sendServerMessage(previous + " is now known as " + name + ".");
+                        } else
+                            throw std::runtime_error("Unknown client command. Use /help.");
+                    } catch (const std::exception& error) {
+                        sendServerMessage(error.what(), common::ChatKind::System, id);
+                    }
+                    continue;
+                }
+                auto message = common::playerChat(++chatSequence, id, player, text);
+                if (message.text.empty())
+                    continue;
+                deliverChat(message);
+            } else if (type == common::MSG_RUNTIME_ACK) {
+                common::PlayerId id;
+                std::uint32_t revision;
+                if (!(packet >> id >> revision) || id >= players.size())
+                    continue;
+                auto& peer = peers[id];
+                if (!players[id].state.connected || peer.ip != senderIp || peer.port != senderPort ||
+                    revision != runtime.revision)
+                    continue;
+                peer.runtimeAck = revision;
+                peer.loadedWorld = runtime.world;
+                peer.lastHeard.restart();
             } else if (type == "pong") {
                 common::PlayerId id;
                 std::uint32_t sequence;
@@ -179,7 +273,8 @@ class ConnectionManager {
                 sf::Packet ack;
                 ack << std::string(common::MSG_ATTACK_ACK) << request.sequence;
                 sendPacket(socket, ack, *senderIp, senderPort, "attack ack");
-                simulation.requestAttack(playerId, request);
+                if (peer.loadedWorld == runtime.world)
+                    simulation->requestAttack(playerId, request);
             } else if (type == common::MSG_STATE) {
                 common::InputCommand cmd;
                 common::PlayerId playerId;
@@ -198,7 +293,8 @@ class ConnectionManager {
                     continue;
                 }
                 peer.lastInputSequence = cmd.sequence;
-                simulation.input(playerId, cmd);
+                if (peer.loadedWorld == runtime.world)
+                    simulation->input(playerId, cmd);
             }
 
             packet.clear();
@@ -211,10 +307,17 @@ class ConnectionManager {
             auto& peer = peers[id];
             if (player.state.connected && peer.ip && peer.lastHeard.getElapsedTime() >= sf::seconds(5))
                 disconnect(id);
+            if (player.state.connected && peer.ip) {
+                const auto now = chatClock.getElapsedTime().asMilliseconds();
+                peer.chatOutbox.expire(now);
+                for (auto& message : peer.chatOutbox.due(now))
+                    sendPacket(socket, message, *peer.ip, peer.port, "chat broadcast");
+            }
         }
     }
     void broadcast() {
-        auto publicStates = simulation.snapshot();
+        auto& players = simulation->players;
+        auto publicStates = simulation->snapshot();
         for (int i = 0; i < common::MAX_PLAYERS; i++) {
             auto& player = players[i];
             auto& peer = peers[i];
@@ -227,11 +330,20 @@ class ConnectionManager {
                 peer.pingPending = true;
                 peer.pingClock.restart();
             }
+            if (player.state.connected && peer.ip && peer.runtimeAck != runtime.revision &&
+                peer.runtimeRetry.getElapsedTime() >= sf::milliseconds(250)) {
+                sf::Packet update;
+                update << std::string(common::MSG_RUNTIME_SETTINGS);
+                common::writeRuntime(update, runtime);
+                common::writeSettings(update, simulation->settings);
+                sendPacket(socket, update, *peer.ip, peer.port, "runtime settings");
+                peer.runtimeRetry.restart();
+            }
             publicStates[i].pingMs = peer.ip ? player.state.pingMs : 0;
         }
 
         auto packets =
-            common::worldPackets(publicStates, ++snapshotSequence, simulation.killHistory.events());
+            common::worldPackets(publicStates, ++snapshotSequence, simulation->killHistory.events());
         for (std::size_t i = 0; i < players.size(); ++i) {
             const auto& player = players[i];
             const auto& peer = peers[i];
@@ -241,7 +353,31 @@ class ConnectionManager {
                 sendPacket(socket, part, *peer.ip, peer.port, "world part send");
         }
     }
+    void refreshSettings() {
+        ++runtime.revision;
+        runtime.botMask = simulation->botMask();
+        for (unsigned i = 0; i < peers.size(); ++i)
+            if (simulation->players[i].state.connected && !simulation->players[i].human)
+                peers[i] = Peer{};
+    }
+    void replaceSimulation(GameSimulation& game) {
+        simulation = &game;
+        ++runtime.world;
+        refreshSettings();
+    }
+    void sendServerMessage(const std::string& text, common::ChatKind kind = common::ChatKind::Server,
+                           std::optional<common::PlayerId> recipient = {}) {
+        common::ChatMessage message;
+        message.sequence = ++chatSequence;
+        message.name = "Server";
+        message.kind = kind;
+        message.text = common::cleanChatText(text);
+        if (message.text.empty())
+            return;
+        deliverChat(message, recipient);
+    }
     void shutdown() {
+        auto& players = simulation->players;
         logger.log_info("Server is shutting down. Notifying clients...");
         std::vector<bool> pending(players.size());
         for (std::size_t i = 0; i < players.size(); ++i)

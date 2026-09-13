@@ -22,6 +22,8 @@ walk = ["LShift", "RShift"]
 light = "Mouse_Left"
 heavy = "Mouse_Right"
 scoreboard = "Tab"
+# Opens chat. Enter always sends; Escape cancels while typing.
+chat = "Enter"
 debug = "F1"
 # Press to ready the spell, then left-click a target. Press again to cancel.
 spell = "E"

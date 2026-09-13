@@ -1,4 +1,5 @@
 """Decode the game's small world datagrams for network regression tests."""
+from build_identity import protocol_version
 import struct
 import weakref
 
@@ -6,7 +7,7 @@ def unwrap_world(data):
     length=struct.unpack_from('!I',data)[0]
     end=4+length
     if data[4:end]==b'world':
-        assert struct.unpack_from('!I',data,end)[0]==7, 'Unexpected world protocol'
+        assert struct.unpack_from('!I',data,end)[0]==protocol_version, 'Unexpected world protocol'
         return data[:end]+data[end+4:]
     return data
 

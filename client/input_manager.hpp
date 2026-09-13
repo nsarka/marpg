@@ -5,6 +5,7 @@
 #include "common/common.hpp"
 #include "common/keybindings.hpp"
 #include "common/sequence_buffer.hpp"
+#include <functional>
 #include <set>
 
 #include <SFML/Graphics/RenderWindow.hpp>
@@ -61,7 +62,7 @@ class InputManager {
     }
 
     // Poll events
-    void handleEvents();
+    void handleEvents(const std::function<bool(const sf::Event&)>& filter = {});
 
     // Produce one command for this tick
     common::InputCommand buildCommand(sf::Vector2f playerPosition, const sf::View& worldView,

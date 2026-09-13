@@ -17,8 +17,12 @@ void normalize2D(float& x, float& y) {
 InputManager::InputManager(sf::RenderWindow& window, const common::KeyBindings& bindings)
     : bindings_(bindings), window_(window) {}
 
-void InputManager::handleEvents() {
+void InputManager::handleEvents(const std::function<bool(const sf::Event&)>& filter) {
     while (const std::optional event = window_.pollEvent()) {
+        if (filter && filter(*event)) {
+            clearAll();
+            continue;
+        }
         if (event->is<sf::Event::Closed>()) {
             window_.close();
         } else if (const auto* key = event->getIf<sf::Event::KeyPressed>()) {

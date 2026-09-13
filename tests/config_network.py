@@ -1,4 +1,4 @@
-from build_identity import join_identity
+from build_identity import join_identity, protocol_version
 """Self-contained configured-server integration test; does not stop a running game."""
 import pathlib
 import socket
@@ -67,7 +67,7 @@ damage_max = 41
                 s.sendto(string('join')+string(f'Player {i}')+join_identity,('127.0.0.1',port))
                 ack=receive(s,'join_ack');ident=struct.unpack_from('!i',ack)[0]
                 assert ident==(i if i<6 else -1),(i,ident)
-                assert struct.unpack_from('!I',ack,4)[0]==7
+                assert struct.unpack_from('!I',ack,4)[0]==protocol_version
                 if i<6:
                     current=states(s)
                     assert current[i][0] and current[i][1]==i%3 and current[i][3]==f'Player {i}',current[i]

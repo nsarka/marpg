@@ -32,7 +32,7 @@ def victim(data):
             event_id,amount,source=struct.unpack_from('!Iii',data,offset)
             contact=struct.unpack_from('=ff',data,offset+12)
             events.append((event_id,amount,source,contact));offset+=20
-        offset+=50 # Complete player-state extension (protocol 7)
+        offset+=50 # Complete player-state extension
     return bool(alive),health,position,events
 
 send(a,aid);send(b,bid)

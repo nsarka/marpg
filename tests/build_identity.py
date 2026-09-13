@@ -5,3 +5,6 @@ import struct
 header=pathlib.Path(__file__).resolve().parent.parent/'build/generated/build_version.hpp'
 commit=re.search(r'"([0-9a-f]{40})"',header.read_text())[1].encode()
 join_identity=struct.pack('!II',0,len(commit))+commit
+
+settings=pathlib.Path(__file__).resolve().parent.parent/"common/settings.hpp"
+protocol_version=int(re.search(r"ProtocolVersion\s*=\s*(\d+)",settings.read_text())[1])

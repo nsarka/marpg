@@ -59,7 +59,7 @@ ClientSettings loadClientSettings(const std::string& path);
 inline std::string mapPath(const ServerSettings& settings = ServerSettings{}) {
     return "../assets/tiled/" + settings.map + ".tmx";
 }
-inline constexpr std::uint32_t ProtocolVersion = 7;
+inline constexpr std::uint32_t ProtocolVersion = 9;
 inline AttackDefinition attackDescription(AttackKind kind) {
     return attackDescription(kind, ServerSettings{});
 }
