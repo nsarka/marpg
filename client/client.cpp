@@ -157,6 +157,7 @@ int main(int argc, char**) {
         logger.log_info("Assigned player id ", myId);
         InputManager input{window, options.bindings};
         ChatUI chat(options.bindings);
+        float cameraZoom = std::clamp(1.f, float(options.zoomMin), float(options.zoomMax));
         while (window.isOpen() && !quitRequested) {
             client_conn.beginWorldLoad();
             input.clearAll();
@@ -189,6 +190,7 @@ int main(int argc, char**) {
             // -------------------------------------------------------------------------
             sf::FloatRect layerBounds = scene.bounds();
             Camera camera({common::WINDOW_WIDTH, common::WINDOW_HEIGHT});
+            camera.setZoom(cameraZoom);
             camera.setFollowSharpness(8.f);
             camera.setDeadZone({60.f, 40.f});
             camera.setWorldBounds(layerBounds);
@@ -276,7 +278,14 @@ int main(int argc, char**) {
                 // Events
                 // ---------------------------------------------------------------------
                 input.updateSpellAvailability(newStates[myId]);
-                input.handleEvents([&](const sf::Event& event) { return chat.input.consume(event); });
+                input.handleEvents([&](const sf::Event& event) {
+                    if (const auto* wheel = event.getIf<sf::Event::MouseWheelScrolled>();
+                        wheel && wheel->wheel == sf::Mouse::Wheel::Vertical && window.hasFocus()) {
+                        camera.scrollZoom(wheel->delta, float(options.zoomMin), float(options.zoomMax));
+                        cameraZoom = camera.zoom();
+                    }
+                    return chat.input.consume(event);
+                });
                 if (auto message = chat.input.takeSubmitted())
                     if (!chat.localCommand(*message) && !client_conn.sendChat(*message))
                         chat.deliveryFailed();

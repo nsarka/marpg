@@ -1,4 +1,8 @@
 [client]
+# Mouse wheel view scale: smaller = closer, larger = farther; 1 = original.
+# Limits must satisfy 0.1 <= zoom_min <= zoom_max <= 10. Restart to apply.
+zoom_min = 0.5
+zoom_max = 2.0
 # Face movement after the mouse stays still this many seconds.
 mouse_idle_seconds = 1.5
 name = "Rick"

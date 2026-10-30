@@ -33,6 +33,7 @@ class Camera {
 
     void setZoom(float zoom);
     float zoom() const;
+    void scrollZoom(float delta, float minimum, float maximum);
 
     void setFollowSharpness(float sharpness);
     void setDeadZone(const sf::Vector2f& halfExtents);

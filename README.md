@@ -87,6 +87,11 @@ Build and test with `cmake --build build` and
 The default `assets/tiled/demo.tmx` showcases the fantasy pack; `arena.tmx` is the combat arena.
 Collision and trigger behavior is tested with independent fixtures and the fantasy maps.
 
+Mouse wheel up zooms in; down zooms out. Set `[client] zoom_min = 0.5` and
+`zoom_max = 2.0` in `client.toml` to limit the view scale (smaller is closer,
+1 is the original scale). Allowed limits: `0.1 <= zoom_min <= zoom_max <= 10`;
+equal limits lock the zoom. Restart the client after changing them.
+
 Controls: WASD sprints by default; hold either Shift key to walk. F1 toggles
 collision debug drawing: red obstacle polygons and green player foot circles.
 

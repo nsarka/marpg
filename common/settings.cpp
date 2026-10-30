@@ -180,7 +180,8 @@ ClientSettings loadClientSettings(const std::string& path) {
     light("light_explosion_impact", s.lighting.explosionImpact);
     light("light_lightning_spot", s.lighting.lightningSpot);
     light("light_lightning_impact", s.lighting.lightningImpact);
-    keys(t, "client", {"name", "ip", "port", "team", "show_other_damage_numbers", "mouse_idle_seconds"});
+    keys(t, "client", {"name", "ip", "port", "team", "show_other_damage_numbers", "mouse_idle_seconds",
+                       "zoom_min", "zoom_max"});
     keys(t, "bindings",
          {"move_up", "move_down", "move_left", "move_right", "walk", "light", "heavy", "scoreboard", "debug",
           "spell", "lightning", "chat"});
@@ -203,6 +204,11 @@ ClientSettings loadClientSettings(const std::string& path) {
         } else
             throw std::runtime_error("bindings." + action + " must be a key name or array of key names");
     }
+    s.zoomMin = get<double>(t, "client", "zoom_min", s.zoomMin);
+    s.zoomMax = get<double>(t, "client", "zoom_max", s.zoomMax);
+    if (!std::isfinite(s.zoomMin) || !std::isfinite(s.zoomMax) ||
+        s.zoomMin < .1 || s.zoomMax > 10 || s.zoomMin > s.zoomMax)
+        throw std::runtime_error("zoom limits must satisfy 0.1 <= zoom_min <= zoom_max <= 10");
     s.mouseIdleSeconds = get<double>(t, "client", "mouse_idle_seconds", s.mouseIdleSeconds);
     if (!std::isfinite(s.mouseIdleSeconds) || s.mouseIdleSeconds < 0 || s.mouseIdleSeconds > 600)
         throw std::runtime_error("mouse_idle_seconds must be between 0 and 600");

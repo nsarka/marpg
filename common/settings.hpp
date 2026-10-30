@@ -47,6 +47,7 @@ struct ClientLighting {
 struct ClientSettings {
     ClientLighting lighting;
     double mouseIdleSeconds = 3;
+    double zoomMin = .5, zoomMax = 2;
     KeyBindings bindings;
     std::string name = "Rick", ip = "147.182.213.239";
     std::uint16_t port = 54000;

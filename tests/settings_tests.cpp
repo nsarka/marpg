@@ -160,6 +160,21 @@ int main(int argc, char** argv) {
     // User-editable TOML files may intentionally override the built-in defaults.
     settings = common::ServerSettings{};
     client = common::ClientSettings{};
+    check(client.zoomMin == .5 && client.zoomMax == 2, "Zoom defaults changed");
+    {
+        std::ofstream file(temp);
+        file << "[client]\nzoom_min=0.75\nzoom_max=3\n";
+    }
+    const auto zoomSettings = common::loadClientSettings(temp.string());
+    check(zoomSettings.zoomMin == .75 && zoomSettings.zoomMax == 3, "Zoom limits not loaded");
+    for (const auto* values : {"zoom_min=0", "zoom_max=11", "zoom_min=3\nzoom_max=2",
+                               "zoom_min=nan", "zoom_max=inf", "zoom_min=\"near\""}) {
+        { std::ofstream file(temp); file << "[client]\n" << values << "\n"; }
+        bool rejected = false;
+        try { common::loadClientSettings(temp.string()); }
+        catch (const std::exception&) { rejected = true; }
+        check(rejected, "Invalid zoom limits accepted");
+    }
     check(client.mouseIdleSeconds == 3, "Mouse idle timeout default changed");
     {
         std::ofstream file(temp);

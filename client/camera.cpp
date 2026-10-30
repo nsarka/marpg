@@ -28,6 +28,14 @@ void Camera::setZoom(float zoom) {
     m_view.setCenter(clampCenterToBounds(m_view.getCenter()));
 }
 
+void Camera::scrollZoom(float delta, float minimum, float maximum) {
+    if (!std::isfinite(delta))
+        return;
+    // Positive vertical wheel movement zooms in; retain fractional trackpad deltas.
+    setZoom(std::clamp(m_zoom * std::pow(1.1f, -std::clamp(delta, -100.f, 100.f)),
+                       minimum, maximum));
+}
+
 float Camera::zoom() const {
     return m_zoom;
 }
