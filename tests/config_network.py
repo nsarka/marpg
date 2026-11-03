@@ -28,7 +28,7 @@ def states(sock):
         n=struct.unpack_from('!I',data,offset)[0];offset+=4
         name=data[offset:offset+n].decode();offset+=n
         health=struct.unpack_from('!i',data,offset)[0];offset+=31
-        count=data[offset+4];offset+=5+count*20+50
+        count=data[offset+4];offset+=5+count*20+63
         result.append((connected,team,pos,name,health))
     return result
 

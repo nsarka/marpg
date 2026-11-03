@@ -164,6 +164,7 @@ int main(int argc, char**) {
             chat.clearBubbles();
             chat.input.consume(sf::Event::FocusLost{});
             const auto settings = client_conn.serverSettings();
+            input.setServerSettings(settings);
             const auto worldVersion = client_conn.worldVersion();
             LoadingConnection loadingConnection(client_conn);
 
@@ -248,7 +249,8 @@ int main(int argc, char**) {
             auto previousMousePosition = sf::Mouse::getPosition(window);
             float accumulator = 0.f;
 
-            SpellEffects spellEffects("../assets/sprites/Free Pixel Art Explosions/PNG/Explosion", settings);
+            SpellEffects spellEffects("../assets/sprites/Free Pixel Art Explosions/PNG/Explosion", settings,
+                                      &collision);
             DamageNumbers damageNumbers;
             KillFeed killFeed;
             std::optional<sf::Clock> shutdownDisplay;
@@ -512,15 +514,22 @@ int main(int argc, char**) {
                     const auto position = window.mapPixelToCoords(sf::Mouse::getPosition(window));
                     const auto spellRules = common::attackDescription(input.selectedSpell(), settings);
                     const float radius = spellRules.hitRadius;
-                    sf::CircleShape area(radius);
-                    area.setOrigin({radius, radius});
-                    area.setPosition(position);
-                    const bool valid = common::spellTargetValid(newStates[myId], input.selectedSpell(),
-                                                                position, collision, settings);
-                    area.setFillColor(valid ? sf::Color(120, 90, 255, 35) : sf::Color(255, 60, 60, 35));
-                    area.setOutlineColor(valid ? sf::Color(180, 140, 255) : sf::Color(255, 60, 60));
-                    area.setOutlineThickness(2.f);
-                    window.draw(area);
+                    if (input.selectedSpell() == common::AttackKind::Beam) {
+                        const auto origin = newStates[myId].pos;
+                        const auto end =
+                            common::beamEndpoint(origin, position, collision, spellRules.castRange);
+                        SpellEffects::drawBeam(window, origin, end, radius, .7f, true);
+                    } else {
+                        sf::CircleShape area(radius);
+                        area.setOrigin({radius, radius});
+                        area.setPosition(position);
+                        const bool valid = common::spellTargetValid(newStates[myId], input.selectedSpell(),
+                                                                    position, collision, settings);
+                        area.setFillColor(valid ? sf::Color(120, 90, 255, 35) : sf::Color(255, 60, 60, 35));
+                        area.setOutlineColor(valid ? sf::Color(180, 140, 255) : sf::Color(255, 60, 60));
+                        area.setOutlineThickness(2.f);
+                        window.draw(area);
+                    }
                 }
                 damageNumbers.draw(window, resources.getFont("ui"));
 

@@ -67,6 +67,10 @@ int main(int argc, char** argv) {
         ++state.attackSequence;
         animation.observe(previous, state);
         check(animation.current() == A::Special1, "Explosion presentation is not Special1");
+        animation.setAnimations(animations);
+        state.vel = {270, 0};
+        animation.update(.1f, state, settings, false, 120, 270);
+        check(animation.current() == A::Run, "Changing character retained the old attack animation lock");
     }
     constexpr int rows[] = {3, 4, 5, 6, 7, 0, 1, 2};
     for (std::size_t i = 0; i < common::CharacterAnimations.size(); ++i) {

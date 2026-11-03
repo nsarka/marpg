@@ -107,7 +107,7 @@ const InputManager::KeyState& InputManager::keys() const {
 }
 
 void InputManager::clearAll() {
-    lightningKeyHeld_ = false;
+    lightningKeyHeld_ = beamKeyHeld_ = false;
     spellReady_ = spellKeyHeld_ = spellClicked_ = false;
     spellClick_.reset();
     held_.clear();
@@ -175,6 +175,12 @@ void InputManager::updateSpellSelection() {
         spellReady_ = !spellReady_ || selectedSpell_ != common::AttackKind::Lightning;
         selectedSpell_ = common::AttackKind::Lightning;
     }
+    const bool beam = active(common::Action::Beam);
+    if (beam && !beamKeyHeld_ && beamAvailable_) {
+        spellReady_ = !spellReady_ || selectedSpell_ != common::AttackKind::Beam;
+        selectedSpell_ = common::AttackKind::Beam;
+    }
+    beamKeyHeld_ = beam;
     lightningKeyHeld_ = lightning;
     spellKeyHeld_ = spell;
 }

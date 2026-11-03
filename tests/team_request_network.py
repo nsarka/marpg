@@ -25,7 +25,7 @@ def team(sock,ident):
     for i in range(ident+1):
         result=struct.unpack_from('!i',data,offset)[0];offset+=22
         n=struct.unpack_from('!I',data,offset)[0];offset+=4+n+31
-        count=data[offset+4];offset+=5+count*20+50
+        count=data[offset+4];offset+=5+count*20+63
     return result
 
 for honor in (False,True):

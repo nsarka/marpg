@@ -30,7 +30,8 @@ class KillHistory {
                 const auto& killer = *players[damage.source];
                 event.killerName = killer.name;
                 event.killerTeam = killer.team;
-                event.cause = killer.lastAttack == AttackKind::Lightning   ? KillCause::Lightning
+                event.cause = killer.lastAttack == AttackKind::Beam        ? KillCause::Beam
+                              : killer.lastAttack == AttackKind::Lightning ? KillCause::Lightning
                               : killer.lastAttack == AttackKind::Explosion ? KillCause::Spell
                               : killer.lastAttack == AttackKind::Light     ? KillCause::Light
                               : killer.lastAttack == AttackKind::Heavy     ? KillCause::Heavy

@@ -6,7 +6,9 @@ AttackDefinition attackDescription(AttackKind kind, const ServerSettings& settin
         return std::max(1u, static_cast<Tick>(std::llround(seconds * TICK_RATE)));
     };
     if (isSpell(kind)) {
-        const auto& spell = kind == AttackKind::Lightning ? settings.lightning : settings.spell;
+        const auto& spell = kind == AttackKind::Beam        ? settings.beam
+                            : kind == AttackKind::Lightning ? settings.lightning
+                                                            : settings.spell;
         return {ticks(spell.windupSeconds),
                 kind == AttackKind::Lightning ? ticks(spell.durationSeconds) : 1,
                 ticks(spell.cooldownSeconds),

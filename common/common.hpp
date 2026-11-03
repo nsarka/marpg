@@ -33,9 +33,9 @@ inline constexpr const char* MSG_WORLD = "world";
 using PlayerId = std::uint32_t;
 using Tick = std::uint32_t;
 
-enum class AttackKind : std::uint8_t { None = 0, Light, Heavy, Explosion, Lightning };
+enum class AttackKind : std::uint8_t { None = 0, Light, Heavy, Explosion, Lightning, Beam };
 inline bool isSpell(AttackKind kind) {
-    return kind == AttackKind::Explosion || kind == AttackKind::Lightning;
+    return kind == AttackKind::Explosion || kind == AttackKind::Lightning || kind == AttackKind::Beam;
 }
 
 struct AttackDefinition {
@@ -105,7 +105,7 @@ struct DamageEvent {
     sf::Vector2f contact{};
 };
 inline constexpr std::size_t DamageHistorySize = 8;
-enum class KillCause : std::uint8_t { Hit, Light, Heavy, Floor, Bounds, Spell, Lightning };
+enum class KillCause : std::uint8_t { Hit, Light, Heavy, Floor, Bounds, Spell, Lightning, Beam };
 struct KillEvent {
     std::uint32_t sequence = 0;
     std::int32_t killer = -1;
@@ -116,8 +116,10 @@ struct KillEvent {
 };
 inline constexpr std::size_t KillHistorySize = 32;
 
+enum class PlayerClass : std::uint8_t { Adventurer, Bruiser, Caster, Charger, Count };
 struct PlayerState {
     std::uint8_t character = 6;
+    PlayerClass playerClass = PlayerClass::Adventurer;
     std::int32_t team = -1;
     bool connected = false;
     bool alive = true;
@@ -137,6 +139,8 @@ struct PlayerState {
     CombatDebugState combatDebug;
     Tick stunTicks = 0;
     Tick explosionCooldown = 0, lightningCooldown = 0;
+    Tick beamCooldown = 0;
+    sf::Vector2f spellOrigin{};
     std::int32_t pingMs = -1;
     sf::Vector2f facing{1.f, 0.f};
     std::uint32_t damageSequence = 0;

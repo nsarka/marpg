@@ -88,7 +88,7 @@ The default `assets/tiled/demo.tmx` showcases the fantasy pack; `arena.tmx` is t
 Collision and trigger behavior is tested with independent fixtures and the fantasy maps.
 
 Mouse wheel up zooms in; down zooms out. Set `[client] zoom_min = 0.5` and
-`zoom_max = 2.0` in `client.toml` to limit the view scale (smaller is closer,
+`zoom_max = 3.5` in `client.toml` to limit the view scale (smaller is closer,
 1 is the original scale). Allowed limits: `0.1 <= zoom_min <= zoom_max <= 10`;
 equal limits lock the zoom. Restart the client after changing them.
 
@@ -167,11 +167,42 @@ World snapshots are sent at 30 Hz in application-level UDP parts of at most 1,02
 
 ## Bot AI
 
-Every configured bot chooses a random living opponent on another team. A server-side A* navigation grid checks the actual collision polygons and floor/trigger regions, so routes go around walls and avoid damage switches and missing floor. Bots periodically replan for moving targets, favor paths away from crowds, and try collision-checked sidesteps when blocked by other players. They run at the same speed as players.
+Bots cycle through three roles by player slot (Bruiser, Caster, Charger). Names use Bot 1, Bot 2, and so on; Enemy 1/2/3 provide consistent silhouettes; team outlines still show allegiance. Roles survive respawn, round restart, AI toggles, and map reloads, including bots added with `/bots`.
 
-Within melee range, bots aim at their opponent and execute random two-to-four-hit combinations containing both heavys and lights, with short pauses between combinations. Attacks use the same cooldowns, hit cones, wall checks, damage settings, animations, and sounds as human attacks. Dead/disconnected targets are replaced; bots idle when there are no enemy teams and reset their decisions on respawn. Targets are also periodically reconsidered to avoid indefinite pursuit.
+- **Bruiser:** pursues enemies, uses two-to-four-hit melee combinations, and favors heavy attacks. It never casts spells.
+- **Caster:** approaches until it has line of sight and casting range, alternates explosion and lightning when available, and retreats from nearby enemies between casts. It stays still through spell windup, channeling, and recovery. It never uses melee.
+- **Charger:** uses melee between rushes. At 140-320 units with a safe direct route, it stops and faces a fixed destination for half a second, then rushes at 1.8 times running speed for up to 0.75 seconds. It stops near the destination and attempts a normal heavy attack if the opponent is still close. Dodge sideways after the pause: the rush does not track the target. Taking damage interrupts preparation/rushing, and rushes have a four-second cooldown.
 
-`ctest --test-dir build --output-on-failure` includes bot navigation and combat checks. `python3 tests/bot_network.py` runs an isolated ten-bot battle and verifies movement, both attacks, enemy damage, hazard avoidance, and ongoing world updates.
+All roles choose living enemy players, periodically reconsider targets, and replace dead/disconnected opponents. A server-side A* navigation grid routes around walls and avoids damage regions and missing floor. Movement, retreats, and rushes use swept player collision and floor safety checks. All attacks retain the existing server damage, friendly-fire, range, windup, interruption, and cooldown rules. Bots idle without enemies; `/ai off` disables their movement and attacks.
+
+The checked-in `server.toml` enables AI with three bots so every role appears, leaving two human slots. Restart the server to apply file settings. The server console also supports `/ai on` and `/bots <count>` during play.
+
+`ctest --test-dir build -C Release --output-on-failure` includes role behavior, safe movement, charge interruption/dodging, and roster lifecycle checks.
+
+## Character selection
+
+The city has a paved Character Selection court east of Stonekeep Castle, connected to the main avenue. Stand on one of seven blue floor buttons labeled Enemy 1, Enemy 2, Enemy 3, NPC1, NPC2, NPC3, or Player to immediately take that appearance. The server applies the choice for everyone. Your appearance persists through death, respawn, team changes, round restart, and map reload; reconnecting creates a new character assignment. Health and cooldowns continue normally. Bots ignore appearance buttons and retain their role identities.
+
+To author a button, add a rectangle or convex polygon of class `CharacterSelect` to the `Triggers` object layer. Set its name to the visible label and its integer `character` property to 0-6 in the order above. The same authored region controls activation, visible pad, and F1 debug outline. `tools/character_select_area.py` updates the city court without regenerating other districts; city generation also includes it.
+
+## Player classes
+
+The city court also has four gold class buttons. Appearance and class are independent: blue buttons select a character, and gold buttons select a class.
+
+- **Adventurer:** default stats.
+- **Bruiser:** 25% more melee damage.
+- **Caster:** 25% more explosion and lightning damage.
+- **Charger:** 25% faster running and walking.
+
+All classes retain the existing attack controls. The HUD shows your class and its perk. Switching class preserves health, cooldowns, team, and appearance. Class choice survives death/respawn, team changes, round restarts, and map reloads; reconnecting starts as Adventurer. Damage bonuses apply to the server's rolled damage and round to the nearest integer.
+
+To author a class button, add a rectangle or convex polygon of class `ClassSelect` to the `Triggers` layer with an integer `class` property (0 Adventurer, 1 Bruiser, 2 Caster, 3 Charger) and a visible name. Class selection uses the same trigger geometry as its rendered pad and F1 outline. Multiplayer protocol 10 replicates appearance and class separately; rebuild/restart both server and client together.
+
+## Beam spell
+
+Press **R**, then **left-click** toward an enemy to fire a piercing beam. Press R again to cancel targeting. The thin cyan preview and windup line show the beam direction and wall-clipped range. After a 0.6-second windup it deals 30-40 damage once to each enemy along a 975-unit ray, then fades over 0.3 seconds. Walls stop it; it cannot hit its caster. Friendly fire follows the server setting. The Caster class's 25% spell bonus applies. Beam has its own 2.5-second cooldown, HUD entry, sound, and BEAM kill-feed label. Caster bots include beam in their spell rotation.
+
+Configure `[beam]` in `server.toml` with `damage_min`, `damage_max`, `radius` (half-width), `range`, `windup_seconds`, and `cooldown_seconds`. Change `[bindings] beam = "R"` in `client.toml` to rebind it. Switching classes does not reset its cooldown; respawning does. Multiplayer protocol 11 carries the beam origin, endpoint, and cooldown; restart the updated server and client together.
 
 ## Kill feed
 
@@ -254,7 +285,7 @@ Fantasy damage areas can be drawn directly on the `Triggers` object layer: use a
 
 Character gallery frames carry the boolean tile property `player_animation = true`. The game renders these frames using the same scale and feet pivot as live players (currently 2x, pivot 0.5/0.6875). Animation UVs and timing remain unchanged. The gallery generator writes the property on every frame so animated tiles retain the layout throughout their cycle.
 
-The server randomly assigns each joining player and starting bot a character: red team uses Enemy 1/2/3, blue team uses NPC1/2/3 or Player. Other team colors use the full roster. The choice is included in snapshots for all clients and stays the same across respawns.
+The server randomly assigns each joining human a character: red team uses Enemy 1/2/3, blue team uses NPC1/2/3 or Player. Other team colors use the full roster. Bots use Enemy 1/2/3 according to role. The choice is included in snapshots for all clients and stays the same across respawns.
 
 Set `[server] teams = 0` for free-for-all: everyone is an opponent, bots target any other living participant, spawn points form one shared pool, characters come from the full roster, and the scoreboard ranks all participants together. Team requests are ignored. Team mode accepts 1 through `slots` teams (currently up to 32 slots).
 

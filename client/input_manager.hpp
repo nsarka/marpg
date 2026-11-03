@@ -51,13 +51,18 @@ class InputManager {
     InputManager(const InputManager&) = delete;
     InputManager& operator=(const InputManager&) = delete;
 
+    void setServerSettings(const common::ServerSettings& settings) {
+        settings_ = settings;
+    }
     void updateSpellAvailability(const common::PlayerState& player) {
         const bool free = player.alive && player.health > 0 && player.stunTicks == 0 &&
                           player.combatDebug.attack == common::AttackKind::None;
         explosionAvailable_ = free && player.explosionCooldown == 0;
         lightningAvailable_ = free && player.lightningCooldown == 0;
-        if (spellReady_ &&
-            !(selectedSpell_ == common::AttackKind::Lightning ? lightningAvailable_ : explosionAvailable_))
+        beamAvailable_ = free && player.beamCooldown == 0;
+        if (spellReady_ && !(selectedSpell_ == common::AttackKind::Beam        ? beamAvailable_
+                             : selectedSpell_ == common::AttackKind::Lightning ? lightningAvailable_
+                                                                               : explosionAvailable_))
             spellReady_ = false;
     }
 
@@ -109,8 +114,8 @@ class InputManager {
     bool spellKeyHeld_ = false, spellReady_ = false, spellClicked_ = false;
     common::AttackKind selectedSpell_ = common::AttackKind::Explosion,
                        clickedSpell_ = common::AttackKind::Explosion;
-    bool lightningKeyHeld_ = false;
-    bool explosionAvailable_ = false, lightningAvailable_ = false;
+    bool lightningKeyHeld_ = false, beamKeyHeld_ = false;
+    bool explosionAvailable_ = false, lightningAvailable_ = false, beamAvailable_ = false;
     std::optional<sf::Vector2i> spellClick_;
     std::optional<sf::Vector2i> attackMousePosition_;
     KeyState keys_;

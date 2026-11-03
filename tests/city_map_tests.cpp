@@ -13,7 +13,7 @@ void check(bool ok, const char* message) {
 sf::Vector2f center(int x, int y) {
     return {float((x - y) * 64 + 64), float((x + y) * 32 + 32)};
 }
-int main(int argc, char** argv) {
+int main(int argc, char** argv) try {
     check(argc == 2, "Repository path required");
     const auto root = std::filesystem::path(argv[1]);
     common::LoadedMap world((root / "assets/tiled/city.tmx").string());
@@ -31,6 +31,55 @@ int main(int argc, char** argv) {
         for (auto point : group)
             check(triggers.hasFloor(point) && !walls.overlaps(point), "Unsafe city spawn");
     common::Navigation navigation(map, walls, triggers);
+    const auto& buttons = triggers.characterSelect().buttons();
+    check(buttons.size() == 11, "City must offer seven appearances and four classes");
+    common::PlayerState visitor;
+    visitor.connected = true;
+    visitor.health = 47;
+    visitor.explosionCooldown = 100;
+    visitor.name = "Visitor";
+    visitor.team = 1;
+    for (unsigned i = 0; i < buttons.size(); ++i) {
+        const auto& button = buttons[i];
+        check(button.label == (button.changesClass ? common::PlayerClasses[button.value].name
+                                                   : common::CharacterNames[button.value]),
+              "Button label does not match its character");
+        check(triggers.hasFloor(button.center) && !walls.overlaps(button.center) &&
+                  !triggers.contains(button.center),
+              "Appearance button is blocked or hazardous");
+        check(!navigation.path(center(25, 25), button.center).empty(), "Appearance button is unreachable");
+        visitor.pos = button.center;
+        visitor.character = button.changesClass ? 6 : (button.value + 1) % 7;
+        visitor.playerClass = button.changesClass ? static_cast<common::PlayerClass>((button.value + 1) % 4)
+                                                  : common::PlayerClass::Charger;
+        check(triggers.characterSelect().update(visitor) &&
+                  (button.changesClass ? int(visitor.playerClass) == button.value && visitor.character == 6
+                                       : visitor.character == button.value &&
+                                             visitor.playerClass == common::PlayerClass::Charger),
+              "Standing on a button did not select its appearance");
+        check(!triggers.characterSelect().update(visitor), "Standing still repeatedly reselected character");
+        check(visitor.health == 47 && visitor.explosionCooldown == 100 && visitor.team == 1 &&
+                  visitor.name == "Visitor",
+              "Appearance button reset combat or player identity");
+        sf::Packet packet;
+        common::writePlayerState(packet, visitor);
+        common::PlayerState replica;
+        check(common::readPlayerState(packet, replica) && replica.character == visitor.character &&
+                  replica.playerClass == visitor.playerClass,
+              "Selected appearance did not replicate");
+    }
+    visitor.character = 0;
+    visitor.playerClass = common::PlayerClass::Adventurer;
+    visitor.pos = buttons.back().center;
+    visitor.alive = false;
+    check(!triggers.characterSelect().update(visitor) && visitor.character == 0,
+          "Dead players may not select an appearance");
+    visitor.alive = true;
+    visitor.connected = false;
+    check(!triggers.characterSelect().update(visitor), "Disconnected players selected an appearance");
+    visitor.connected = true;
+    visitor.pos = center(25, 25);
+    check(!triggers.characterSelect().update(visitor), "Appearance changed outside the button area");
     check(navigation.clear(center(19, 19), center(54, 54)), "Castle-to-farms avenue blocked");
     check(!navigation.path(center(25, 25), center(50, 50)).empty(), "Bots cannot cross city");
     check(walls.overlaps(center(14, 14)), "Castle keep collision missing");
@@ -83,6 +132,7 @@ int main(int argc, char** argv) {
     draw({{-3800, 100}, {7600, 4000}}, "marpg-city.png", {1900, 1000});
     draw({{-1500, 430}, {3100, 1450}}, "marpg-city-castle.png", {1550, 725});
     draw({{-1500, 1570}, {3100, 1600}}, "marpg-city-town.png", {1550, 800});
+    draw({{600, 800}, {1900, 1250}}, "marpg-city-character-select.png", {1900, 1250});
     draw({{-1500, 2650}, {3100, 1300}}, "marpg-city-farms.png", {1550, 650});
     scene.setViewerPosition(center(22, 32));
     check(scene.hiddenRoofCount() == 1, "Entering a house must hide all roof slopes and gables");
@@ -90,4 +140,8 @@ int main(int argc, char** argv) {
     scene.setViewerPosition(center(34, 34));
     check(scene.hiddenRoofCount() == 0, "Leaving a house must restore its roof");
     std::cout << "PASS: city spawns, avenue, navigation, collision, tile variety and rendering\n";
+    return 0;
+} catch (const std::exception& error) {
+    std::cerr << error.what() << '\n';
+    return 1;
 }

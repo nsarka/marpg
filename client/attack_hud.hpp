@@ -3,6 +3,7 @@
 #include "attack_presentation.hpp"
 #include "common/common.hpp"
 #include "common/keybindings.hpp"
+#include "common/player_class.hpp"
 #include "common/settings.hpp"
 #include <SFML/Graphics.hpp>
 #include <array>
@@ -16,6 +17,8 @@ inline float attackSecondsRemaining(const common::PlayerState& player,
     float remaining = player.stunTicks * common::TICK_DT;
     if (ability == common::AttackKind::Explosion)
         remaining = std::max(remaining, player.explosionCooldown * common::TICK_DT);
+    if (ability == common::AttackKind::Beam)
+        remaining = std::max(remaining, player.beamCooldown * common::TICK_DT);
     if (ability == common::AttackKind::Lightning)
         remaining = std::max(remaining, player.lightningCooldown * common::TICK_DT);
     if (player.combatDebug.attack == common::AttackKind::None)
@@ -49,10 +52,18 @@ inline void drawAttackHud(sf::RenderTarget& target, const sf::Font& font, const 
                           const common::ServerSettings& settings = common::ServerSettings{}) {
     if (!player.connected)
         return;
-    const float width = std::min(172.f, (target.getView().getSize().x - 40) / 4 - 8);
-    const float left = (target.getView().getSize().x - (4 * width + 24)) / 2,
+    const float width = std::min(172.f, (target.getView().getSize().x - 40) / 5 - 8);
+    const float left = (target.getView().getSize().x - (5 * width + 32)) / 2,
                 y = target.getView().getSize().y - 74;
-    for (unsigned i = 0; i < 4; ++i) {
+    const auto& selectedClass = common::classDefinition(player.playerClass);
+    sf::Text classLabel(font, std::string("Class: ") + selectedClass.name + " | " + selectedClass.perk,
+                        uiFontSize(14));
+    classLabel.setPosition({left, y - 24});
+    classLabel.setFillColor(sf::Color(255, 215, 140));
+    classLabel.setOutlineColor(sf::Color(20, 23, 28));
+    classLabel.setOutlineThickness(1.f);
+    target.draw(classLabel);
+    for (unsigned i = 0; i < 5; ++i) {
         const auto ability = static_cast<common::AttackKind>(i + 1);
         const float remaining = attackSecondsRemaining(player, ability, settings);
         const float x = left + i * (width + 8);

@@ -20,11 +20,16 @@ int main() {
     game.changeTeam(0, 2);
     check(game.players[0].state.team == original, "Team request ignored balance policy");
     game.settings.honorTeamRequests = true;
+    game.players[0].state.character = 6;
     game.changeTeam(0, 2);
+    check(game.players[0].state.character == 6, "Team change discarded selected appearance");
     check(game.players[0].state.team == 1 && game.players[0].state.teleportSequence == 1,
           "Forced team change did not respawn");
     game.setBots(2);
     check(game.botMask() == 12, "Bots did not occupy free slots");
+    check(game.players[2].state.name == "Bot 3" && game.players[2].state.character == 2 &&
+              game.players[3].state.name == "Bot 4" && game.players[3].state.character == 0,
+          "Runtime bots did not receive role names and recognizable characters");
     game.players[2].state.alive = false;
     game.players[2].state.health = 0;
     game.players[2].state.kills = 9;
@@ -57,6 +62,31 @@ int main() {
                   "Round restart did not reset scores/health");
     check(game.players[0].state.name == "Alice" && game.players[0].state.team == 1 && game.players[2].human,
           "Round restart lost identity");
+    check(game.players[3].state.name == "Bot 4" && game.players[3].state.character == 0,
+          "Restart lost bot role identity");
+    check(game.players[0].state.character == 6, "Restart discarded selected appearance");
+    {
+        common::ServerSettings rosterSettings;
+        rosterSettings.map = "arena";
+        rosterSettings.slots = 4;
+        rosterSettings.bots = 3;
+        rosterSettings.botAI = false;
+        GameSimulation initial(rosterSettings, logger);
+        for (unsigned i = 0; i < 3; ++i)
+            check(initial.players[i].state.character == i &&
+                      initial.players[i].state.name == common::botName(i),
+                  "Initial bots did not receive all three roles");
+        GameSimulation replacement(rosterSettings, logger, nullptr, false);
+        check(initial.join(3, "Appearance visitor", 0), "Appearance visitor failed to join");
+        initial.players[3].state.character = 5;
+        replacement.restoreRoster(initial);
+        check(replacement.players[3].human && replacement.players[3].state.character == 5,
+              "Map reload discarded selected human appearance");
+        for (unsigned i = 0; i < 3; ++i)
+            check(!replacement.players[i].human && replacement.players[i].state.character == i &&
+                      replacement.players[i].state.name == initial.players[i].state.name,
+                  "Map reload lost bot role identity");
+    }
     game.settings.teams = 0;
     rejected = false;
     try {

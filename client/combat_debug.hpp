@@ -27,6 +27,29 @@ inline void drawCombatDebug(sf::RenderTarget& target, std::vector<Player>& playe
             phase = "ACTIVE";
             color = sf::Color(255, 70, 90);
         }
+        if (debug.attack == common::AttackKind::Beam) {
+            const auto end = common::beamEndpoint(state.pos, state.spellPosition, walls, attack.castRange);
+            const auto ray = end - state.pos;
+            if (ray.length() > .001f) {
+                const auto side = sf::Vector2f{-ray.y, ray.x}.normalized() * attack.hitRadius;
+                sf::ConvexShape area(4);
+                area.setPoint(0, state.pos + side);
+                area.setPoint(1, end + side);
+                area.setPoint(2, end - side);
+                area.setPoint(3, state.pos - side);
+                area.setFillColor(sf::Color(color.r, color.g, color.b, 35));
+                area.setOutlineColor(color);
+                area.setOutlineThickness(1.f);
+                target.draw(area);
+            }
+            sf::Text label(font, std::string("BEAM ") + phase, uiFontSize(12));
+            label.setPosition(state.pos + sf::Vector2f{-35, 18});
+            label.setFillColor(color);
+            label.setOutlineColor(sf::Color::Black);
+            label.setOutlineThickness(1.f);
+            target.draw(label);
+            continue;
+        }
         if (common::isSpell(debug.attack)) {
             const auto center = state.spellPosition;
             sf::CircleShape area(attack.hitRadius);

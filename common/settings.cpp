@@ -61,7 +61,7 @@ void ServerSettings::validate() const {
     for (double windup : {lightWindupSeconds, heavyWindupSeconds})
         if (!std::isfinite(windup) || windup < 0 || windup > 60)
             throw std::runtime_error("Light/heavy windup must be between 0 and 60 seconds");
-    for (const auto& spell : {this->spell, lightning}) {
+    for (const auto& spell : {this->spell, lightning, beam}) {
         if (spell.damageMin < 0 || spell.damageMax < spell.damageMin || spell.damageMax > 10000)
             throw std::runtime_error("Spell damage range must satisfy 0 <= min <= max <= 10000");
         for (double v : {spell.effectRadius, spell.castRange, spell.windupSeconds, spell.cooldownSeconds,
@@ -85,7 +85,7 @@ ServerSettings loadServerSettings(const std::string& path) {
     ServerSettings s;
     for (const auto& [key, value] : t)
         if (key != "server" && key != "trigger_damage" && key != "spell" && key != "lightning" &&
-            key != "light" && key != "heavy")
+            key != "beam" && key != "light" && key != "heavy")
             throw std::runtime_error("Unknown server configuration table: " + std::string(key.str()));
     keys(t, "server",
          {"map", "name", "ip", "port", "slots", "teams", "bots", "bot_ai", "friendly_fire",
@@ -126,11 +126,13 @@ ServerSettings loadServerSettings(const std::string& path) {
         get<double>(t, "trigger_damage", "trigger_interval_seconds", s.triggerIntervalSeconds);
     s.boundsIntervalSeconds =
         get<double>(t, "trigger_damage", "out_of_bounds_interval_seconds", s.boundsIntervalSeconds);
-    for (const auto& section : {"spell", "lightning"}) {
+    for (const auto& section : {"spell", "lightning", "beam"}) {
         keys(t, section,
              {"damage_min", "damage_max", "radius", "range", "windup_seconds", "cooldown_seconds",
               "duration_seconds", "damage_interval_seconds"});
-        auto& v = std::string(section) == "spell" ? s.spell : s.lightning;
+        auto& v = std::string(section) == "spell"  ? s.spell
+                  : std::string(section) == "beam" ? s.beam
+                                                   : s.lightning;
         v.damageMin = integer(t, section, "damage_min", v.damageMin, 10000);
         v.damageMax = integer(t, section, "damage_max", v.damageMax, 10000);
         v.effectRadius = get<double>(t, section, "radius", v.effectRadius);
@@ -180,11 +182,12 @@ ClientSettings loadClientSettings(const std::string& path) {
     light("light_explosion_impact", s.lighting.explosionImpact);
     light("light_lightning_spot", s.lighting.lightningSpot);
     light("light_lightning_impact", s.lighting.lightningImpact);
-    keys(t, "client", {"name", "ip", "port", "team", "show_other_damage_numbers", "mouse_idle_seconds",
-                       "zoom_min", "zoom_max"});
+    keys(t, "client",
+         {"name", "ip", "port", "team", "show_other_damage_numbers", "mouse_idle_seconds", "zoom_min",
+          "zoom_max"});
     keys(t, "bindings",
          {"move_up", "move_down", "move_left", "move_right", "walk", "light", "heavy", "scoreboard", "debug",
-          "spell", "lightning", "chat"});
+          "spell", "lightning", "chat", "beam"});
     for (std::size_t i = 0; i < s.bindings.actions.size(); ++i) {
         const std::string action = BindingNames[i];
         const auto node = t["bindings"][action];
@@ -206,8 +209,8 @@ ClientSettings loadClientSettings(const std::string& path) {
     }
     s.zoomMin = get<double>(t, "client", "zoom_min", s.zoomMin);
     s.zoomMax = get<double>(t, "client", "zoom_max", s.zoomMax);
-    if (!std::isfinite(s.zoomMin) || !std::isfinite(s.zoomMax) ||
-        s.zoomMin < .1 || s.zoomMax > 10 || s.zoomMin > s.zoomMax)
+    if (!std::isfinite(s.zoomMin) || !std::isfinite(s.zoomMax) || s.zoomMin < .1 || s.zoomMax > 10 ||
+        s.zoomMin > s.zoomMax)
         throw std::runtime_error("zoom limits must satisfy 0.1 <= zoom_min <= zoom_max <= 10");
     s.mouseIdleSeconds = get<double>(t, "client", "mouse_idle_seconds", s.mouseIdleSeconds);
     if (!std::isfinite(s.mouseIdleSeconds) || s.mouseIdleSeconds < 0 || s.mouseIdleSeconds > 600)
@@ -233,6 +236,9 @@ void writeSettings(sf::Packet& p, const ServerSettings& s) {
     p << s.lightDamageMin << s.heavyDamageMin << s.lightConeDegrees << s.heavyConeDegrees;
     p << s.damageStunSeconds;
     p << s.respawnSeconds << s.map;
+    const auto& v = s.beam;
+    p << v.damageMin << v.damageMax << v.effectRadius << v.castRange << v.windupSeconds << v.cooldownSeconds
+      << v.durationSeconds << v.pulseIntervalSeconds;
 }
 bool readSettings(sf::Packet& p, ServerSettings& s) {
     ServerSettings value;
@@ -265,6 +271,12 @@ bool readSettings(sf::Packet& p, ServerSettings& s) {
         return false;
     if (!(p >> value.map))
         return false;
+    if (!p.endOfPacket()) {
+        auto& v = value.beam;
+        if (!(p >> v.damageMin >> v.damageMax >> v.effectRadius >> v.castRange >> v.windupSeconds >>
+              v.cooldownSeconds >> v.durationSeconds >> v.pulseIntervalSeconds))
+            return false;
+    }
     try {
         value.validate();
     } catch (const std::exception&) {

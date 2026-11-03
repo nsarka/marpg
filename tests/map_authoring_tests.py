@@ -14,9 +14,15 @@ with tempfile.TemporaryDirectory(prefix='marpg-authoring-') as directory:
     (project / 'assets/tiled').mkdir(parents=True)
     shutil.copytree(root/'assets/tiled/prefabs',project/'assets/tiled/prefabs')
     pack = 'Fantasy tileset - 2D Isometric'
-    (project / 'assets' / pack).symlink_to(root / 'assets' / pack, target_is_directory=True)
+    try:
+        (project / 'assets' / pack).symlink_to(root / 'assets' / pack, target_is_directory=True)
+    except OSError as error:
+        if getattr(error, 'winerror', None) != 1314:
+            raise
+        # Windows without Developer Mode cannot create symlinks; keep the same isolated test.
+        shutil.copytree(root / 'assets' / pack, project / 'assets' / pack)
     shutil.copy(root / 'assets/tiled/fantasy_pivots.json', project / 'assets/tiled')
-    for name in ['map_authoring.py', 'refresh_prefab_previews.py', 'fantasy_collisions.py', 'fantasy_categories.py', 'fantasy_tileset.py', 'generate_farms.py', 'generate_fantasy_demo.py', 'generate_city.py']:
+    for name in ['map_authoring.py', 'refresh_prefab_previews.py', 'fantasy_collisions.py', 'fantasy_categories.py', 'fantasy_tileset.py', 'generate_farms.py', 'generate_fantasy_demo.py', 'generate_city.py', 'character_select_area.py']:
         shutil.copy(root / 'tools' / name, project / 'tools')
     for name in ['generate_farms.py', 'generate_fantasy_demo.py', 'generate_city.py']:
         subprocess.run([sys.executable, str(project / 'tools' / name)], check=True)
@@ -25,6 +31,12 @@ with tempfile.TemporaryDirectory(prefix='marpg-authoring-') as directory:
         environment=[r.get('source') for r in refs if not r.get('source').startswith('gallery/')]
         assert len(environment)==10 and all(s.startswith('fantasy_') for s in environment), (name,environment)
     city=E.parse(project/'assets/tiled/city.tmx').getroot()
+    buttons=city.findall("objectgroup[@name='Triggers']/object[@type='CharacterSelect']")
+    assert [b.get('name') for b in buttons]==['Enemy 1','Enemy 2','Enemy 3','NPC1','NPC2','NPC3','Player']
+    assert [int(b.find("properties/property[@name='character']").get('value')) for b in buttons]==list(range(7))
+    classes=city.findall("objectgroup[@name='Triggers']/object[@type='ClassSelect']")
+    assert [b.get('name') for b in classes]==['Adventurer','Bruiser','Caster','Charger']
+    assert [int(b.find("properties/property[@name='class']").get('value')) for b in classes]==list(range(4))
     instances=city.findall("objectgroup[@name='Prefabs']/object")
     previews=city.findall('group')
     assert len(instances)==8 and len(previews)==8

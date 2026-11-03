@@ -14,9 +14,9 @@ port = 54000
 slots = 5
 # Teams: 0 = free-for-all; 1 through slots = team mode.
 teams = 2
-bots = 2
+bots = 3
 # Set false to keep bots idle. They can still take damage and respawn.
-bot_ai = false
+bot_ai = true
 friendly_fire = false
 # Honor valid client team requests even when they unbalance the teams.
 honor_team_requests = true
@@ -63,3 +63,12 @@ windup_seconds = 0.75
 duration_seconds = 3.0
 damage_interval_seconds = 0.3333333333333333
 cooldown_seconds = 1.0
+
+[beam]
+# Narrow piercing ray; radius is half the beam width.
+damage_min = 30
+damage_max = 40
+radius = 12.0
+range = 975.0
+windup_seconds = 0.6
+cooldown_seconds = 2.5

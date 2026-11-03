@@ -44,8 +44,8 @@ class GameSimulation {
             }
             players[i].state.connected = true;
             players[i].state.team = settings.teams ? static_cast<int>(team) : -1;
-            players[i].state.character = common::chooseCharacter(players[i].state.team, characterRandom);
-            players[i].state.name = "Bot " + std::to_string(i + 1);
+            players[i].state.character = common::botCharacter(i);
+            players[i].state.name = common::botName(i);
             players[i].state.pos = *spawn;
         }
     }
@@ -106,9 +106,9 @@ class GameSimulation {
                 p = GamePlayer{};
                 p.state.connected = true;
                 p.state.team = settings.teams ? int(team) : -1;
-                p.state.name = "Bot " + std::to_string(i + 1);
+                p.state.name = common::botName(i);
                 p.state.pos = *spawn;
-                p.state.character = common::chooseCharacter(p.state.team, characterRandom);
+                p.state.character = common::botCharacter(i);
                 ++existing;
             }
         for (unsigned i = 0; i < players.size(); ++i)
@@ -149,6 +149,7 @@ class GameSimulation {
                 p.state.name = roster[i].state.name;
                 p.state.team = roster[i].state.team;
                 p.state.character = roster[i].state.character;
+                p.state.playerClass = roster[i].state.playerClass;
                 p.state.pos = *spawn;
                 p.state.teleportSequence = roster[i].state.teleportSequence + 1;
                 p.attackInbox = roster[i].attackInbox;
@@ -170,6 +171,8 @@ class GameSimulation {
                 if (!join(i, previous.state.name, previous.state.team < 0 ? 0 : previous.state.team + 1))
                     throw std::runtime_error("New map has insufficient safe spawn space");
                 players[i].human = previous.human;
+                players[i].state.character = previous.state.character;
+                players[i].state.playerClass = previous.state.playerClass;
                 players[i].state.teleportSequence = previous.state.teleportSequence + 1;
                 players[i].attackInbox = previous.attackInbox;
             }
@@ -190,7 +193,6 @@ class GameSimulation {
         if (!spawn)
             throw std::runtime_error("No safe spawn available for that team");
         player.state.team = int(team);
-        player.state.character = common::chooseCharacter(team, characterRandom);
         common::respawn(player.state, player.combat, *spawn);
         ++player.state.teleportSequence;
         player.requestedVelocity = {};
@@ -296,9 +298,10 @@ class GameSimulation {
             }
             const auto oldPosition = player.state.pos;
             if (player.human) {
-                const auto velocity = player.lastInputTime.getElapsedTime().asSeconds() < 0.25f
-                                          ? player.requestedVelocity
-                                          : sf::Vector2f{};
+                const auto velocity =
+                    player.lastInputTime.getElapsedTime().asSeconds() < 0.25f
+                        ? player.requestedVelocity * common::classMovementMultiplier(player.state.playerClass)
+                        : sf::Vector2f{};
                 player.state.pos = collision.move(oldPosition, velocity * common::TICK_DT,
                                                   common::CollisionWorld::PlayerRadius, blockers);
                 player.state.vel = (player.state.pos - oldPosition) / common::TICK_DT;
@@ -312,6 +315,8 @@ class GameSimulation {
             }
 
             triggers.update(i, player.state, collision);
+            if (player.human)
+                triggers.characterSelect().update(player.state);
         }
         std::vector<common::PlayerState*> targets;
         std::vector<common::CombatState*> targetCombats;

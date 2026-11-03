@@ -15,7 +15,7 @@ bool readCombatState(sf::Packet& packet, PlayerState& player) {
     if (!(packet >> debugAttack >> player.combatDebug.elapsedTicks >> player.combatDebug.direction.x >>
           player.combatDebug.direction.y >> player.combatDebug.hit >> player.combatDebug.target))
         return false;
-    if (debugAttack > static_cast<std::uint8_t>(AttackKind::Lightning))
+    if (debugAttack > static_cast<std::uint8_t>(AttackKind::Beam))
         return false;
     player.combatDebug.attack = static_cast<AttackKind>(debugAttack);
     return true;
@@ -57,7 +57,9 @@ void writePlayerState(sf::Packet& packet, const PlayerState& player) {
            << player.spellPosition.y << static_cast<std::uint8_t>(player.spellEffect) << player.facing.x
            << player.facing.y;
     writeCooldowns(packet, player);
-    packet << player.pingMs << player.teleportSequence << player.character;
+    packet << player.pingMs << player.teleportSequence << player.character
+           << static_cast<std::uint8_t>(player.playerClass) << player.beamCooldown << player.spellOrigin.x
+           << player.spellOrigin.y;
 }
 
 bool readPlayerState(sf::Packet& packet, PlayerState& destination) {
@@ -73,7 +75,7 @@ bool readPlayerState(sf::Packet& packet, PlayerState& destination) {
         return false;
     }
 
-    if (attack > static_cast<std::uint8_t>(AttackKind::Lightning)) {
+    if (attack > static_cast<std::uint8_t>(AttackKind::Beam)) {
         return false;
     }
     if (!readCombatState(packet, player))
@@ -89,12 +91,19 @@ bool readPlayerState(sf::Packet& packet, PlayerState& destination) {
         return false;
     if (!readCooldowns(packet, player))
         return false;
-    if (!(packet >> player.pingMs >> player.teleportSequence >> player.character))
+    std::uint8_t playerClass = 0;
+    if (!(packet >> player.pingMs >> player.teleportSequence >> player.character >> playerClass >>
+          player.beamCooldown >> player.spellOrigin.x >> player.spellOrigin.y))
         return false;
-    if ((spell != 3 && spell != 4) || player.pingMs < -1 || player.character >= CharacterNames.size() ||
-        !std::isfinite(x) || !std::isfinite(y) || !std::isfinite(dx) || !std::isfinite(dy) ||
-        !std::isfinite(player.facing.x) || !std::isfinite(player.facing.y) ||
-        !std::isfinite(player.spellPosition.x) || !std::isfinite(player.spellPosition.y))
+    if (playerClass >= static_cast<std::uint8_t>(PlayerClass::Count))
+        return false;
+    player.playerClass = static_cast<PlayerClass>(playerClass);
+    if ((spell != 3 && spell != 4 && spell != 5) || player.pingMs < -1 ||
+        player.character >= CharacterNames.size() || !std::isfinite(player.spellOrigin.x) ||
+        !std::isfinite(player.spellOrigin.y) || !std::isfinite(x) || !std::isfinite(y) ||
+        !std::isfinite(dx) || !std::isfinite(dy) || !std::isfinite(player.facing.x) ||
+        !std::isfinite(player.facing.y) || !std::isfinite(player.spellPosition.x) ||
+        !std::isfinite(player.spellPosition.y))
         return false;
     player.spellEffect = static_cast<AttackKind>(spell);
     destination = std::move(player);
@@ -139,7 +148,7 @@ bool readWorldPacket(sf::Packet& packet, std::vector<PlayerState>& players, std:
             std::uint8_t cause;
             if (!(packet >> event.sequence >> event.killer >> event.victim >> event.killerTeam >>
                   event.victimTeam >> event.killerName >> event.victimName >> cause) ||
-                cause > static_cast<std::uint8_t>(KillCause::Lightning) || event.victim >= MAX_PLAYERS ||
+                cause > static_cast<std::uint8_t>(KillCause::Beam) || event.victim >= MAX_PLAYERS ||
                 event.killer < -1 || event.killer >= MAX_PLAYERS || event.killerName.size() > 64 ||
                 event.victimName.size() > 64)
                 return false;

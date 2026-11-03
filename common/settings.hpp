@@ -19,6 +19,7 @@ struct ServerSettings {
     double lightWindupSeconds = .25, heavyWindupSeconds = .375;
     SpellSettings spell;
     SpellSettings lightning{1, 4, 45, 500, .25, 1, 3, 1.0 / 3.0};
+    SpellSettings beam{30, 40, 12, 650, .6, 2.5, 0, 1.0 / 3.0};
     std::string name = "Rick's Funhaus";
     std::string ip = "0.0.0.0";
     std::uint16_t port = 54000;
@@ -60,7 +61,7 @@ ClientSettings loadClientSettings(const std::string& path);
 inline std::string mapPath(const ServerSettings& settings = ServerSettings{}) {
     return "../assets/tiled/" + settings.map + ".tmx";
 }
-inline constexpr std::uint32_t ProtocolVersion = 9;
+inline constexpr std::uint32_t ProtocolVersion = 11;
 inline AttackDefinition attackDescription(AttackKind kind) {
     return attackDescription(kind, ServerSettings{});
 }

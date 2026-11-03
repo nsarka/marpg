@@ -44,6 +44,8 @@ class KillFeed {
     }
     static const char* cause(common::KillCause cause) {
         switch (cause) {
+        case common::KillCause::Beam:
+            return "BEAM";
         case common::KillCause::Lightning:
             return "LIGHTNING";
         case common::KillCause::Spell:

@@ -22,11 +22,12 @@ enum class Action {
     Explosion,
     Lightning,
     Chat,
+    Beam,
     Count
 };
 inline constexpr std::array<const char*, static_cast<std::size_t>(Action::Count)> BindingNames = {
-    "move_up", "move_down",  "move_left", "move_right", "walk",      "light",
-    "heavy",   "scoreboard", "debug",     "spell",      "lightning", "chat"};
+    "move_up",    "move_down", "move_left", "move_right", "walk", "light", "heavy",
+    "scoreboard", "debug",     "spell",     "lightning",  "chat", "beam"};
 // Keyboard codes occupy the first range; mouse buttons follow them.
 inline int mouseBinding(sf::Mouse::Button button) {
     return int(sf::Keyboard::KeyCount) + int(button);
@@ -116,6 +117,7 @@ struct KeyBindings {
          {parseBinding("f1")},
          {parseBinding("e")},
          {parseBinding("q")},
-         {parseBinding("enter")}}};
+         {parseBinding("enter")},
+         {parseBinding("r")}}};
 };
 } // namespace common

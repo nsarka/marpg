@@ -6,6 +6,7 @@ import xml.etree.ElementTree as E
 from fantasy_categories import CATEGORIES
 from map_authoring import csv_layer, write
 from refresh_prefab_previews import refresh
+from character_select_area import add_character_select_area
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / 'assets/tiled'
@@ -282,6 +283,7 @@ labels = E.SubElement(m, 'objectgroup', id=str(len(layers)+3), name='Labels')
 for i, (name, x, y) in enumerate(landmarks, 33):
     E.SubElement(labels, 'object', id=str(i), name=name, x=str(x * 64 + 64), y=str(y * 64))
 m.set('nextlayerid', str(len(layers)+5)); m.set('nextobjectid', '44')
+add_character_select_area(m, OUT)
 write(m, OUT / 'city.tmx')
 refresh(OUT / 'city.tmx')
 print(f'Created city: {len(houses)} houses, castle, six farm plots, two windmills, 32 spawn points; '

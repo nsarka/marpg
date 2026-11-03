@@ -1,4 +1,5 @@
 #pragma once
+#include "character_select.hpp"
 #include "collision_world.hpp"
 #include "common.hpp"
 #include "damage.hpp"
@@ -18,8 +19,12 @@ class TriggerSystem {
     std::shared_ptr<TriggerRegions> regions_ = std::make_shared<TriggerRegions>();
     ServerSettings settings_;
     TeleportSystem teleports_{regions_};
+    CharacterSelect characterSelect_{regions_};
 
   public:
+    const CharacterSelect& characterSelect() const {
+        return characterSelect_;
+    }
     const TriggerRegions& regions() const {
         return *regions_;
     }
@@ -33,6 +38,7 @@ class TriggerSystem {
               LoadProgress* progress = nullptr) {
         settings_ = settings;
         teleports_.load(map);
+        characterSelect_.load(map);
         boundsDamage_ = settings.boundsDamage;
         boundsInterval_ = damageInterval(settings.boundsIntervalSeconds);
         CollisionWorld regions;

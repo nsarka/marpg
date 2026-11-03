@@ -45,7 +45,7 @@ def attack_state(data):
         kind, serial = struct.unpack_from('!BI', data, offset)
         offset += 23
         count = data[offset + 4]
-        offset += 5 + count * 20 + 50
+        offset += 5 + count * 20 + 63
     return kind, serial
 
 

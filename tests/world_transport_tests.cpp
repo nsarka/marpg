@@ -14,7 +14,7 @@ std::optional<sf::Packet> deliver(common::WorldAssembler& receiver, sf::Packet p
     check(type == common::MSG_WORLD_PART, "Wrong envelope");
     return receiver.accept(packet);
 }
-void writeProtocol7Player(sf::Packet& packet, const common::PlayerState& player) {
+void writeProtocol11Player(sf::Packet& packet, const common::PlayerState& player) {
     packet << player.team << player.connected << player.alive << player.pos.x << player.pos.y << player.vel.x
            << player.vel.y << player.name << player.health << player.score
            << static_cast<std::uint8_t>(player.lastAttack) << player.attackSequence
@@ -27,7 +27,9 @@ void writeProtocol7Player(sf::Packet& packet, const common::PlayerState& player)
     packet << player.kills << player.deaths << player.spellSequence << player.spellPosition.x
            << player.spellPosition.y << static_cast<std::uint8_t>(player.spellEffect) << player.facing.x
            << player.facing.y << player.stunTicks << player.explosionCooldown << player.lightningCooldown
-           << player.pingMs << player.teleportSequence << player.character;
+           << player.pingMs << player.teleportSequence << player.character
+           << static_cast<std::uint8_t>(player.playerClass) << player.beamCooldown << player.spellOrigin.x
+           << player.spellOrigin.y;
 }
 
 int main() {
@@ -50,6 +52,8 @@ int main() {
         check(available, "Character variant is never selected");
     for (std::size_t i = 0; i < players.size(); ++i)
         players[i].character = i % 7;
+    for (std::size_t i = 0; i < players.size(); ++i)
+        players[i].playerClass = static_cast<common::PlayerClass>(i % 4);
     auto& detailed = players[0];
     detailed.kills = 7;
     detailed.deaths = 3;
@@ -92,11 +96,11 @@ int main() {
           "Complete player state lost fields");
     sf::Packet playerWire;
     common::writePlayerState(playerWire, detailed);
-    sf::Packet protocol7Wire;
-    writeProtocol7Player(protocol7Wire, detailed);
-    check(playerWire.getDataSize() == protocol7Wire.getDataSize() &&
-              std::memcmp(playerWire.getData(), protocol7Wire.getData(), playerWire.getDataSize()) == 0,
-          "Player serialization changed the protocol 7 wire layout");
+    sf::Packet protocol11Wire;
+    writeProtocol11Player(protocol11Wire, detailed);
+    check(playerWire.getDataSize() == protocol11Wire.getDataSize() &&
+              std::memcmp(playerWire.getData(), protocol11Wire.getData(), playerWire.getDataSize()) == 0,
+          "Player serialization changed the protocol 11 wire layout");
     sf::Packet shortPlayer;
     shortPlayer.append(playerWire.getData(), playerWire.getDataSize() - 1);
     common::PlayerState unchanged;

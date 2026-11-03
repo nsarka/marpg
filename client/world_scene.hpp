@@ -27,6 +27,7 @@ class WorldScene {
     sf::FloatRect bounds_;
     std::vector<sf::ConvexShape> collisionDebugShapes;
     std::vector<sf::Text> levelLabels;
+    std::vector<sf::ConvexShape> characterButtons_;
 
   public:
     WorldScene(const common::LoadedMap& world, const common::CollisionWorld& collision,
@@ -114,6 +115,37 @@ class WorldScene {
                 levelLabels.push_back(std::move(label));
             }
         }
+        for (const auto& button : triggers.characterSelect().buttons()) {
+            const auto points = button.region->shape.outlines().front();
+            sf::ConvexShape pad(points.size());
+            for (std::size_t i = 0; i < points.size(); ++i)
+                pad.setPoint(i, points[i]);
+            pad.setFillColor(button.changesClass ? sf::Color(105, 70, 25, 220) : sf::Color(28, 77, 102, 220));
+            pad.setOutlineColor(button.region->color);
+            pad.setOutlineThickness(3.f);
+            characterButtons_.push_back(std::move(pad));
+            sf::Text label(font, button.label, uiFontSize(18));
+            const auto bounds = label.getLocalBounds();
+            label.setOrigin(
+                {bounds.position.x + bounds.size.x * .5f, bounds.position.y + bounds.size.y * .5f});
+            label.setPosition(button.center + sf::Vector2f{0, button.changesClass ? -10.f : 0.f});
+            label.setFillColor(sf::Color(240, 250, 255));
+            label.setOutlineColor(sf::Color(12, 25, 35));
+            label.setOutlineThickness(2.f);
+            levelLabels.push_back(std::move(label));
+            if (button.changesClass) {
+                const auto& definition =
+                    common::classDefinition(static_cast<common::PlayerClass>(button.value));
+                sf::Text perk(font, definition.perk, uiFontSize(12));
+                const auto b = perk.getLocalBounds();
+                perk.setOrigin({b.position.x + b.size.x * .5f, b.position.y + b.size.y * .5f});
+                perk.setPosition(button.center + sf::Vector2f{0, 12});
+                perk.setFillColor(sf::Color(255, 225, 170));
+                perk.setOutlineColor(sf::Color(20, 23, 28));
+                perk.setOutlineThickness(1.f);
+                levelLabels.push_back(std::move(perk));
+            }
+        }
         common::loading(progress, "Building lighting height field");
         lighting_.buildHeightField(lightShadows_, stairShadows_, progress);
         update(sf::Time::Zero);
@@ -153,6 +185,8 @@ class WorldScene {
     void drawGround(sf::RenderTarget& target) const {
         for (const auto& layer : ground_)
             target.draw(*layer);
+        for (const auto& button : characterButtons_)
+            target.draw(button);
     }
     void drawStructures(sf::RenderTarget& target) const {
         for (const auto& entry : scenery_) {

@@ -11,6 +11,7 @@ class PlayerAnimation {
     using Anim = common::CharacterAnimation;
     void setAnimations(const ResourceManager::CharacterAnimations& animations) {
         animations_ = &animations;
+        locked_.reset();
         select(Anim::Idle, true);
     }
     bool ready() const {
@@ -103,9 +104,8 @@ class PlayerAnimation {
                                                                             : common::AttackKind::Heavy,
                                                   frames, frame_, settings);
             if (current_ == Anim::Special1 && frame_ < 10) {
-                const auto kind = state.lastAttack == common::AttackKind::Lightning
-                                      ? common::AttackKind::Lightning
-                                      : common::AttackKind::Explosion;
+                const auto kind =
+                    common::isSpell(state.lastAttack) ? state.lastAttack : common::AttackKind::Explosion;
                 return common::attackDescription(kind, settings).startupTicks * common::TICK_DT / 10.f;
             }
             return frames[frame_].durationSeconds;
