@@ -9,7 +9,8 @@ void writeInputCmd(sf::Packet& packet, const common::PlayerId& id, const common:
     packet << std::string(MSG_STATE);
     packet << id << cmd.sequence << cmd.move.x << cmd.move.y << cmd.sprint << cmd.lightHeld
            << cmd.lightPressed << cmd.lightReleased << cmd.heavyHeld << cmd.heavyPressed << cmd.heavyReleased
-           << cmd.aim.x << cmd.aim.y << cmd.hasCursor << cmd.cursor.x << cmd.cursor.y << cmd.movementFacing;
+           << cmd.aim.x << cmd.aim.y << cmd.hasCursor << cmd.cursor.x << cmd.cursor.y << cmd.movementFacing
+           << cmd.dodgeSequence << cmd.dodgeDirection.x << cmd.dodgeDirection.y << cmd.dodgeAgeMs;
 }
 
 bool readInputCmd(sf::Packet& packet, common::PlayerId& id, common::InputCommand& cmd) {
@@ -25,6 +26,9 @@ bool readInputCmd(sf::Packet& packet, common::PlayerId& id, common::InputCommand
     if (!packet.endOfPacket() && !(packet >> cmd.hasCursor >> cmd.cursor.x >> cmd.cursor.y))
         return false;
     if (!packet.endOfPacket() && !(packet >> cmd.movementFacing))
+        return false;
+    if (!packet.endOfPacket() &&
+        !(packet >> cmd.dodgeSequence >> cmd.dodgeDirection.x >> cmd.dodgeDirection.y >> cmd.dodgeAgeMs))
         return false;
     cmd.move.x = moveX;
     cmd.move.y = moveY;

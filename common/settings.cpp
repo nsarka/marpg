@@ -187,7 +187,7 @@ ClientSettings loadClientSettings(const std::string& path) {
           "zoom_max"});
     keys(t, "bindings",
          {"move_up", "move_down", "move_left", "move_right", "walk", "light", "heavy", "scoreboard", "debug",
-          "spell", "lightning", "chat", "beam"});
+          "spell", "lightning", "chat", "beam", "dodge"});
     for (std::size_t i = 0; i < s.bindings.actions.size(); ++i) {
         const std::string action = BindingNames[i];
         const auto node = t["bindings"][action];

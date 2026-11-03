@@ -39,7 +39,7 @@ inline bool isInWindup(const Combat& combat, const ServerSettings& settings = Se
 // Spells may damage their caster; melee attacks never target their attacker.
 inline bool canDamageTarget(const PlayerState& attacker, const PlayerState& target, bool allowSelf,
                             const ServerSettings& settings) {
-    if (!target.connected || !target.alive)
+    if (!target.connected || !target.alive || target.dodgeTicks > 0)
         return false;
     if (&attacker == &target)
         return allowSelf;
@@ -47,7 +47,8 @@ inline bool canDamageTarget(const PlayerState& attacker, const PlayerState& targ
 }
 inline bool startAttack(PlayerState& player, CombatState& combat, AttackKind kind, sf::Vector2f aim = {},
                         const ServerSettings& settings = ServerSettings{}) {
-    if (!player.alive || player.health <= 0 || player.stunTicks > 0 || combat.attack != AttackKind::None ||
+    if (!player.alive || player.health <= 0 || player.stunTicks > 0 || player.dodgeTicks > 0 ||
+        combat.attack != AttackKind::None ||
         (kind != AttackKind::Light && kind != AttackKind::Heavy && kind != AttackKind::Explosion &&
          kind != AttackKind::Lightning && kind != AttackKind::Beam))
         return false;
@@ -86,7 +87,8 @@ inline bool startAttack(PlayerState& player, CombatState& combat, AttackKind kin
 }
 inline bool requestAttack(PlayerState& player, CombatState& combat, const AttackRequest& request,
                           const ServerSettings& settings = ServerSettings{}) {
-    if (!player.alive || player.health <= 0 || player.stunTicks > 0 || request.ageMs >= AttackBufferMs ||
+    if (!player.alive || player.health <= 0 || player.stunTicks > 0 || player.dodgeTicks > 0 ||
+        request.ageMs >= AttackBufferMs ||
         (request.kind != AttackKind::Light && request.kind != AttackKind::Heavy &&
          request.kind != AttackKind::Explosion && request.kind != AttackKind::Lightning &&
          request.kind != AttackKind::Beam) ||
@@ -163,6 +165,8 @@ inline void advanceCooldowns(PlayerState& attacker) {
         --attacker.lightningCooldown;
     if (attacker.beamCooldown > 0)
         --attacker.beamCooldown;
+    if (attacker.dodgeCooldown > 0)
+        --attacker.dodgeCooldown;
 }
 template <typename HitTarget>
 inline void resolveBeam(PlayerState& attacker, CombatState& combat, const std::vector<PlayerState*>& targets,
@@ -343,6 +347,7 @@ inline bool advanceDeath(PlayerState& player, CombatState& combat,
         return false;
     }
     player.health = 0;
+    player.dodgeTicks = 0;
     player.alive = false;
     player.vel = {};
     combat.attack = AttackKind::None;
@@ -360,6 +365,7 @@ inline void respawn(PlayerState& player, CombatState& combat, sf::Vector2f posit
     player.stunTicks = 0;
     player.explosionCooldown = player.lightningCooldown = 0;
     player.beamCooldown = 0;
+    player.dodgeTicks = player.dodgeCooldown = 0;
     player.lastAttack = AttackKind::None;
     combat = CombatState{};
 }

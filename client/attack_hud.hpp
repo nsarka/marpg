@@ -14,7 +14,7 @@ inline float attackSecondsRemaining(const common::PlayerState& player,
                                     const common::ServerSettings& settings = common::ServerSettings{}) {
     if (ability == common::AttackKind::None)
         ability = player.combatDebug.attack;
-    float remaining = player.stunTicks * common::TICK_DT;
+    float remaining = std::max(player.stunTicks, player.dodgeTicks) * common::TICK_DT;
     if (ability == common::AttackKind::Explosion)
         remaining = std::max(remaining, player.explosionCooldown * common::TICK_DT);
     if (ability == common::AttackKind::Beam)
@@ -63,6 +63,23 @@ inline void drawAttackHud(sf::RenderTarget& target, const sf::Font& font, const 
     classLabel.setOutlineColor(sf::Color(20, 23, 28));
     classLabel.setOutlineThickness(1.f);
     target.draw(classLabel);
+    char dodgeStatus[32];
+    if (player.dodgeTicks)
+        std::snprintf(dodgeStatus, sizeof(dodgeStatus), "DODGING");
+    else if (player.dodgeCooldown)
+        std::snprintf(dodgeStatus, sizeof(dodgeStatus), "%.1fs", player.dodgeCooldown * common::TICK_DT);
+    else
+        std::snprintf(dodgeStatus, sizeof(dodgeStatus), "Ready");
+    sf::Text dodgeLabel(font,
+                        sf::String("DODGE (") + abilityBindingLabel(bindings[common::Action::Dodge]) + ") " +
+                            dodgeStatus,
+                        uiFontSize(14));
+    const auto dodgeBounds = dodgeLabel.getLocalBounds();
+    dodgeLabel.setPosition({target.getView().getSize().x - left - dodgeBounds.size.x, y - 24});
+    dodgeLabel.setFillColor(player.dodgeTicks ? sf::Color(100, 240, 255) : sf::Color(180, 215, 240));
+    dodgeLabel.setOutlineColor(sf::Color(20, 23, 28));
+    dodgeLabel.setOutlineThickness(1.f);
+    target.draw(dodgeLabel);
     for (unsigned i = 0; i < 5; ++i) {
         const auto ability = static_cast<common::AttackKind>(i + 1);
         const float remaining = attackSecondsRemaining(player, ability, settings);

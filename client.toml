@@ -18,6 +18,7 @@ show_other_damage_numbers = true
 # Use empty brackets e.g. walk = [] or move_up = [] to disable an action.
 # Changes apply when the client restarts.
 [bindings]
+dodge = "Space"
 beam = "R"
 move_up = "W"
 move_down = "S"

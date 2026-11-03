@@ -216,5 +216,16 @@ void Player::draw(sf::RenderTarget& target, sf::RenderStates states) const {
         target.draw(*m_sprite, states);
     }
 
+    if (m_state.dodgeTicks) {
+        sf::CircleShape ring(14);
+        ring.setOrigin({14, 14});
+        ring.setPosition(m_renderPos);
+        ring.setFillColor(sf::Color::Transparent);
+        ring.setOutlineColor(sf::Color(100, 235, 255, 180));
+        ring.setOutlineThickness(2.f);
+        auto ringStates = states;
+        ringStates.shader = nullptr;
+        target.draw(ring, ringStates);
+    }
     nameplate_.draw(target, states, m_state, m_renderPos, settings_.teams);
 }

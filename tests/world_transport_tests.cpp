@@ -14,7 +14,7 @@ std::optional<sf::Packet> deliver(common::WorldAssembler& receiver, sf::Packet p
     check(type == common::MSG_WORLD_PART, "Wrong envelope");
     return receiver.accept(packet);
 }
-void writeProtocol11Player(sf::Packet& packet, const common::PlayerState& player) {
+void writeProtocol12Player(sf::Packet& packet, const common::PlayerState& player) {
     packet << player.team << player.connected << player.alive << player.pos.x << player.pos.y << player.vel.x
            << player.vel.y << player.name << player.health << player.score
            << static_cast<std::uint8_t>(player.lastAttack) << player.attackSequence
@@ -29,7 +29,8 @@ void writeProtocol11Player(sf::Packet& packet, const common::PlayerState& player
            << player.facing.y << player.stunTicks << player.explosionCooldown << player.lightningCooldown
            << player.pingMs << player.teleportSequence << player.character
            << static_cast<std::uint8_t>(player.playerClass) << player.beamCooldown << player.spellOrigin.x
-           << player.spellOrigin.y;
+           << player.spellOrigin.y << player.dodgeTicks << player.dodgeCooldown << player.dodgeSequence
+           << player.dodgeDirection.x << player.dodgeDirection.y;
 }
 
 int main() {
@@ -96,11 +97,11 @@ int main() {
           "Complete player state lost fields");
     sf::Packet playerWire;
     common::writePlayerState(playerWire, detailed);
-    sf::Packet protocol11Wire;
-    writeProtocol11Player(protocol11Wire, detailed);
-    check(playerWire.getDataSize() == protocol11Wire.getDataSize() &&
-              std::memcmp(playerWire.getData(), protocol11Wire.getData(), playerWire.getDataSize()) == 0,
-          "Player serialization changed the protocol 11 wire layout");
+    sf::Packet protocol12Wire;
+    writeProtocol12Player(protocol12Wire, detailed);
+    check(playerWire.getDataSize() == protocol12Wire.getDataSize() &&
+              std::memcmp(playerWire.getData(), protocol12Wire.getData(), playerWire.getDataSize()) == 0,
+          "Player serialization changed the protocol 12 wire layout");
     sf::Packet shortPlayer;
     shortPlayer.append(playerWire.getData(), playerWire.getDataSize() - 1);
     common::PlayerState unchanged;

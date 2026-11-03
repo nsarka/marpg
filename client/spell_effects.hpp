@@ -33,7 +33,7 @@ class SpellEffects {
     }
     void predictCast(std::size_t id, const common::PlayerState& player, common::AttackKind kind,
                      sf::Vector2f position) {
-        if (id >= warnings_.size() || !player.alive || player.stunTicks > 0 ||
+        if (id >= warnings_.size() || !player.alive || player.stunTicks > 0 || player.dodgeTicks > 0 ||
             player.combatDebug.attack != common::AttackKind::None)
             return;
         if ((kind == common::AttackKind::Explosion && player.explosionCooldown > 0) ||
@@ -52,7 +52,7 @@ class SpellEffects {
             effects_.end());
         for (std::size_t i = 0; i < players.size() && i < seen_.size(); ++i) {
             const auto& p = players[i];
-            if (!p.connected || !p.alive)
+            if (!p.connected || !p.alive || p.dodgeTicks)
                 warnings_[i].reset();
             if (!p.connected) {
                 seen_[i].reset();

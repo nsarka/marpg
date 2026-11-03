@@ -204,6 +204,14 @@ Press **R**, then **left-click** toward an enemy to fire a piercing beam. Press 
 
 Configure `[beam]` in `server.toml` with `damage_min`, `damage_max`, `radius` (half-width), `range`, `windup_seconds`, and `cooldown_seconds`. Change `[bindings] beam = "R"` in `client.toml` to rebind it. Switching classes does not reset its cooldown; respawning does. Multiplayer protocol 11 carries the beam origin, endpoint, and cooldown; restart the updated server and client together.
 
+## Dodge
+
+Press **Space** to dodge in your movement direction, or toward the mouse cursor while stationary (current facing is the fallback). Rebind with `[bindings] dodge = "Space"`. Dodge travels at 675 world units/second for 13 server ticks (about 0.2 seconds, roughly 137 units) and has a 1.25-second cooldown shown on the HUD. Its direction locks when activated. Holding Space does not repeat; press it again after the cooldown.
+
+Dodge cancels an attack windup, recovery, or lightning channel and clears buffered attacks. You cannot attack while dodging or initiate dodge while stunned/dead. Combat hits, including beam and lightning, cannot damage you during the dodge. Walls and living players still block it. Floor/void hazards still hurt and interrupt it. All classes share the dodge speed and duration; changing class preserves the cooldown, while respawning resets it.
+
+Dodge requests repeat in movement packets for up to 250 ms; request sequences prevent retries, cooldown presses, death, round restart, or map reload from replaying a dodge. Protocol 12 replicates its direction, active ticks, event sequence, and cooldown. Restart both updated server and client together.
+
 ## Kill feed
 
 A compact kill feed appears at the top right. Each row shows the killer, a slightly larger bold white LIGHT/HEAVY label, and the victim, with names in team colors. Environmental deaths show WORLD with FLOOR or VOID. The feed is text-only, without backgrounds, badges, or borders. The latest six entries remain for seven seconds and fade during the final second.

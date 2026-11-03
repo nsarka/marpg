@@ -1,6 +1,7 @@
 #pragma once
 #include "common/bot_ai.hpp"
 #include "common/character_roster.hpp"
+#include "common/dodge.hpp"
 #include "common/kill_history.hpp"
 #include "common/loaded_map.hpp"
 #include "common/logger.hpp"
@@ -124,6 +125,7 @@ class GameSimulation {
                     candidate[i].state.attackSequence = players[i].state.attackSequence;
                     candidate[i].state.spellSequence = players[i].state.spellSequence;
                     candidate[i].state.damageSequence = players[i].state.damageSequence;
+                    candidate[i].state.dodgeSequence = players[i].state.dodgeSequence;
                     candidate[i].state.teleportSequence = players[i].state.teleportSequence + 1;
                 }
                 players[i] = std::move(candidate[i]);
@@ -153,6 +155,8 @@ class GameSimulation {
                 p.state.pos = *spawn;
                 p.state.teleportSequence = roster[i].state.teleportSequence + 1;
                 p.attackInbox = roster[i].attackInbox;
+                p.lastDodgeRequest = roster[i].lastDodgeRequest;
+                p.state.dodgeSequence = roster[i].state.dodgeSequence;
             }
         players = std::move(empty);
         killHistory = {};
@@ -175,6 +179,8 @@ class GameSimulation {
                 players[i].state.playerClass = previous.state.playerClass;
                 players[i].state.teleportSequence = previous.state.teleportSequence + 1;
                 players[i].attackInbox = previous.attackInbox;
+                players[i].lastDodgeRequest = previous.lastDodgeRequest;
+                players[i].state.dodgeSequence = previous.state.dodgeSequence;
             }
         settings.honorTeamRequests = honor;
     }
@@ -223,11 +229,14 @@ class GameSimulation {
         const auto spellSequence = player.state.spellSequence;
         const auto attackSequence = player.state.attackSequence;
         const auto damageSequence = player.state.damageSequence;
+        const auto dodgeSequence = player.state.dodgeSequence;
         player.state = common::PlayerState{};
         // Keep event counters monotonic when a slot is reused between snapshots.
         player.state.attackSequence = attackSequence;
         player.state.spellSequence = spellSequence;
         player.state.damageSequence = damageSequence;
+        player.state.dodgeSequence = dodgeSequence;
+        player.lastDodgeRequest = 0;
         player.combat = {};
         player.attackInbox = {};
         player.requestedVelocity = {};
@@ -246,6 +255,11 @@ class GameSimulation {
     }
     void input(common::PlayerId id, common::InputCommand cmd) {
         auto& player = players[id];
+        if (common::sequenceNewer(cmd.dodgeSequence, player.lastDodgeRequest)) {
+            player.lastDodgeRequest = cmd.dodgeSequence;
+            if (cmd.dodgeAgeMs < common::AttackBufferMs)
+                common::startDodge(player.state, player.combat, cmd.dodgeDirection);
+        }
         if (!player.state.alive) {
             return;
         }
@@ -297,7 +311,10 @@ class GameSimulation {
                     blockers.push_back(players[j].state.pos);
             }
             const auto oldPosition = player.state.pos;
-            if (player.human) {
+            if (player.human && player.state.dodgeTicks > 0) {
+                common::moveDodge(player.state, collision, blockers);
+                player.combat.facing = player.state.dodgeDirection;
+            } else if (player.human) {
                 const auto velocity =
                     player.lastInputTime.getElapsedTime().asSeconds() < 0.25f
                         ? player.requestedVelocity * common::classMovementMultiplier(player.state.playerClass)
@@ -330,6 +347,10 @@ class GameSimulation {
                                      settings);
         }
         killHistory.observe(targets, triggers);
+        // Combat protection lasts through every player's damage resolution.
+        for (auto& player : players)
+            if (player.state.dodgeTicks > 0)
+                --player.state.dodgeTicks;
     }
     std::vector<common::PlayerState> snapshot() const {
         auto result = states(players);

@@ -97,6 +97,7 @@ class ClientConnection {
     sf::IpAddress serverIp_;
     unsigned short serverPort_ = 54000;
     common::AttackOutbox attackOutbox_;
+    std::uint32_t lastDodgeRequestSent_ = 0;
     sf::Clock attackClock_;
     common::WorldAssembler worldAssembler_;
     sf::Clock lastWorld_;

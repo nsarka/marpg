@@ -22,6 +22,7 @@ common::PlayerId ClientConnection::connectToServer(const std::string serverText,
                                                    unsigned short port, std::uint32_t requestedTeam,
                                                    common::LoadProgress* progress) {
     common::loading(progress, "Connecting to server");
+    lastDodgeRequestSent_ = 0;
     serverPort_ = port;
     logger.log_info("Connecting to ", serverText, " as ", myName);
 
@@ -290,9 +291,14 @@ void ClientConnection::sendInput(common::PlayerId& id, common::InputCommand& cmd
     if (shuttingDown())
         return;
     const auto nowMs = static_cast<std::uint32_t>(attackClock_.getElapsedTime().asMilliseconds());
-    if (cmd.spellPressed)
+    const bool dodging = common::sequenceNewer(cmd.dodgeSequence, lastDodgeRequestSent_);
+    if (dodging) {
+        lastDodgeRequestSent_ = cmd.dodgeSequence;
+        attackOutbox_.clear();
+    }
+    if (!dodging && cmd.spellPressed)
         attackOutbox_.enqueue(cmd.spellKind, cmd.spellTarget, nowMs);
-    if (cmd.lightPressed || cmd.heavyPressed)
+    if (!dodging && (cmd.lightPressed || cmd.heavyPressed))
         attackOutbox_.enqueue(cmd.lightPressed ? common::AttackKind::Light : common::AttackKind::Heavy,
                               cmd.aim, nowMs);
     for (const auto& request : attackOutbox_.requests(nowMs)) {

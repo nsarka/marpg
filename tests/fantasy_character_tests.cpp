@@ -71,6 +71,14 @@ int main(int argc, char** argv) {
         state.vel = {270, 0};
         animation.update(.1f, state, settings, false, 120, 270);
         check(animation.current() == A::Run, "Changing character retained the old attack animation lock");
+        state.dodgeTicks = common::DodgeDurationTicks;
+        state.dodgeDirection = {0, 1};
+        animation.update(.1f, state, settings, false, 120, 270);
+        check(animation.current() == A::CrouchRun && animation.facing() == F::Dir8,
+              "Dodge animation or movement facing is missing");
+        state.dodgeTicks = 0;
+        animation.update(.1f, state, settings, false, 120, 270);
+        check(animation.current() == A::Run, "Dodge animation did not return to running");
     }
     constexpr int rows[] = {3, 4, 5, 6, 7, 0, 1, 2};
     for (std::size_t i = 0; i < common::CharacterAnimations.size(); ++i) {

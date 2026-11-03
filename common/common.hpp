@@ -32,6 +32,9 @@ inline constexpr const char* MSG_WORLD = "world";
 
 using PlayerId = std::uint32_t;
 using Tick = std::uint32_t;
+inline constexpr Tick DodgeDurationTicks = 13;
+inline constexpr Tick DodgeCooldownTicks = 80;
+inline constexpr float DodgeSpeed = 675.f;
 
 enum class AttackKind : std::uint8_t { None = 0, Light, Heavy, Explosion, Lightning, Beam };
 inline bool isSpell(AttackKind kind) {
@@ -88,6 +91,9 @@ struct InputCommand {
     bool heavyHeld = false;
     bool heavyPressed = false;
     bool heavyReleased = false;
+    std::uint32_t dodgeSequence = 0;
+    sf::Vector2f dodgeDirection{};
+    std::uint32_t dodgeAgeMs = 0;
 };
 
 struct CombatDebugState {
@@ -141,6 +147,9 @@ struct PlayerState {
     Tick explosionCooldown = 0, lightningCooldown = 0;
     Tick beamCooldown = 0;
     sf::Vector2f spellOrigin{};
+    Tick dodgeTicks = 0, dodgeCooldown = 0;
+    std::uint32_t dodgeSequence = 0;
+    sf::Vector2f dodgeDirection{1, 0};
     std::int32_t pingMs = -1;
     sf::Vector2f facing{1.f, 0.f};
     std::uint32_t damageSequence = 0;

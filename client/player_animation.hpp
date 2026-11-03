@@ -58,7 +58,9 @@ class PlayerAnimation {
         }
         if (state.attackSequence != previous.attackSequence && state.alive &&
             state.lastAttack != common::AttackKind::None) {
-            face(state.facing);
+            face(state.dodgeTicks ? state.dodgeDirection : state.facing);
+            if (state.dodgeTicks)
+                locked_.reset();
             const auto animation = client::attackPresentation(state.lastAttack).animation;
             if (state.lastAttack == common::AttackKind::Lightning)
                 select(animation, true);
@@ -74,7 +76,9 @@ class PlayerAnimation {
                 bool combatIdle, float walkSpeed, float runSpeed) {
         if (!ready())
             return;
-        face(state.facing);
+        face(state.dodgeTicks ? state.dodgeDirection : state.facing);
+        if (state.dodgeTicks)
+            locked_.reset();
         const auto lightning = common::attackDescription(common::AttackKind::Lightning, settings);
         const bool channeling =
             state.alive && state.combatDebug.attack == common::AttackKind::Lightning &&
@@ -86,6 +90,8 @@ class PlayerAnimation {
             Anim locomotion = Anim::Idle;
             if (!state.alive)
                 locomotion = Anim::Die;
+            else if (state.dodgeTicks)
+                locomotion = Anim::CrouchRun;
             else if (combatIdle && speed < walkSpeed * walkSpeed)
                 locomotion = Anim::Idle2;
             else if (speed >= runSpeed * runSpeed)

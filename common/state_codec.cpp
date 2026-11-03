@@ -59,7 +59,8 @@ void writePlayerState(sf::Packet& packet, const PlayerState& player) {
     writeCooldowns(packet, player);
     packet << player.pingMs << player.teleportSequence << player.character
            << static_cast<std::uint8_t>(player.playerClass) << player.beamCooldown << player.spellOrigin.x
-           << player.spellOrigin.y;
+           << player.spellOrigin.y << player.dodgeTicks << player.dodgeCooldown << player.dodgeSequence
+           << player.dodgeDirection.x << player.dodgeDirection.y;
 }
 
 bool readPlayerState(sf::Packet& packet, PlayerState& destination) {
@@ -93,7 +94,11 @@ bool readPlayerState(sf::Packet& packet, PlayerState& destination) {
         return false;
     std::uint8_t playerClass = 0;
     if (!(packet >> player.pingMs >> player.teleportSequence >> player.character >> playerClass >>
-          player.beamCooldown >> player.spellOrigin.x >> player.spellOrigin.y))
+          player.beamCooldown >> player.spellOrigin.x >> player.spellOrigin.y >> player.dodgeTicks >>
+          player.dodgeCooldown >> player.dodgeSequence >> player.dodgeDirection.x >> player.dodgeDirection.y))
+        return false;
+    if (player.dodgeTicks > DodgeDurationTicks || player.dodgeCooldown > DodgeCooldownTicks ||
+        !std::isfinite(player.dodgeDirection.x) || !std::isfinite(player.dodgeDirection.y))
         return false;
     if (playerClass >= static_cast<std::uint8_t>(PlayerClass::Count))
         return false;

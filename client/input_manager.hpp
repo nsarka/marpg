@@ -42,6 +42,7 @@ class InputManager {
 
         bool heavyPressed = false;
         bool heavyReleased = false;
+        bool dodgePressed = false;
     };
 
   public:
@@ -56,7 +57,7 @@ class InputManager {
     }
     void updateSpellAvailability(const common::PlayerState& player) {
         const bool free = player.alive && player.health > 0 && player.stunTicks == 0 &&
-                          player.combatDebug.attack == common::AttackKind::None;
+                          player.dodgeTicks == 0 && player.combatDebug.attack == common::AttackKind::None;
         explosionAvailable_ = free && player.explosionCooldown == 0;
         lightningAvailable_ = free && player.lightningCooldown == 0;
         beamAvailable_ = free && player.beamCooldown == 0;
@@ -79,6 +80,7 @@ class InputManager {
     void cancelCombatInput() {
         keys_.light = keys_.heavy = false;
         edges_ = {};
+        dodgePending_ = false;
         spellReady_ = spellClicked_ = false;
         spellClick_.reset();
         attackMousePosition_.reset();
@@ -111,6 +113,10 @@ class InputManager {
 
     bool collisionDebugEnabled_ = false;
     bool debugKeyHeld_ = false;
+    bool dodgeHeld_ = false, dodgePending_ = false;
+    std::uint32_t dodgeRequestSequence_ = 0;
+    sf::Vector2f dodgeDirection_{};
+    sf::Clock dodgeRequestClock_;
     bool spellKeyHeld_ = false, spellReady_ = false, spellClicked_ = false;
     common::AttackKind selectedSpell_ = common::AttackKind::Explosion,
                        clickedSpell_ = common::AttackKind::Explosion;

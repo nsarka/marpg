@@ -93,6 +93,20 @@ common::InputCommand InputManager::buildCommand(sf::Vector2f playerPosition, con
     cmd.heavyPressed = edges_.heavyPressed;
     cmd.heavyReleased = edges_.heavyReleased;
 
+    if (edges_.dodgePressed) {
+        spellReady_ = false;
+        cmd.spellPressed = cmd.lightPressed = cmd.heavyPressed = false;
+        ++dodgeRequestSequence_;
+        dodgeDirection_ = cmd.move.length() > .001f ? cmd.move : cmd.aim;
+        dodgeRequestClock_.restart();
+        dodgePending_ = true;
+    }
+    cmd.dodgeSequence = dodgeRequestSequence_;
+    cmd.dodgeDirection = dodgeDirection_;
+    cmd.dodgeAgeMs = dodgePending_
+                         ? static_cast<std::uint32_t>(dodgeRequestClock_.getElapsedTime().asMilliseconds())
+                         : common::AttackBufferMs;
+
     // Consume edges only when a simulation command is produced.
     edges_ = {};
 
@@ -113,6 +127,7 @@ void InputManager::clearAll() {
     held_.clear();
     keys_ = {};
     debugKeyHeld_ = false;
+    dodgeHeld_ = dodgePending_ = false;
     attackMousePosition_.reset();
     edges_ = {};
 }
@@ -130,6 +145,10 @@ void InputManager::setBinding(int code, bool pressed) {
     else
         held_.erase(code);
     updateMovementBindings();
+    const bool dodge = active(common::Action::Dodge);
+    if (dodge && !dodgeHeld_)
+        edges_.dodgePressed = true;
+    dodgeHeld_ = dodge;
     updateAttackEdges();
     updateDebugToggle();
     updateSpellSelection();

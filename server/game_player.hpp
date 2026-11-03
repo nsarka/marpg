@@ -5,6 +5,7 @@ struct GamePlayer {
     common::PlayerState state;
     common::CombatState combat;
     common::AttackInbox attackInbox;
+    std::uint32_t lastDodgeRequest = 0;
     sf::Vector2f requestedVelocity{};
     sf::Clock lastInputTime;
     bool human = false;
